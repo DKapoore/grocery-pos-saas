@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/app.html" },
-    { "source": "/admin", "destination": "/admin/admin.html" }
+    { "source": "/", "destination": "/saas_pos/frontend/app.html" },
+    { "source": "/admin", "destination": "/saas_pos/admin/admin.html" }
   ]
 }
