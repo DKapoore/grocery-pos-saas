@@ -782,16 +782,16 @@ async def admin_stats(admin = Depends(get_admin)):
 # ======================== SERVE FRONTEND ========================
 @app.get("/")
 async def root():
-    return FileResponse("../frontend/index.html")
+    return {"status": "GroceryPOS API is running!", "version": "2.0"}
 
 @app.get("/app")
 async def serve_app():
-    return FileResponse("../frontend/app.html")
+    return {"message": "Use GitHub Pages: https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html"}
 
 @app.get("/admin")
 async def serve_admin():
-    return FileResponse("../admin/admin.html")
-
+    return {"message": "Use GitHub Pages: https://dkapoore.github.io/grocery-pos-saas/saas_pos/admin/admin.html"}
+    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
