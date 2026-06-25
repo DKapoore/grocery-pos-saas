@@ -688,9 +688,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <!-- ════════════════ SCRIPT ════════════════ -->
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const API = window.location.origin.includes('localhost') || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8000'
-  : https://grocery-pos-saas.onrender.com;
+  : 'https://grocery-pos-backend-lwfh.onrender.com';
 
 const APP_URL = API; // Change to production URL e.g. https://yourpos.com
 
