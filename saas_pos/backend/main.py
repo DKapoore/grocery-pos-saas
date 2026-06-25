@@ -388,6 +388,10 @@ async def login(req: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Check active status
+    if not user["is_active"]:
+        raise HTTPException(status_code=403, detail="Account not activated yet. Please wait for admin approval.")
+    
     # Check free trial user (no password set yet, skip hash check)
     if user["plan"] == "free" and not user["password_hash"]:
         pass
@@ -689,7 +693,7 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
     user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
     conn.close()
     
-    login_url = os.getenv("APP_URL", "https://yourpos.com") + "/app.html"
+    login_url = os.getenv("APP_URL", "https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html")
     
     email_body = f"""
     <h2>🎉 Your POS Account is Ready!</h2>
@@ -726,7 +730,7 @@ Keep this safe! 🙏"""
         "approved_at": start.isoformat()
     })
     
-    return {"success": True, "message": f"User approved. Credentials sent to {user['email']} and WhatsApp {user['whatsapp']}"}
+    return {"success": True, "generated_password": password, "message": f"User approved. Credentials sent to {user['email']} and WhatsApp {user['whatsapp']}"}
 
 @app.post("/api/admin/block")
 async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
@@ -782,16 +786,16 @@ async def admin_stats(admin = Depends(get_admin)):
 # ======================== SERVE FRONTEND ========================
 @app.get("/")
 async def root():
-    return {"status": "GroceryPOS API is running!", "version": "2.0"}
+    return FileResponse("../frontend/index.html")
 
 @app.get("/app")
 async def serve_app():
-    return {"message": "Use GitHub Pages: https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html"}
+    return FileResponse("../frontend/app.html")
 
 @app.get("/admin")
 async def serve_admin():
-    return {"message": "Use GitHub Pages: https://dkapoore.github.io/grocery-pos-saas/saas_pos/admin/admin.html"}
-    
+    return FileResponse("../admin/admin.html")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
