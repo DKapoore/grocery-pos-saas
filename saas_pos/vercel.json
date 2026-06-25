@@ -1,0 +1,7 @@
+{
+  "outputDirectory": "saas_pos/frontend",
+  "rewrites": [
+    { "source": "/admin", "destination": "/saas_pos/admin/admin.html" },
+    { "source": "/(.*)", "destination": "/saas_pos/frontend/app.html" }
+  ]
+}

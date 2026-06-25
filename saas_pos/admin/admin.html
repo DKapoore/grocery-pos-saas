@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroceryPOS — Admin Panel</title>
+<style>
+:root {
+  --bg:#0f172a; --surface:#1e293b; --surface2:#263347; --card:#1a2436;
+  --text:#f1f5f9; --text2:#94a3b8; --text3:#64748b;
+  --border:#2d3f55; --border2:#334155;
+  --accent:#16a34a; --accent2:#064e3b; --accent3:#4ade80;
+  --danger:#ef4444; --danger2:#7f1d1d;
+  --warn:#f59e0b; --warn2:#78350f;
+  --info:#3b82f6; --info2:#1e3a5f;
+  --purple:#8b5cf6; --purple2:#2e1065;
+  --r:12px; --r2:8px;
+  --shadow:0 4px 16px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+a{color:var(--accent3);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* ── inputs ── */
+input,select,textarea{
+  width:100%;padding:10px 13px;border:2px solid var(--border2);
+  border-radius:var(--r2);background:var(--surface2);color:var(--text);
+  font-size:14px;outline:none;transition:.2s;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+textarea{resize:vertical;line-height:1.6;}
+label{font-size:12px;color:var(--text2);font-weight:600;display:block;margin:10px 0 4px;}
+
+/* ── buttons ── */
+button{cursor:pointer;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;padding:9px 16px;transition:.2s;font-family:inherit;display:inline-flex;align-items:center;gap:6px;justify-content:center;}
+.btn-accent{background:var(--accent);color:#fff;}
+.btn-accent:hover{background:#15803d;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#b91c1c;}
+.btn-info{background:var(--info);color:#fff;}
+.btn-info:hover{background:#2563eb;}
+.btn-warn{background:var(--warn);color:#0f172a;}
+.btn-warn:hover{background:#d97706;}
+.btn-purple{background:var(--purple);color:#fff;}
+.btn-purple:hover{background:#7c3aed;}
+.btn-outline{background:transparent;border:1.5px solid var(--border2);color:var(--text2);}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent3);}
+.btn-ghost{background:transparent;color:var(--text2);padding:6px 10px;}
+.btn-ghost:hover{color:var(--text);background:var(--surface2);}
+.btn-sm{padding:6px 11px;font-size:12px;}
+.btn-xs{padding:4px 8px;font-size:11px;}
+.btn-copy{background:var(--surface2);border:1.5px solid var(--border2);color:var(--accent3);padding:7px 13px;font-size:12px;}
+.btn-copy:hover{background:var(--accent2);border-color:var(--accent);}
+.btn-copy.copied{background:var(--accent2);border-color:var(--accent);color:var(--accent3);}
+
+/* ── utils ── */
+.hidden{display:none!important;}
+.flex{display:flex;}
+.gap-6{gap:6px;}
+.gap-8{gap:8px;}
+.gap-12{gap:12px;}
+.flex-1{flex:1;}
+.items-center{align-items:center;}
+.justify-between{justify-content:space-between;}
+.wrap{flex-wrap:wrap;}
+
+/* ── badges ── */
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
+.badge-pending{background:var(--warn2);color:#fbbf24;}
+.badge-approved{background:var(--accent2);color:#4ade80;}
+.badge-blocked{background:var(--danger2);color:#f87171;}
+.badge-free{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.badge-expired{background:#3b0764;color:#c084fc;}
+
+/* ── layout ── */
+.admin-wrap{display:flex;min-height:100vh;}
+.sidebar{
+  width:230px;background:var(--surface);border-right:1px solid var(--border);
+  padding:0;flex-shrink:0;display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sidebar-logo{padding:20px 18px;border-bottom:1px solid var(--border);}
+.logo-text{font-size:1.25rem;font-weight:800;letter-spacing:-.5px;}
+.logo-text span{color:var(--accent3);}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:3px;}
+.nav-section{padding:12px 0 4px;}
+.nav-section-label{padding:4px 18px 6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 18px;
+  color:var(--text2);cursor:pointer;font-size:13.5px;font-weight:500;
+  transition:.15s;border-left:3px solid transparent;position:relative;
+}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:rgba(22,163,74,.12);color:var(--accent3);border-left-color:var(--accent);}
+.nav-item .nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--warn);color:#0f172a;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;}
+.nav-badge.red{background:var(--danger);}
+.sidebar-footer{margin-top:auto;padding:16px 18px;border-top:1px solid var(--border);}
+.admin-info{font-size:12px;color:var(--text3);margin-bottom:10px;}
+.admin-info strong{color:var(--text2);display:block;}
+
+.main{flex:1;padding:24px 28px;overflow-y:auto;max-width:1200px;}
+
+/* ── page ── */
+.page{display:none;}
+.page.active{display:block;}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+.page-title{font-size:1.25rem;font-weight:700;}
+.page-sub{font-size:13px;color:var(--text2);margin-top:2px;}
+
+/* ── stat cards ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--card-color,var(--accent));}
+.stat-val{font-size:1.9rem;font-weight:800;line-height:1;}
+.stat-label{font-size:11px;color:var(--text2);margin-top:5px;font-weight:500;}
+.stat-card.blue{--card-color:var(--info);}  .stat-card.blue .stat-val{color:#60a5fa;}
+.stat-card.green{--card-color:var(--accent);} .stat-card.green .stat-val{color:#4ade80;}
+.stat-card.yellow{--card-color:var(--warn);}  .stat-card.yellow .stat-val{color:#fbbf24;}
+.stat-card.red{--card-color:var(--danger);}   .stat-card.red .stat-val{color:#f87171;}
+.stat-card.purple{--card-color:var(--purple);} .stat-card.purple .stat-val{color:#a78bfa;}
+
+/* ── tables ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.table-header{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.table-header h3{font-size:.95rem;font-weight:700;}
+.tbl-filters{display:flex;gap:8px;flex-wrap:wrap;}
+.tbl-filters input,.tbl-filters select{width:auto;padding:7px 11px;font-size:13px;}
+table{width:100%;border-collapse:collapse;}
+th{padding:9px 14px;text-align:left;font-size:11px;color:var(--text2);font-weight:700;border-bottom:1px solid var(--border);background:var(--surface2);text-transform:uppercase;letter-spacing:.4px;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.td-primary{font-weight:600;color:var(--text);}
+.td-secondary{font-size:11px;color:var(--text2);margin-top:2px;}
+.action-btns{display:flex;gap:5px;flex-wrap:wrap;}
+.empty-row td{text-align:center;color:var(--text3);padding:32px!important;}
+
+/* ── modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);}
+.modal-overlay.show{display:flex;}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:16px;padding:0;width:100%;max-width:680px;
+  max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg);
+}
+.modal-header{padding:18px 22px 0;display:flex;justify-content:space-between;align-items:flex-start;}
+.modal-header h3{font-size:1.05rem;font-weight:700;}
+.modal-close{background:var(--surface2);border:none;color:var(--text2);width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{background:var(--danger2);color:var(--danger);}
+.modal-body{padding:16px 22px 22px;}
+
+/* ── credential generator ── */
+.cred-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface2);border-radius:10px;padding:3px;}
+.cred-step{flex:1;padding:8px 12px;border-radius:8px;text-align:center;font-size:12px;font-weight:600;color:var(--text2);cursor:default;}
+.cred-step.done{background:var(--accent2);color:var(--accent3);}
+.cred-step.active{background:var(--accent);color:#fff;}
+
+.user-info-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.info-row:last-child{border:none;}
+.info-key{font-size:12px;color:var(--text2);font-weight:500;}
+.info-val{font-size:13px;font-weight:600;text-align:right;}
+
+.cred-inputs{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;}
+.cred-inputs h4{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pass-wrap{position:relative;}
+.pass-wrap input{padding-right:36px;}
+.pass-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:15px;padding:0;}
+.gen-btn{margin-top:6px;width:100%;}
+
+.expiry-picker{margin-bottom:14px;}
+.expiry-picker h4{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;}
+.expiry-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.chip{padding:8px 14px;border-radius:8px;border:2px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:.2s;}
+.chip:hover{border-color:var(--accent);color:var(--accent3);}
+.chip.active{border-color:var(--accent);background:var(--accent2);color:var(--accent3);}
+.expiry-preview{background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.expiry-preview .date{color:var(--accent3);font-weight:700;font-size:14px;}
+
+/* ── message templates ── */
+.templates-section{display:flex;flex-direction:column;gap:14px;}
+.template-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.template-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.template-header-left{display:flex;align-items:center;gap:8px;}
+.template-icon{font-size:18px;}
+.template-title{font-size:13px;font-weight:700;}
+.template-sub{font-size:11px;color:var(--text2);}
+.template-copy-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.template-body{padding:14px 16px;}
+.template-meta{margin-bottom:10px;}
+.meta-field{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+.meta-field label{margin:0;min-width:70px;font-size:11px;}
+.meta-field input{flex:1;font-size:13px;padding:7px 10px;}
+.meta-copy{flex-shrink:0;}
+.msg-box{
+  width:100%;min-height:140px;padding:12px;
+  background:var(--surface2);border:2px solid var(--border2);
+  border-radius:8px;font-family:'Courier New',monospace;font-size:12.5px;
+  color:var(--text);line-height:1.7;resize:vertical;
+}
+.msg-box:focus{border-color:var(--accent);}
+.msg-footer{padding:10px 16px 14px;display:flex;justify-content:flex-end;}
+
+/* ── approve section divider ── */
+.section-divider{display:flex;align-items:center;gap:10px;margin:18px 0;}
+.section-divider::before,.section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.section-divider span{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ── receipt modal ── */
+.receipt-img{max-width:100%;border-radius:8px;border:1px solid var(--border);}
+
+/* ── toast ── */
+.toast-container{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{
+  padding:10px 16px;border-radius:10px;color:#fff;font-size:13px;font-weight:600;
+  box-shadow:var(--shadow-lg);animation:toastIn .3s ease;pointer-events:all;
+  display:flex;align-items:center;gap:8px;max-width:320px;
+}
+.toast.success{background:#16a34a;}
+.toast.error{background:#ef4444;}
+.toast.info{background:#3b82f6;}
+.toast.warn{background:#f59e0b;color:#0f172a;}
+@keyframes toastIn{from{transform:translateX(110px);opacity:0}to{transform:none;opacity:1}}
+
+/* ── login ── */
+#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 50%,rgba(22,163,74,.08),transparent 60%),radial-gradient(ellipse at 70% 50%,rgba(59,130,246,.06),transparent 60%);}
+.login-box{background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:36px;width:360px;box-shadow:var(--shadow-lg);}
+.login-logo{text-align:center;margin-bottom:28px;}
+.login-logo .logo-text{font-size:1.6rem;}
+.login-logo p{font-size:12px;color:var(--text3);margin-top:6px;}
+.login-box .field-label{font-size:12px;color:var(--text2);font-weight:600;display:block;margin:12px 0 5px;}
+
+/* ── whatsapp link ── */
+.wa-link{color:#25d366;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.wa-link:hover{color:#22c55e;}
+
+/* ── scrollbar ── */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+/* ── responsive ── */
+@media(max-width:900px){
+  .sidebar{display:none;}
+  .main{padding:16px;}
+  .input-row{grid-template-columns:1fr;}
+  .info-grid{grid-template-columns:1fr;}
+  th,td{padding:8px 10px;}
+}
+@media(max-width:600px){
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .modal-box{max-width:100%;margin:0;}
+}
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ════════════════ LOGIN ════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-text">Grocery<span>POS</span></div>
+      <p>Admin Control Panel</p>
+    </div>
+    <label class="field-label">Username</label>
+    <input id="adminUser" value="admin" placeholder="admin" onkeydown="if(event.key==='Enter')adminLogin()">
+    <label class="field-label">Password</label>
+    <div class="pass-wrap">
+      <input id="adminPass" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')adminLogin()">
+      <button class="pass-eye" onclick="togglePass('adminPass',this)">👁</button>
+    </div>
+    <button class="btn-accent" style="width:100%;margin-top:18px;padding:13px;font-size:14px;" onclick="adminLogin()">
+      🔐 Login to Admin Panel
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════ ADMIN LAYOUT ════════════════ -->
+<div id="adminPanel" class="admin-wrap hidden">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">Grocery<span>POS</span></div>
+      <div class="logo-sub">Admin Control Panel</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Users</div>
+      <div class="nav-item" data-page="pending" onclick="showPage('pending',this)">
+        <span class="nav-icon">⏳</span> Pending
+        <span class="nav-badge" id="pendingCount"></span>
+      </div>
+      <div class="nav-item" data-page="users" onclick="showPage('users',this)">
+        <span class="nav-icon">👥</span> All Users
+      </div>
+      <div class="nav-item" data-page="subscriptions" onclick="showPage('subscriptions',this)">
+        <span class="nav-icon">💳</span> Subscriptions
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Tools</div>
+      <div class="nav-item" data-page="sheets" onclick="showPage('sheets',this)">
+        <span class="nav-icon">📋</span> Google Sheets
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="admin-info">
+        <strong>Administrator</strong>
+        Logged in
+      </div>
+      <button class="btn-outline" style="width:100%;padding:8px;" onclick="adminLogout()">🚪 Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📊 Dashboard</div>
+          <div class="page-sub">Overview of all users and subscriptions</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="loadAll()">🔄 Refresh</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card blue"><div class="stat-val" id="statTotal">—</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card green"><div class="stat-val" id="statActive">—</div><div class="stat-label">Active Subscriptions</div></div>
+        <div class="stat-card yellow"><div class="stat-val" id="statPending">—</div><div class="stat-label">Pending Verification</div></div>
+        <div class="stat-card red"><div class="stat-val" id="statBlocked">—</div><div class="stat-label">Blocked Users</div></div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3>📥 Recent Registrations</h3>
+          <button class="btn-outline btn-sm" onclick="showPage('pending',document.querySelector('[data-page=pending]'))">View All Pending →</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name / Username</th><th>Plan</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
+            <tbody id="recentTable"><tr class="empty-row"><td colspan="5">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PENDING ── -->
+    <div class="page" id="page-pending">
+      <div class="page-header">
+        <div>
+          <div class="page-title">⏳ Pending Verification</div>
+          <div class="page-sub">Verify payment receipt and approve users</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="loadAll()">🔄 Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>WhatsApp</th><th>Email</th><th>Plan</th><th>UPI Used</th><th>Date</th><th>Actions</th></tr></thead>
+            <tbody id="pendingTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ALL USERS ── -->
+    <div class="page" id="page-users">
+      <div class="page-header">
+        <div><div class="page-title">👥 All Users</div></div>
+        <div class="tbl-filters">
+          <input placeholder="🔍 Search name, email, mobile..." id="userSearch" oninput="filterUsers()" style="width:220px;">
+          <select id="userFilter" onchange="filterUsers()">
+            <option value="">All Status</option>
+            <option value="approved">✅ Active</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="blocked">🚫 Blocked</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>City / Store</th><th>Plan</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="usersTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUBSCRIPTIONS ── -->
+    <div class="page" id="page-subscriptions">
+      <div class="page-header">
+        <div><div class="page-title">💳 Active Subscriptions</div></div>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>Plan</th><th>Start</th><th>Expiry</th><th>Days Left</th><th>Actions</th></tr></thead>
+            <tbody id="subTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── GOOGLE SHEETS ── -->
+    <div class="page" id="page-sheets">
+      <div class="page-header"><div class="page-title">📋 Google Sheets Integration</div></div>
+      <div style="max-width:640px;">
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:8px;">🔗 Webhook Setup</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:14px;">Automatically push registration data to Google Sheets on every new signup.</p>
+          <label>Google Apps Script Web App URL</label>
+          <div style="display:flex;gap:8px;">
+            <input id="gasUrl" placeholder="https://script.google.com/macros/s/..." style="flex:1;">
+            <button class="btn-accent" onclick="saveGasUrl()">Save</button>
+          </div>
+          <div class="section-divider"><span>Apps Script Code</span></div>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:10px;">Create Google Apps Script project → paste → Deploy as Web App → Anyone access</p>
+          <textarea class="msg-box" readonly rows="18" style="font-size:11px;">function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Timestamp','Action','Username','Full Name',
+      'Email','WhatsApp','Plan','Amount','City','Store Type','UPI Used','Status']);
+  }
+  sheet.appendRow([
+    new Date().toLocaleString(), data.action||'',
+    data.username||'', data.full_name||'', data.email||'',
+    data.whatsapp||'', data.plan||'', data.plan_amount||'',
+    data.city||'', data.store_type||'', data.upi_used||'',
+    data.payment_status||'pending'
+  ]);
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}</textarea>
+          <div class="section-divider"><span>Export</span></div>
+          <button class="btn-accent" onclick="exportToCSV()" style="padding:10px 20px;">
+            📥 Download All Users CSV
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════════════════ APPROVE MODAL — CREDENTIAL GENERATOR ════════════════ -->
+<div class="modal-overlay" id="approveModal">
+  <div class="modal-box" style="max-width:720px;">
+    <div class="modal-header">
+      <div>
+        <h3>✅ Approve User &amp; Generate Credentials</h3>
+        <p style="font-size:12px;color:var(--text2);margin-top:3px;">Manually create credentials and copy messages to send</p>
+      </div>
+      <button class="modal-close" onclick="closeApproveModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Steps indicator -->
+      <div class="cred-stepper" id="credStepper">
+        <div class="cred-step active" id="step1">1 · User Info</div>
+        <div class="cred-step" id="step2">2 · Set Credentials</div>
+        <div class="cred-step" id="step3">3 · Copy &amp; Send</div>
+      </div>
+
+      <!-- ── Step 1: User Info ── -->
+      <div id="credStep1">
+        <div class="user-info-card" id="approveUserInfo"></div>
+        <!-- Receipt preview -->
+        <div id="receiptPreviewWrap" class="hidden" style="margin-bottom:12px;">
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">📎 Payment Receipt</div>
+          <img id="receiptPreviewImg" class="receipt-img" src="" alt="Receipt" style="max-height:200px;object-fit:contain;">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button class="btn-accent flex-1" onclick="goToStep(2)" style="padding:11px;">Next: Set Credentials →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Credential Setup ── -->
+      <div id="credStep2" class="hidden">
+        <div class="cred-inputs">
+          <h4>🔑 Login Credentials</h4>
+          <div class="input-row">
+            <div>
+              <label>Username</label>
+              <input id="cred_username" placeholder="e.g. ramesh_kirana">
+            </div>
+            <div>
+              <label>Password</label>
+              <div class="pass-wrap">
+                <input id="cred_password" type="text" placeholder="Password">
+                <button class="pass-eye" onclick="togglePass('cred_password',this)">👁</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn-outline gen-btn btn-sm" onclick="generatePassword()">
+            🔀 Auto-Generate Strong Password
+          </button>
+        </div>
+
+        <div class="expiry-picker">
+          <h4>📅 Subscription Duration</h4>
+          <div class="expiry-chips">
+            <button class="chip" onclick="setDays(30,this)">30 Days</button>
+            <button class="chip" onclick="setDays(60,this)">60 Days</button>
+            <button class="chip" onclick="setDays(90,this)">90 Days</button>
+            <button class="chip active" onclick="setDays(365,this)">1 Year</button>
+            <button class="chip" onclick="setDays(730,this)">2 Years</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <input id="customDays" type="number" placeholder="Custom days" min="1" style="width:140px;" oninput="setDaysCustom(this.value)">
+            <span style="font-size:12px;color:var(--text2);">or enter custom days</span>
+          </div>
+          <div class="expiry-preview">
+            <span style="font-size:12px;color:var(--text2);">Expiry Date:</span>
+            <span class="date" id="expiryDateDisplay">—</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="btn-outline flex-1" onclick="goToStep(1)" style="padding:11px;">← Back</button>
+          <button class="btn-accent flex-1" onclick="goToStep(3)" style="padding:11px;">Next: Preview Messages →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Copy & Send Messages ── -->
+      <div id="credStep3" class="hidden">
+
+        <!-- Approve button -->
+        <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-weight:700;color:var(--accent3);font-size:14px;">✅ Credentials Ready</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">Save credentials to database, then copy messages below to send manually</div>
+          </div>
+          <button class="btn-accent" id="finalApproveBtn" onclick="confirmApprove()" style="padding:10px 20px;">
+            💾 Save &amp; Activate User
+          </button>
+        </div>
+
+        <div class="templates-section">
+
+          <!-- EMAIL Template -->
+          <div class="template-card">
+            <div class="template-header">
+              <div class="template-header-left">
+                <span class="template-icon">📧</span>
+                <div>
+                  <div class="template-title">Email Template</div>
+                  <div class="template-sub">Open Gmail/Outlook and send manually</div>
+                </div>
+              </div>
+              <div class="template-copy-btns">
+                <button class="btn-copy btn-sm" onclick="copyField('emailTo','Copy Email')">📋 Copy Email</button>
+                <button class="btn-copy btn-sm" onclick="copyField('emailSubject','Copy Subject')">📋 Copy Subject</button>
+                <button class="btn-copy btn-sm" onclick="copyTextarea('emailMsg','Copy Message')">📋 Copy Message</button>
+              </div>
+            </div>
+            <div class="template-body">
+              <div class="template-meta">
+                <div class="meta-field">
+                  <label>EMAIL TO:</label>
+                  <input id="emailTo" readonly style="background:var(--surface2);">
+                  <button class="btn-copy btn-xs meta-copy" onclick="copyField('emailTo','')">📋</button>
+                </div>
+                <div class="meta-field">
+                  <label>SUBJECT:</label>
+                  <input id="emailSubject" value="POS Billing App — Login Details" style="background:var(--surface2);">
+                  <button class="btn-copy btn-xs meta-copy" onclick="copyField('emailSubject','')">📋</button>
+                </div>
+              </div>
+              <label>MESSAGE:</label>
+              <textarea class="msg-box" id="emailMsg" rows="12"></textarea>
+            </div>
+            <div class="msg-footer">
+              <button class="btn-copy" style="padding:9px 18px;" onclick="copyTextarea('emailMsg','Email message copied!')">
+                📋 COPY EMAIL MESSAGE
+              </button>
+            </div>
+          </div>
+
+          <!-- WHATSAPP Template -->
+          <div class="template-card">
+            <div class="template-header">
+              <div class="template-header-left">
+                <span class="template-icon">💬</span>
+                <div>
+                  <div class="template-title">WhatsApp Template</div>
+                  <div class="template-sub">Click WA link or copy message to send manually</div>
+                </div>
+              </div>
+              <div class="template-copy-btns">
+                <button class="btn-copy btn-sm" id="waDirectBtn" onclick="openWhatsApp()" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">
+                  💬 Open WhatsApp
+                </button>
+                <button class="btn-copy btn-sm" onclick="copyTextarea('waMsg','WhatsApp message copied!')">📋 Copy Message</button>
+              </div>
+            </div>
+            <div class="template-body">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                <span style="font-size:12px;color:var(--text2);">Send to:</span>
+                <strong id="waMobileDisplay" style="color:#25d366;font-size:13px;">—</strong>
+                <a id="waDirectLink" href="#" target="_blank" class="wa-link btn-xs" style="margin-left:auto;padding:5px 10px;background:rgba(37,211,102,.1);border-radius:6px;">
+                  📱 Open WA →
+                </a>
+              </div>
+              <label>MESSAGE:</label>
+              <textarea class="msg-box" id="waMsg" rows="14"></textarea>
+            </div>
+            <div class="msg-footer">
+              <button class="btn-copy" style="padding:9px 18px;background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25d366;" onclick="copyTextarea('waMsg','WhatsApp message copied!')">
+                📋 COPY WHATSAPP MESSAGE
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:16px;">
+          <button class="btn-outline" style="width:100%;padding:10px;" onclick="closeApproveModal()">✓ Done — Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── EXTEND MODAL ── -->
+<div class="modal-overlay" id="extendModal">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>📅 Extend Subscription</h3>
+      <button class="modal-close" onclick="closeExtendModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-info-card" id="extendUserInfo"></div>
+      <div class="expiry-picker">
+        <h4>Extend by</h4>
+        <div class="expiry-chips" id="extendChips">
+          <button class="chip" onclick="setExtendDays(30,this)">+30 Days</button>
+          <button class="chip active" onclick="setExtendDays(90,this)">+90 Days</button>
+          <button class="chip" onclick="setExtendDays(180,this)">+180 Days</button>
+          <button class="chip" onclick="setExtendDays(365,this)">+1 Year</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-outline flex-1" onclick="closeExtendModal()">Cancel</button>
+        <button class="btn-accent flex-1" onclick="confirmExtend()" style="padding:11px;">Extend Subscription</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RECEIPT MODAL ── -->
+<div class="modal-overlay" id="receiptModal" onclick="closeReceiptModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px;text-align:center;">
+    <div class="modal-header">
+      <h3>📎 Payment Receipt</h3>
+      <button class="modal-close" onclick="closeReceiptModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <img id="receiptFullImg" class="receipt-img" src="" alt="Receipt">
+      <div style="margin-top:12px;">
+        <a id="receiptDownload" href="#" download="receipt.jpg" class="btn-info btn-sm" style="text-decoration:none;">⬇ Download</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ SCRIPT ════════════════ -->
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : https://grocery-pos-saas.onrender.com;
+
+const APP_URL = API; // Change to production URL e.g. https://yourpos.com
+
+// ── STATE ────────────────────────────────────────────────────
+let adminToken = null;
+let allUsers   = [];
+let currentUserId    = null;
+let currentExtendId  = null;
+let selectedDays     = 365;
+let selectedExtDays  = 90;
+
+// ── AUTH ─────────────────────────────────────────────────────
+async function adminLogin() {
+  const username = document.getElementById('adminUser').value.trim();
+  const password = document.getElementById('adminPass').value;
+  if (!password) { toast('Enter password', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/api/admin/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    adminToken = data.token;
+    localStorage.setItem('admin_token', adminToken);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    loadAll();
+    toast('Welcome back, Admin!', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function adminLogout() {
+  adminToken = null;
+  localStorage.removeItem('admin_token');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('adminPanel').classList.add('hidden');
+}
+
+async function api(endpoint, options={}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${adminToken}`,
+    ...(options.headers || {})
+  };
+  const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'API Error');
+  return data;
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+// ── LOAD DATA ────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [stats, users] = await Promise.all([
+      api('/api/admin/stats'),
+      api('/api/admin/users')
+    ]);
+    allUsers = users;
+
+    document.getElementById('statTotal').textContent   = stats.total;
+    document.getElementById('statActive').textContent  = stats.active;
+    document.getElementById('statPending').textContent = stats.pending_verification;
+    document.getElementById('statBlocked').textContent = stats.blocked;
+    document.getElementById('pendingCount').textContent = stats.pending_verification || '';
+
+    renderRecentTable();
+    renderPendingTable();
+    renderUsersTable();
+    renderSubTable();
+  } catch(e) { toast('Load failed: ' + e.message, 'error'); }
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+function statusBadge(u) {
+  if (u.is_blocked)                     return '<span class="badge badge-blocked">🚫 Blocked</span>';
+  if (u.payment_status === 'approved')  return '<span class="badge badge-approved">✅ Active</span>';
+  if (u.payment_status === 'pending')   return '<span class="badge badge-pending">⏳ Pending</span>';
+  return `<span class="badge badge-free">Free Trial</span>`;
+}
+function planBadge(u) {
+  if (u.plan === 'yearly')  return '<span style="color:#fbbf24;font-weight:700;">⭐ Yearly</span>';
+  if (u.plan === 'monthly') return '<span style="color:#60a5fa;font-weight:700;">Monthly</span>';
+  return '<span style="color:var(--text2);">Free</span>';
+}
+function daysLeft(expiry) {
+  if (!expiry) return '—';
+  const d = Math.ceil((new Date(expiry) - new Date()) / 86400000);
+  if (d < 0)   return '<span style="color:#f87171;font-weight:700;">Expired</span>';
+  if (d <= 30) return `<span style="color:#fbbf24;font-weight:700;">${d}d</span>`;
+  return `<span style="color:#4ade80;font-weight:700;">${d}d</span>`;
+}
+function fmtDate(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+function fmtDateLong(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'});
+}
+
+// ── RENDER TABLES ─────────────────────────────────────────────
+function renderRecentTable() {
+  const rows = allUsers.slice(0, 10);
+  document.getElementById('recentTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || u.username}</div>
+        <div class="td-secondary">@${u.username}</div>
+      </td>
+      <td>${planBadge(u)}</td>
+      <td>${statusBadge(u)}</td>
+      <td><span style="font-size:12px;">${fmtDate(u.created_at)}</span></td>
+      <td>
+        <div class="action-btns">
+          ${u.payment_status === 'pending' ? `<button class="btn-accent btn-sm" onclick="openApproveModal(${u.id})">✅ Approve</button>` : ''}
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="5">No registrations yet</td></tr>';
+}
+
+function renderPendingTable() {
+  const rows = allUsers.filter(u => u.payment_status === 'pending');
+  document.getElementById('pendingTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">@${u.username}</div>
+      </td>
+      <td>
+        <a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">📱 ${u.whatsapp || '—'}</a>
+      </td>
+      <td style="font-size:12px;">${u.email || '—'}</td>
+      <td>${planBadge(u)} <span style="font-size:11px;color:var(--text2);">₹${u.plan_amount || 0}</span></td>
+      <td style="font-size:12px;color:#fbbf24;">${u.upi_used || '—'}</td>
+      <td style="font-size:12px;">${fmtDate(u.created_at)}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn-accent btn-sm" onclick="openApproveModal(${u.id})">✅ Approve</button>
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎 Receipt</button>` : ''}
+          <button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)">🚫</button>
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">🎉 No pending verifications!</td></tr>';
+}
+
+function renderUsersTable(filtered = null) {
+  const rows = filtered || allUsers;
+  document.getElementById('usersTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">${u.email || ''}</div>
+        <div class="td-secondary"><a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">📱 ${u.whatsapp}</a></div>
+      </td>
+      <td><strong style="color:var(--accent3);">@${u.username}</strong></td>
+      <td>
+        <div class="td-primary">${u.city || '—'}</div>
+        <div class="td-secondary">${u.store_type || '—'}</div>
+      </td>
+      <td>${planBadge(u)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_expiry)}</td>
+      <td>${statusBadge(u)}</td>
+      <td>
+        <div class="action-btns">
+          ${u.payment_status === 'pending' ? `<button class="btn-accent btn-xs" onclick="openApproveModal(${u.id})">✅</button>` : ''}
+          ${u.is_active ? `<button class="btn-warn btn-xs" onclick="openExtendModal(${u.id})">📅</button>` : ''}
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
+          ${!u.is_blocked
+            ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
+            : `<button class="btn-accent btn-xs" onclick="blockUser(${u.id},false)" title="Unblock">✅</button>`}
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">No users found</td></tr>';
+}
+
+function renderSubTable() {
+  const rows = allUsers.filter(u => u.is_active && u.subscription_expiry);
+  document.getElementById('subTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">${u.email}</div>
+      </td>
+      <td><strong style="color:var(--accent3);">@${u.username}</strong></td>
+      <td>${planBadge(u)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_start)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_expiry)}</td>
+      <td>${daysLeft(u.subscription_expiry)}</td>
+      <td><button class="btn-warn btn-sm" onclick="openExtendModal(${u.id})">📅 Extend</button></td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">No active subscriptions</td></tr>';
+}
+
+function filterUsers() {
+  const q      = document.getElementById('userSearch').value.toLowerCase();
+  const filter = document.getElementById('userFilter').value;
+  let rows = allUsers;
+  if (q) rows = rows.filter(u =>
+    (u.full_name||'').toLowerCase().includes(q) ||
+    (u.username||'').toLowerCase().includes(q) ||
+    (u.email||'').toLowerCase().includes(q) ||
+    (u.whatsapp||'').includes(q) ||
+    (u.city||'').toLowerCase().includes(q)
+  );
+  if (filter === 'approved') rows = rows.filter(u => u.is_active && !u.is_blocked);
+  if (filter === 'pending')  rows = rows.filter(u => u.payment_status === 'pending');
+  if (filter === 'blocked')  rows = rows.filter(u => u.is_blocked);
+  renderUsersTable(rows);
+}
+
+// ── APPROVE MODAL — STEPPER ───────────────────────────────────
+function openApproveModal(userId) {
+  currentUserId = userId;
+  const u = allUsers.find(x => x.id === userId);
+  if (!u) return;
+
+  // Pre-fill user info card
+  document.getElementById('approveUserInfo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+      <div class="info-row"><span class="info-key">👤 Name</span><span class="info-val">${u.full_name || '—'}</span></div>
+      <div class="info-row"><span class="info-key">📧 Email</span><span class="info-val" style="font-size:12px;">${u.email || '—'}</span></div>
+      <div class="info-row"><span class="info-key">📱 WhatsApp</span><span class="info-val"><a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">${u.whatsapp}</a></span></div>
+      <div class="info-row"><span class="info-key">🏙️ City</span><span class="info-val">${u.city || '—'}</span></div>
+      <div class="info-row"><span class="info-key">🏪 Store</span><span class="info-val">${u.store_type || '—'}</span></div>
+      <div class="info-row"><span class="info-key">💳 Plan</span><span class="info-val">${u.plan === 'yearly' ? '⭐ Yearly — ₹3,200' : 'Monthly — ₹299'}</span></div>
+      <div class="info-row" style="grid-column:span 2;"><span class="info-key">🔗 UPI Paid</span><span class="info-val" style="color:#fbbf24;">${u.upi_used || '—'}</span></div>
+    </div>`;
+
+  // Receipt preview inside modal
+  if (u.receipt_path) {
+    document.getElementById('receiptPreviewImg').src = `${API}/api/admin/receipt/${userId}?token=${adminToken}`;
+    document.getElementById('receiptPreviewWrap').classList.remove('hidden');
+  } else {
+    document.getElementById('receiptPreviewWrap').classList.add('hidden');
+  }
+
+  // Pre-fill credentials
+  document.getElementById('cred_username').value = u.username;
+  generatePassword();
+  setDays(u.plan === 'yearly' ? 365 : 30, document.querySelector('.chip'));
+
+  goToStep(1);
+  document.getElementById('approveModal').classList.add('show');
+}
+
+function goToStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('credStep' + i).classList.toggle('hidden', i !== n);
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active','done');
+    if (i < n)  el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  });
+
+  // When entering step 3, build messages
+  if (n === 3) buildMessages();
+}
+
+function closeApproveModal() {
+  document.getElementById('approveModal').classList.remove('show');
+  currentUserId = null;
+}
+
+// ── CREDENTIAL FIELDS ────────────────────────────────────────
+function generatePassword() {
+  const pool = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!$';
+  let p = '';
+  for (let i = 0; i < 10; i++) p += pool[Math.floor(Math.random() * pool.length)];
+  document.getElementById('cred_password').value = p;
+}
+
+function setDays(days, el) {
+  selectedDays = days;
+  document.querySelectorAll('#credStep2 .chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('customDays').value = '';
+  updateExpiryPreview();
+}
+
+function setDaysCustom(val) {
+  if (val > 0) {
+    selectedDays = parseInt(val);
+    document.querySelectorAll('#credStep2 .chip').forEach(c => c.classList.remove('active'));
+    updateExpiryPreview();
+  }
+}
+
+function updateExpiryPreview() {
+  const d = new Date();
+  d.setDate(d.getDate() + selectedDays);
+  document.getElementById('expiryDateDisplay').textContent = fmtDateLong(d.toISOString()) + ` (${selectedDays} days)`;
+}
+
+// ── BUILD MESSAGES ────────────────────────────────────────────
+function buildMessages() {
+  const u        = allUsers.find(x => x.id === currentUserId);
+  if (!u) return;
+
+  const username  = document.getElementById('cred_username').value.trim();
+  const password  = document.getElementById('cred_password').value.trim();
+  const expDate   = (() => { const d = new Date(); d.setDate(d.getDate() + selectedDays); return fmtDateLong(d.toISOString()); })();
+  const planLabel = u.plan === 'yearly' ? 'Yearly Plan (1 Year)' : 'Monthly Plan (30 Days)';
+  const loginUrl  = APP_URL + '/app.html';
+
+  // Populate email fields
+  document.getElementById('emailTo').value = u.email || '';
+
+  const emailBody =
+`Hello ${u.full_name || u.username},
+
+Your payment has been verified successfully. 🎉
+
+Your GroceryPOS Login Details:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Username    : ${username}
+Password    : ${password}
+Plan        : ${planLabel}
+Expiry Date : ${expDate}
+Login URL   : ${loginUrl}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Steps to Login:
+1. Open the link above
+2. Enter your Username and Password
+3. Start billing!
+
+⚠️ Please save your password safely. Do not share with anyone.
+
+If you face any issue, reply to this email.
+
+Thank you for choosing GroceryPOS!
+Team GroceryPOS`;
+
+  document.getElementById('emailMsg').value = emailBody;
+
+  // WhatsApp
+  const waMsg =
+`Hello ${u.full_name || u.username}! 👋
+
+✅ *Payment Verified Successfully!*
+
+Your GroceryPOS Login Details:
+
+🔹 *Username:* ${username}
+🔹 *Password:* ${password}
+🔹 *Plan:* ${planLabel}
+📅 *Expiry Date:* ${expDate}
+
+🔗 *Login Link:*
+${loginUrl}
+
+*Steps:*
+1️⃣ Open the link above
+2️⃣ Enter Username & Password
+3️⃣ Start billing! 🎉
+
+⚠️ Please save your password safely.
+
+Thank you! 🙏
+*Team GroceryPOS*`;
+
+  document.getElementById('waMsg').value = waMsg;
+
+  // WhatsApp direct link
+  const mobile = (u.whatsapp || '').replace(/\D/g, '');
+  document.getElementById('waMobileDisplay').textContent = u.whatsapp || '—';
+  const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(waMsg)}`;
+  document.getElementById('waDirectLink').href  = waLink;
+  document.getElementById('waDirectBtn').onclick = () => window.open(waLink, '_blank');
+}
+
+function openWhatsApp() {
+  const link = document.getElementById('waDirectLink').href;
+  if (link && link !== '#') window.open(link, '_blank');
+}
+
+// ── SAVE TO SERVER ────────────────────────────────────────────
+async function confirmApprove() {
+  const username  = document.getElementById('cred_username').value.trim();
+  const password  = document.getElementById('cred_password').value.trim();
+  if (!username || !password) { toast('Username & password are required', 'error'); return; }
+
+  const btn = document.getElementById('finalApproveBtn');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    const res = await api('/api/admin/approve', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: currentUserId,
+        username,
+        password,
+        plan_days: selectedDays
+      })
+    });
+    toast('✅ User activated! Now copy & send credentials manually.', 'success');
+    btn.textContent = '✅ Saved!';
+    loadAll(); // Refresh tables in background
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+    btn.textContent = '💾 Save & Activate User'; btn.disabled = false;
+  }
+}
+
+// ── COPY HELPERS ─────────────────────────────────────────────
+async function copyToClipboard(text, label='') {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (label) toast(label || 'Copied!', 'success');
+    else toast('Copied!', 'success');
+  } catch(e) {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied!', 'success');
+  }
+}
+
+function copyField(id, label) {
+  const el = document.getElementById(id);
+  copyToClipboard(el.value, label || el.value + ' copied!');
+}
+
+function copyTextarea(id, label) {
+  const el = document.getElementById(id);
+  copyToClipboard(el.value, label);
+  // Visual flash
+  el.style.borderColor = 'var(--accent)';
+  setTimeout(() => el.style.borderColor = '', 1200);
+}
+
+// ── EXTEND SUBSCRIPTION ──────────────────────────────────────
+function openExtendModal(userId) {
+  currentExtendId = userId;
+  const u = allUsers.find(x => x.id === userId);
+  if (!u) return;
+  document.getElementById('extendUserInfo').innerHTML = `
+    <div class="info-row"><span class="info-key">User</span><span class="info-val">${u.full_name} (@${u.username})</span></div>
+    <div class="info-row"><span class="info-key">Current Expiry</span>
+      <span class="info-val" style="color:${u.subscription_expiry && new Date(u.subscription_expiry) < new Date() ? '#f87171' : '#4ade80'}">
+        ${fmtDate(u.subscription_expiry)}
+      </span>
+    </div>`;
+  setExtendDays(90, document.querySelector('#extendChips .chip.active') || document.querySelector('#extendChips .chip'));
+  document.getElementById('extendModal').classList.add('show');
+}
+
+function closeExtendModal() {
+  document.getElementById('extendModal').classList.remove('show');
+  currentExtendId = null;
+}
+
+function setExtendDays(days, el) {
+  selectedExtDays = days;
+  document.querySelectorAll('#extendChips .chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+async function confirmExtend() {
+  try {
+    const res = await api('/api/admin/extend', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: currentExtendId, days: selectedExtDays })
+    });
+    closeExtendModal();
+    const exp = fmtDateLong(res.new_expiry);
+    toast(`Extended! New expiry: ${exp}`, 'success');
+    loadAll();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ── BLOCK / UNBLOCK ──────────────────────────────────────────
+async function blockUser(userId, block) {
+  const u = allUsers.find(x => x.id === userId);
+  if (!confirm(`${block ? 'Block' : 'Unblock'} ${u?.full_name || u?.username}?`)) return;
+  try {
+    await api('/api/admin/block', { method:'POST', body: JSON.stringify({ user_id: userId, block }) });
+    toast(`User ${block ? 'blocked' : 'unblocked'}`, block ? 'error' : 'success');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ── RECEIPT ──────────────────────────────────────────────────
+function viewReceipt(userId) {
+  const url = `${API}/api/admin/receipt/${userId}?token=${adminToken}`;
+  document.getElementById('receiptFullImg').src     = url;
+  document.getElementById('receiptDownload').href   = url;
+  document.getElementById('receiptModal').classList.add('show');
+}
+function closeReceiptModal() {
+  document.getElementById('receiptModal').classList.remove('show');
+  document.getElementById('receiptFullImg').src = '';
+}
+
+// ── GOOGLE SHEETS ─────────────────────────────────────────────
+function saveGasUrl() {
+  const url = document.getElementById('gasUrl').value.trim();
+  if (!url) { toast('Enter webhook URL', 'error'); return; }
+  localStorage.setItem('gas_webhook_url', url);
+  toast('Webhook URL saved! Set GAS_WEBHOOK_URL env var on server too.', 'info');
+}
+
+function exportToCSV() {
+  if (!allUsers.length) { toast('No data to export', 'error'); return; }
+  const h = ['ID','Username','Full Name','Email','WhatsApp','City','Store Type','Plan','Amount','Status','Expiry','Registered'];
+  const r = allUsers.map(u => [
+    u.id, u.username, u.full_name||'', u.email||'', u.whatsapp||'',
+    u.city||'', u.store_type||'', u.plan, u.plan_amount||0,
+    u.payment_status, u.subscription_expiry||'', u.created_at||''
+  ]);
+  const csv = [h,...r].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pos_users_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV downloaded!', 'success');
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function togglePass(id, btn) {
+  const el = document.getElementById(id);
+  el.type  = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+
+function toast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='.3s'; setTimeout(()=>t.remove(),300); }, 3800);
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('admin_token');
+  if (saved) {
+    adminToken = saved;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    loadAll();
+  }
+  updateExpiryPreview();
+});
+
+// Auto-refresh every 60s
+setInterval(() => { if (adminToken) loadAll(); }, 60000);
+</script>
+</body>
+</html>
