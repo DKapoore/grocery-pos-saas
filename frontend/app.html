@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>GroceryPOS — Smart Billing for Every Shop</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Cloud SaaS POS for grocery and retail shops">
+<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdyb2NlcnkgUE9TIiwKICAic2hvcnRfbmFtZSI6ICJQT1MiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzBmMTcyYSIsCiAgInRoZW1lX2NvbG9yIjogIiMwZjE3MmEiCn0=">
+
+<script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+:root {
+  --bg: #ffffff; --surface: #f8fafc; --text: #0f172a; --text2: #475569;
+  --border: #e2e8f0; --primary: #0f172a; --accent: #16a34a; --accent2: #dcfce7;
+  --danger: #dc2626; --danger2: #fee2e2; --warn: #f59e0b; --warn2: #fef3c7;
+  --info: #3b82f6; --info2: #dbeafe; --shadow: 0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,.12); --r: 14px;
+}
+body.dark {
+  --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --text2: #94a3b8;
+  --border: #334155; --accent2: #064e3b; --danger2: #7f1d1d; --warn2: #78350f;
+  --info2: #1e3a5f; --shadow: 0 4px 12px rgba(0,0,0,.4); --shadow-lg: 0 10px 30px rgba(0,0,0,.6);
+}
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',system-ui,-apple-system,sans-serif; }
+body { background:var(--bg); color:var(--text); min-height:100vh; transition:background .3s,color .3s; }
+input,select,textarea { width:100%; padding:10px 12px; border:2px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font-size:16px; outline:none; transition:.2s; }
+input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin:10px 0 4px; }
+button { cursor:pointer; border:none; font-size:14px; font-weight:600; border-radius:10px; padding:10px 16px; transition:.2s; }
+.btn-accent { background:var(--accent); color:#fff; }
+.btn-accent:hover { background:#15803d; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-outline { background:transparent; border:2px solid var(--border); color:var(--text); }
+.btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.hidden { display:none!important; }
+.toast-container { position:fixed; top:16px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+.toast { padding:12px 18px; border-radius:10px; color:#fff; font-size:14px; font-weight:600; box-shadow:var(--shadow-lg); animation:slideIn .3s ease; max-width:300px; }
+.toast.success { background:#16a34a; }
+.toast.error { background:#dc2626; }
+.toast.info { background:#3b82f6; }
+@keyframes slideIn { from { transform:translateX(100px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+/* ==================== SCREENS ==================== */
+.screen { display:none; }
+.screen.active { display:block; }
+
+/* ==================== LANDING PAGE ==================== */
+#screen-landing { background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f4c2a 100%); min-height:100vh; }
+.landing-wrap { max-width:960px; margin:0 auto; padding:0 20px; }
+.landing-nav { display:flex; justify-content:space-between; align-items:center; padding:20px 0; }
+.logo { font-size:1.5rem; font-weight:800; color:#fff; letter-spacing:-1px; }
+.logo span { color:#4ade80; }
+.nav-btns { display:flex; gap:10px; }
+.nav-btns button { padding:8px 18px; border-radius:8px; font-size:14px; }
+.hero { text-align:center; padding:60px 0 40px; }
+.hero h1 { font-size:clamp(2rem,5vw,3.5rem); font-weight:800; color:#fff; line-height:1.15; }
+.hero h1 span { color:#4ade80; }
+.hero p { font-size:1.1rem; color:#94a3b8; margin:16px 0 32px; max-width:600px; margin-left:auto; margin-right:auto; }
+.hero-cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.trial-badge { display:inline-block; background:rgba(74,222,128,.15); border:1px solid rgba(74,222,128,.3); color:#4ade80; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; margin-bottom:24px; }
+
+/* Steps Section */
+.steps-section { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:24px; margin:32px 0; }
+.steps-title { text-align:center; font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:20px; }
+.steps-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.step-card { background:rgba(255,255,255,.08); border-radius:12px; padding:14px; text-align:center; }
+.step-num { font-size:1.8rem; font-weight:800; color:#4ade80; }
+.step-en { font-size:12px; color:#fff; font-weight:600; margin-top:4px; }
+.step-hi { font-size:11px; color:#94a3b8; margin-top:2px; }
+
+/* Pricing */
+.pricing-section { padding:40px 0; }
+.pricing-section h2 { text-align:center; font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:8px; }
+.pricing-sub { text-align:center; color:#94a3b8; margin-bottom:28px; }
+.pricing-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
+.price-card { background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.1); border-radius:20px; padding:28px; transition:.3s; cursor:pointer; }
+.price-card:hover,.price-card.selected { border-color:#4ade80; background:rgba(74,222,128,.08); }
+.price-card.popular { border-color:#f59e0b; }
+.popular-badge { background:#f59e0b; color:#0f172a; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; display:inline-block; margin-bottom:12px; }
+.price-amount { font-size:2.5rem; font-weight:800; color:#fff; }
+.price-amount span { font-size:1rem; color:#94a3b8; }
+.price-plan { font-size:1rem; color:#94a3b8; margin-top:4px; }
+.price-save { background:rgba(74,222,128,.2); color:#4ade80; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:600; display:inline-block; margin-top:8px; }
+.price-features { margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+.price-feat { color:#94a3b8; font-size:13px; display:flex; align-items:center; gap:8px; }
+.price-feat::before { content:'✓'; color:#4ade80; font-weight:700; }
+.price-btn { width:100%; margin-top:20px; padding:12px; font-size:15px; border-radius:12px; }
+
+/* UPI QR Section */
+.upi-section { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:28px; margin:24px 0; text-align:center; }
+.upi-section h3 { color:#fff; font-size:1.2rem; margin-bottom:16px; }
+#upiQRContainer { display:flex; justify-content:center; margin:16px 0; }
+#upiQRContainer canvas, #upiQRContainer img { border-radius:12px; }
+.upi-id-display { background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); border-radius:10px; padding:10px 16px; color:#4ade80; font-weight:700; font-size:1rem; display:inline-block; margin:8px 0; }
+.proceed-btn { background:linear-gradient(135deg,#16a34a,#15803d); color:#fff; font-size:1.1rem; padding:14px 32px; border-radius:12px; margin-top:16px; }
+
+/* ==================== REGISTRATION FORM ==================== */
+#screen-register { background:var(--bg); min-height:100vh; }
+.form-wrap { max-width:560px; margin:0 auto; padding:20px; }
+.form-header { display:flex; align-items:center; gap:12px; padding:16px 0; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.form-header button { background:none; border:none; font-size:1.5rem; color:var(--text2); }
+.form-title { font-size:1.3rem; font-weight:700; }
+.form-plan-badge { background:var(--accent2); color:var(--accent); padding:4px 12px; border-radius:8px; font-size:13px; font-weight:600; }
+.info-note { background:#fef3c7; border:1px solid #f59e0b; border-radius:10px; padding:12px; font-size:13px; color:#92400e; margin:12px 0; }
+.submit-btn { width:100%; padding:14px; font-size:1rem; border-radius:12px; margin-top:16px; }
+.file-upload { border:2px dashed var(--border); border-radius:10px; padding:20px; text-align:center; cursor:pointer; transition:.2s; }
+.file-upload:hover { border-color:var(--accent); }
+.file-upload input { display:none; }
+.file-name { font-size:13px; color:var(--accent); margin-top:8px; font-weight:600; }
+
+/* ==================== LOGIN ==================== */
+#screen-login { background:var(--bg); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.login-box { width:100%; max-width:420px; background:var(--surface); border-radius:20px; padding:32px; box-shadow:var(--shadow-lg); }
+.login-logo { text-align:center; margin-bottom:24px; }
+.login-logo .logo { font-size:1.8rem; }
+.login-tabs { display:flex; background:var(--bg); border-radius:10px; padding:4px; margin-bottom:20px; }
+.login-tab { flex:1; padding:8px; border-radius:8px; background:none; border:none; color:var(--text2); font-weight:600; font-size:14px; }
+.login-tab.active { background:var(--accent); color:#fff; }
+.forgot-link { text-align:center; margin-top:12px; font-size:13px; color:var(--accent); cursor:pointer; }
+
+/* ==================== POS APP ==================== */
+#screen-app { height:100vh; display:none; flex-direction:column; overflow:hidden; }
+#screen-app.active { display:flex; }
+.app-wrap { width:100%; max-width:680px; margin:0 auto; display:flex; flex-direction:column; height:100vh; background:var(--surface); box-shadow:var(--shadow-lg); overflow:hidden; }
+
+/* App Header */
+.app-header { padding:10px 14px; background:var(--bg); border-bottom:2px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+.app-header .logo-sm { font-size:1rem; font-weight:800; }
+.app-header .logo-sm span { color:var(--accent); }
+.header-icons { display:flex; gap:4px; }
+.icon-btn { background:var(--bg); border:2px solid var(--border); padding:7px 10px; border-radius:9px; cursor:pointer; font-size:14px; color:var(--text); transition:.2s; }
+.icon-btn:hover { border-color:var(--accent); color:var(--accent); }
+.sub-badge { font-size:10px; padding:2px 7px; border-radius:6px; font-weight:700; }
+.sub-badge.free { background:var(--warn2); color:#92400e; }
+.sub-badge.active { background:var(--accent2); color:#166534; }
+.sub-badge.expired { background:var(--danger2); color:var(--danger); }
+
+/* Bill Tabs */
+.tabs-bar { display:flex; align-items:center; padding:8px 10px; gap:6px; background:var(--bg); border-bottom:1px solid var(--border); overflow-x:auto; flex-shrink:0; scrollbar-width:none; }
+.tabs-bar::-webkit-scrollbar { display:none; }
+.bill-tab { flex-shrink:0; padding:6px 12px; border-radius:8px; border:2px solid var(--border); background:var(--bg); color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; transition:.2s; white-space:nowrap; }
+.bill-tab.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+.bill-tab.hold { border-color:var(--warn); background:var(--warn2); color:#92400e; }
+.bill-tab.completed { border-color:var(--border); background:var(--surface); color:var(--text2); opacity:.6; }
+.new-tab-btn { flex-shrink:0; padding:6px 10px; border-radius:8px; background:var(--accent2); border:2px dashed var(--accent); color:var(--accent); font-size:16px; font-weight:700; cursor:pointer; }
+
+/* Barcode Area */
+.scan-bar { padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; gap:6px; flex-shrink:0; }
+.scan-input-wrap { flex:1; position:relative; }
+.scan-input-wrap input { padding:9px 12px 9px 36px; font-size:14px; }
+.scan-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text2); font-size:14px; pointer-events:none; }
+.scan-bar .icon-btn { flex-shrink:0; }
+
+/* Cart Area */
+.cart-area { flex:1; overflow-y:auto; padding:8px 10px; background:var(--surface); }
+.cart-empty { text-align:center; padding:40px 20px; color:var(--text2); }
+.cart-empty .empty-icon { font-size:3rem; margin-bottom:8px; }
+.cart-item { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--bg); border-radius:12px; margin-bottom:6px; border:1px solid var(--border); }
+.cart-item.free-watermark { opacity:.7; position:relative; overflow:hidden; }
+.cart-item.free-watermark::after { content:'FREE VERSION'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-20deg); font-size:18px; font-weight:900; color:rgba(239,68,68,.25); pointer-events:none; white-space:nowrap; }
+.item-name { flex:1; font-weight:600; font-size:14px; }
+.item-name small { display:block; color:var(--text2); font-weight:400; font-size:12px; }
+.qty-ctrl { display:flex; align-items:center; gap:4px; }
+.qty-btn { width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; background:var(--surface); border:1px solid var(--border); cursor:pointer; }
+.qty-num { width:28px; text-align:center; font-size:13px; font-weight:700; }
+.item-price { font-size:13px; font-weight:700; color:var(--accent); min-width:60px; text-align:right; }
+.item-del { color:var(--danger); font-size:14px; cursor:pointer; padding:4px; }
+
+/* Summary Bar */
+.summary-bar { padding:10px 14px; background:var(--bg); border-top:2px solid var(--border); flex-shrink:0; }
+.summary-row { display:flex; justify-content:space-between; font-size:13px; color:var(--text2); margin-bottom:3px; }
+.summary-total { display:flex; justify-content:space-between; font-size:1.3rem; font-weight:800; color:var(--text); margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+.bill-meta { display:flex; gap:8px; font-size:11px; color:var(--text2); margin-bottom:6px; flex-wrap:wrap; }
+.meta-tag { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:2px 8px; }
+
+/* Action Bar */
+.action-bar { padding:8px 10px; background:var(--bg); border-top:1px solid var(--border); display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; }
+.action-bar button { flex:1; min-width:70px; padding:9px 8px; font-size:12px; border-radius:9px; }
+.action-bar .btn-complete { background:var(--accent); color:#fff; font-size:13px; }
+
+/* Trial Lock Banner */
+.trial-lock { background:linear-gradient(135deg,#dc2626,#9b1c1c); padding:14px; text-align:center; color:#fff; flex-shrink:0; }
+.trial-lock h3 { font-size:1rem; margin-bottom:4px; }
+.trial-lock p { font-size:12px; opacity:.85; margin-bottom:10px; }
+.trial-lock button { background:#fff; color:#dc2626; padding:8px 20px; border-radius:8px; font-weight:700; }
+
+/* Modals & Drawers */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:none; align-items:flex-end; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal-box { background:var(--bg); border-radius:20px 20px 0 0; padding:24px; width:100%; max-width:560px; max-height:85vh; overflow-y:auto; }
+.modal-box h3 { margin-bottom:16px; font-size:1.1rem; }
+.modal-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px; }
+.modal-actions { display:flex; gap:8px; margin-top:16px; }
+.modal-actions button { flex:1; padding:11px; }
+.drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:none; }
+.drawer-overlay.show { display:block; }
+.drawer { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:560px; background:var(--bg); border-radius:20px 20px 0 0; padding:20px; z-index:101; max-height:80vh; overflow-y:auto; }
+
+/* Scanner */
+.scanner-modal { position:fixed; inset:0; background:#000; z-index:200; display:none; }
+.scanner-modal.show { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#scannerVideo { width:100%; max-width:500px; }
+.scanner-close { position:absolute; top:20px; right:20px; background:rgba(255,255,255,.2); border:none; color:#fff; width:44px; height:44px; border-radius:50%; font-size:18px; cursor:pointer; }
+.scanner-frame { position:absolute; width:250px; height:250px; border:3px solid #4ade80; border-radius:12px; pointer-events:none; }
+.scanner-line { position:absolute; width:100%; height:2px; background:rgba(74,222,128,.7); animation:scanLine 2s linear infinite; }
+@keyframes scanLine { 0%{top:0} 100%{top:calc(100% - 2px)} }
+
+/* Products Panel */
+.prod-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:350px; overflow-y:auto; margin:8px 0; }
+.prod-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:4px; }
+.prod-card-name { font-size:13px; font-weight:600; }
+.prod-card-price { font-size:12px; color:var(--accent); font-weight:700; }
+.prod-card-add { background:var(--accent); color:#fff; padding:5px 10px; border-radius:7px; font-size:12px; margin-top:4px; }
+
+/* Sales History */
+.history-list { max-height:400px; overflow-y:auto; }
+.hist-item { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
+.hist-info { font-size:13px; }
+.hist-bill { font-weight:700; }
+.hist-cust { color:var(--text2); font-size:12px; }
+.hist-amount { font-size:1rem; font-weight:800; color:var(--accent); }
+
+/* Loyalty */
+.points-badge { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:10px; padding:12px 16px; margin:8px 0; }
+.points-big { font-size:2rem; font-weight:800; }
+.points-label { font-size:12px; opacity:.85; }
+
+/* Print Area */
+#printArea { display:none; }
+@media print {
+  body > *:not(#printArea) { display:none!important; }
+  #printArea { display:block!important; }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .steps-grid { grid-template-columns:1fr 1fr; }
+  .pricing-grid { grid-template-columns:1fr; }
+  .prod-grid { grid-template-columns:1fr; }
+}
+@media (min-width: 768px) {
+  #screen-app.active { background:var(--surface); }
+  .app-wrap { border-left:1px solid var(--border); border-right:1px solid var(--border); }
+}
+
+/* Subscription expired overlay */
+.expired-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
+.expired-box { background:var(--bg); border-radius:20px; padding:32px; text-align:center; max-width:380px; width:100%; }
+.expired-icon { font-size:3rem; margin-bottom:12px; }
+.expired-box h2 { font-size:1.3rem; margin-bottom:8px; }
+.expired-box p { color:var(--text2); font-size:14px; margin-bottom:20px; }
+
+/* USB Scanner indicator */
+.usb-indicator { font-size:11px; color:var(--accent); font-weight:600; padding:2px 8px; background:var(--accent2); border-radius:6px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== TOAST ==================== -->
+<div class="toast-container" id="toastContainer"></div>
+<div id="printArea"></div>
+
+<!-- ==================== SCREEN: LANDING ==================== -->
+<div id="screen-landing" class="screen active">
+  <div class="landing-wrap">
+    <nav class="landing-nav">
+      <div class="logo">Grocery<span>POS</span></div>
+      <div class="nav-btns">
+        <button class="btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3);" onclick="showScreen('screen-login')">Login</button>
+        <button class="btn-accent" onclick="scrollToPricing()">Get Started</button>
+      </div>
+    </nav>
+
+    <div class="hero">
+      <div class="trial-badge">🎁 3 Free Bills — No Credit Card Needed</div>
+      <h1>Smart Billing for<br><span>Every Shop</span></h1>
+      <p>Cloud POS system for grocery, kirana, and retail shops. Works on mobile, tablet & desktop.</p>
+      <div class="hero-cta">
+        <button class="btn-accent" style="padding:13px 28px;font-size:1rem;" onclick="startFreeTrial()">Start Free Trial</button>
+        <button class="btn-outline" style="padding:13px 28px;font-size:1rem;color:#fff;border-color:rgba(255,255,255,.3);" onclick="scrollToPricing()">View Plans</button>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps-section">
+      <div class="steps-title">📋 How to Get Started | कैसे शुरू करें</div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <div class="step-en">Choose Plan</div>
+          <div class="step-hi">प्लान चुनें</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <div class="step-en">Pay via UPI QR</div>
+          <div class="step-hi">QR से पेमेंट करें</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <div class="step-en">Fill Form + Upload Receipt</div>
+          <div class="step-hi">फॉर्म भरें, रसीद अपलोड करें</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">4</div>
+          <div class="step-en">Admin Verifies</div>
+          <div class="step-hi">पेमेंट वेरिफिकेशन होगा</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">5</div>
+          <div class="step-en">Get Password on WhatsApp + Email within 24hrs</div>
+          <div class="step-hi">24 घंटे में पासवर्ड मिलेगा</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="pricing-section" id="pricingSection">
+      <h2>Choose Your Plan</h2>
+      <p class="pricing-sub">Unlimited billing after activation</p>
+      <div class="pricing-grid">
+        <div class="price-card" id="planMonthly" onclick="selectPlan('monthly')">
+          <div class="price-amount">₹299 <span>/ month</span></div>
+          <div class="price-plan">Monthly Plan</div>
+          <div class="price-features">
+            <div class="price-feat">Unlimited bills</div>
+            <div class="price-feat">Barcode scanning</div>
+            <div class="price-feat">PDF & WhatsApp export</div>
+            <div class="price-feat">Customer loyalty points</div>
+            <div class="price-feat">Sales history</div>
+          </div>
+          <button class="btn-outline price-btn" id="monthlyBtn">Select Monthly</button>
+        </div>
+        <div class="price-card" id="planYearly" onclick="selectPlan('yearly')">
+          <div class="popular-badge">🔥 Best Value</div>
+          <div class="price-amount">₹3,200 <span>/ year</span></div>
+          <div class="price-plan">Yearly Plan</div>
+          <div class="price-save">Save ₹1,388 vs Monthly</div>
+          <div class="price-features">
+            <div class="price-feat">Everything in Monthly</div>
+            <div class="price-feat">Priority support</div>
+            <div class="price-feat">Free updates</div>
+            <div class="price-feat">Multi-device access</div>
+          </div>
+          <button class="btn-accent price-btn" id="yearlyBtn">Select Yearly ⭐</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPI Payment QR -->
+    <div class="upi-section" id="upiSection" style="display:none;">
+      <h3>💳 Pay Now via UPI</h3>
+      <p style="color:#94a3b8;font-size:14px;margin-bottom:12px;">Scan QR or use UPI ID below</p>
+      <div id="upiQRContainer"></div>
+      <div class="upi-id-display">dkapoore@oksbi</div>
+      <p style="color:#94a3b8;font-size:13px;margin-top:8px;">Amount: <strong id="planAmountDisplay" style="color:#4ade80;"></strong></p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:4px;">Screenshot lene ke baad form fill karein</p>
+      <button class="proceed-btn" onclick="proceedToForm()">✅ Payment Done — Fill Form</button>
+    </div>
+
+    <div style="height:60px;"></div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: REGISTER ==================== -->
+<div id="screen-register" class="screen">
+  <div class="form-wrap">
+    <div class="form-header">
+      <button onclick="showScreen('screen-landing')">←</button>
+      <div>
+        <div class="form-title">Payment Registration</div>
+        <div class="form-plan-badge" id="regPlanBadge">Monthly — ₹299</div>
+      </div>
+    </div>
+
+    <div class="info-note">
+      ⚠️ <strong>Important:</strong> Your login password will be sent on <strong>Email and WhatsApp</strong> after payment verification. Please enter correct WhatsApp number and Email ID.
+    </div>
+    <div class="info-note" style="background:#dbeafe;border-color:#3b82f6;color:#1e3a5f;">
+      📝 सूचना: पेमेंट वेरिफिकेशन के बाद 24 घंटे में आपका पासवर्ड WhatsApp और Email पर भेजा जाएगा।
+    </div>
+
+    <form id="regForm" onsubmit="submitRegistration(event)">
+      <label>Full Name / पूरा नाम *</label>
+      <input id="reg_name" required placeholder="Your full name">
+
+      <label>Email ID *</label>
+      <input id="reg_email" type="email" required placeholder="yourname@email.com">
+
+      <label>WhatsApp Mobile Number / व्हाट्सएप नंबर *</label>
+      <input id="reg_whatsapp" type="tel" required placeholder="10-digit mobile number" maxlength="10">
+
+      <label>Username (for login) *</label>
+      <input id="reg_username" required placeholder="Choose a username (no spaces)" pattern="[a-zA-Z0-9_]+" title="Letters, numbers and underscore only">
+
+      <label>City / शहर *</label>
+      <input id="reg_city" required placeholder="Your city">
+
+      <label>Store / Business Type *</label>
+      <select id="reg_store">
+        <option value="">Select store type</option>
+        <option>Grocery / Kirana</option>
+        <option>Supermarket</option>
+        <option>Pharmacy / Medical</option>
+        <option>Vegetable & Fruit Shop</option>
+        <option>General Store</option>
+        <option>Bakery</option>
+        <option>Electronics</option>
+        <option>Other Retail</option>
+      </select>
+
+      <label>UPI ID Used for Payment *</label>
+      <input id="reg_upi" required placeholder="e.g. 9876543210@ybl">
+
+      <label>Payment Screenshot / रसीद *</label>
+      <div class="file-upload" onclick="document.getElementById('reg_receipt').click()">
+        <div>📎 Click to upload payment screenshot</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">JPG, PNG, PDF accepted</div>
+        <input type="file" id="reg_receipt" accept="image/*,.pdf" onchange="updateFileName(this)">
+        <div class="file-name" id="fileName">No file selected</div>
+      </div>
+
+      <button type="submit" class="btn-accent submit-btn" id="regSubmitBtn">
+        Submit Registration →
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: LOGIN ==================== -->
+<div id="screen-login" class="screen">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);">
+    <div class="login-box">
+      <div class="login-logo">
+        <div class="logo" style="color:var(--text)">Grocery<span>POS</span></div>
+        <p style="font-size:13px;color:var(--text2);margin-top:4px;">Cloud Billing Platform</p>
+      </div>
+
+      <div class="login-tabs">
+        <button class="login-tab active" id="tabLogin" onclick="switchLoginTab('login')">🔐 Login</button>
+        <button class="login-tab" id="tabTrial" onclick="switchLoginTab('trial')">🎁 Free Trial</button>
+      </div>
+
+      <!-- Login Form -->
+      <div id="loginForm">
+        <label>Username</label>
+        <input id="loginUser" placeholder="Enter username">
+        <label>Password</label>
+        <input id="loginPass" type="password" placeholder="Enter password">
+        <button class="btn-accent" style="width:100%;margin-top:16px;padding:13px;font-size:1rem;" onclick="doLogin()">Login →</button>
+        <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+      </div>
+
+      <!-- Trial Form -->
+      <div id="trialForm" class="hidden">
+        <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;font-size:13px;color:#166534;margin-bottom:16px;">
+          🎁 <strong>3 Free Bills</strong> — No payment needed. Try the full POS system!
+        </div>
+        <label>Choose a Username</label>
+        <input id="trialUser" placeholder="e.g. myshop123">
+        <button class="btn-accent" style="width:100%;margin-top:16px;padding:13px;font-size:1rem;" onclick="doFreeTrial()">Start Free Trial →</button>
+        <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: POS APP ==================== -->
+<div id="screen-app" class="screen">
+<div class="app-wrap">
+
+  <!-- App Header -->
+  <div class="app-header">
+    <div>
+      <div class="logo-sm">Grocery<span>POS</span></div>
+      <div id="subStatusBadge" class="sub-badge free">Free</div>
+    </div>
+    <div class="header-icons">
+      <span class="icon-btn" id="usbIndicator" style="display:none;" title="USB Scanner Ready">⌨️</span>
+      <button class="icon-btn" onclick="showHistory()" title="Sales History">📊</button>
+      <button class="icon-btn" onclick="showCustomers()" title="Customers">👥</button>
+      <button class="icon-btn" onclick="showProducts()" title="Products">📦</button>
+      <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+      <button class="icon-btn" id="darkToggle" title="Dark Mode">🌙</button>
+      <button class="icon-btn" onclick="doLogout()" title="Logout">🚪</button>
+    </div>
+  </div>
+
+  <!-- Trial Lock Banner (shown when locked) -->
+  <div class="trial-lock hidden" id="trialLockBanner">
+    <h3>🔒 FREE VERSION — Upgrade Required</h3>
+    <p>3 free bills used. Upgrade to continue billing.</p>
+    <button onclick="showScreen('screen-landing')">Upgrade Plan ↗</button>
+  </div>
+
+  <!-- Bill Tabs -->
+  <div class="tabs-bar" id="billTabsBar">
+    <button class="new-tab-btn" onclick="createNewBill()" title="New Bill (Ctrl+N)">＋</button>
+  </div>
+
+  <!-- Barcode Scan Bar -->
+  <div class="scan-bar">
+    <div class="scan-input-wrap">
+      <span class="scan-icon">📷</span>
+      <input id="barcodeInput" placeholder="Scan barcode or type product name..." 
+             onkeydown="handleBarcodeInput(event)" autocomplete="off">
+    </div>
+    <button class="icon-btn" onclick="startScanner()" title="Camera Scanner">📸</button>
+    <button class="icon-btn" onclick="showManualEntry()" title="Quick Add">✏️</button>
+  </div>
+
+  <!-- Cart Area -->
+  <div class="cart-area" id="cartArea">
+    <div class="cart-empty" id="cartEmpty">
+      <div class="empty-icon">🛒</div>
+      <div>Cart is empty</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px;">Scan barcode or search product</div>
+    </div>
+    <div id="cartItems"></div>
+  </div>
+
+  <!-- Bill Meta & Summary -->
+  <div class="summary-bar" id="summaryBar" style="display:none;">
+    <div class="bill-meta" id="billMeta"></div>
+    <div class="summary-row"><span>Subtotal</span><span id="sumSubtotal">₹0</span></div>
+    <div class="summary-row" id="sumTaxRow" style="display:none;"><span>Tax</span><span id="sumTax">₹0</span></div>
+    <div class="summary-row" id="sumDiscRow" style="display:none;"><span>Discount</span><span id="sumDisc" style="color:var(--danger);">-₹0</span></div>
+    <div class="summary-row" id="sumPtsRow" style="display:none;"><span>Points Discount</span><span id="sumPts" style="color:var(--accent);">-₹0</span></div>
+    <div class="summary-total"><span>TOTAL</span><span id="sumTotal">₹0</span></div>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="action-bar" id="actionBar">
+    <button class="btn-outline" onclick="holdCurrentBill()">⏸ Hold</button>
+    <button class="btn-outline" onclick="openCustomerPanel()">👤</button>
+    <button class="btn-outline" onclick="openDiscountPanel()">🏷️</button>
+    <button class="btn-outline" onclick="openExportPanel()">📤</button>
+    <button class="btn-accent btn-complete" onclick="completeBill()">✅ Bill</button>
+  </div>
+
+</div>
+</div>
+
+<!-- ==================== SCANNER MODAL ==================== -->
+<div class="scanner-modal" id="scannerModal">
+  <div id="scannerVideo"></div>
+  <div class="scanner-frame"><div class="scanner-line"></div></div>
+  <button class="scanner-close" onclick="stopScanner()">✕</button>
+  <div style="position:absolute;bottom:40px;color:#fff;font-size:14px;text-align:center;">
+    Barcode camera ke saamne rakhe
+  </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+  <div class="modal-box" id="modalBox" onclick="event.stopPropagation()">
+  </div>
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer hidden" id="drawerBox"></div>
+
+<!-- ==================== MAIN SCRIPT ==================== -->
+<script>
+// ======================== CONFIG ========================
+const API = window.location.origin.includes('localhost') || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8000'
+  : window.location.origin;
+
+const UPI_ID = 'dkapoore@oksbi';
+const UPI_NAME = 'GroceryPOS';
+const FREE_BILL_LIMIT = 3;
+
+// ======================== STATE ========================
+let currentUser = null;
+let authToken = null;
+let settings = { shopName:'My Shop', upi:'', address:'', mobile:'', footer:'Thank you!', taxPercent:0, gstNumber:'' };
+let products = [];
+let billSessions = [];
+let activeBillId = null;
+let billCounter = parseInt(localStorage.getItem('billCounter') || '1');
+let selectedPlan = null;
+let trialStatus = { plan:'free', trial_bills_used:0, is_locked:false };
+let usbScanBuffer = '';
+let usbScanTimer = null;
+
+// ======================== SCREEN ROUTER ========================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function scrollToPricing() {
+  document.getElementById('pricingSection').scrollIntoView({ behavior:'smooth' });
+}
+
+// ======================== TOAST ========================
+function toast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ======================== AUTH ========================
+async function apiCall(endpoint, options={}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  try {
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'API Error');
+    return data;
+  } catch(e) {
+    throw e;
+  }
+}
+
+async function apiForm(endpoint, formData) {
+  const headers = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(`${API}${endpoint}`, { method:'POST', headers, body:formData });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'API Error');
+  return data;
+}
+
+function saveAuth(token, user) {
+  authToken = token;
+  currentUser = user;
+  localStorage.setItem('pos_token', token);
+  localStorage.setItem('pos_user', JSON.stringify(user));
+}
+
+function loadAuth() {
+  const t = localStorage.getItem('pos_token');
+  const u = localStorage.getItem('pos_user');
+  if (t && u) {
+    authToken = t;
+    currentUser = JSON.parse(u);
+    return true;
+  }
+  return false;
+}
+
+function doLogout() {
+  authToken = null; currentUser = null;
+  localStorage.removeItem('pos_token');
+  localStorage.removeItem('pos_user');
+  showScreen('screen-login');
+  toast('Logged out', 'info');
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { toast('Username & password required', 'error'); return; }
+  try {
+    const data = await apiCall('/api/auth/login', {
+      method:'POST', body: JSON.stringify({ username, password })
+    });
+    saveAuth(data.token, data.user);
+    await initApp();
+  } catch(e) {
+    toast(e.message || 'Login failed', 'error');
+  }
+}
+
+async function doFreeTrial() {
+  const username = document.getElementById('trialUser').value.trim();
+  if (!username || username.length < 3) { toast('Username min 3 characters', 'error'); return; }
+  try {
+    const data = await apiCall('/api/auth/free-trial', {
+      method:'POST', body: JSON.stringify({ username, password:'' })
+    });
+    saveAuth(data.token, data.user);
+    await initApp();
+  } catch(e) {
+    toast(e.message || 'Failed', 'error');
+  }
+}
+
+function switchLoginTab(tab) {
+  document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('trialForm').classList.toggle('hidden', tab !== 'trial');
+  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabTrial').classList.toggle('active', tab === 'trial');
+}
+
+// ======================== APP INIT ========================
+async function initApp() {
+  showScreen('screen-app');
+  
+  // Load settings & products
+  try {
+    const [settData, prodData, tsData] = await Promise.all([
+      apiCall('/api/settings'),
+      apiCall('/api/products'),
+      apiCall('/api/bills/trial-status')
+    ]);
+    settings = { 
+      shopName: settData.shop_name || 'My Shop',
+      upi: settData.upi_id || '',
+      address: settData.address || '',
+      mobile: settData.mobile || '',
+      footer: settData.footer || 'Thank you!',
+      taxPercent: settData.tax_percent || 0,
+      gstNumber: settData.gst_number || ''
+    };
+    products = prodData;
+    trialStatus = tsData;
+  } catch(e) {
+    // Offline fallback — use localStorage
+    const saved = JSON.parse(localStorage.getItem('pos_settings') || '{}');
+    if (saved.shopName) settings = saved;
+    products = JSON.parse(localStorage.getItem('pos_products') || '[]');
+  }
+  
+  // Restore bill sessions from localStorage
+  billSessions = JSON.parse(localStorage.getItem('bill_sessions') || '[]');
+  activeBillId = localStorage.getItem('active_bill_id');
+  
+  // Dark mode
+  if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
+  
+  // Ensure active bill
+  if (billSessions.length === 0) createNewBill();
+  else if (!activeBillId || !billSessions.find(b => b.id === activeBillId)) {
+    const ab = billSessions.find(b => b.status !== 'completed');
+    activeBillId = ab ? ab.id : billSessions[0].id;
+  }
+  
+  // Update subscription badge
+  updateSubBadge();
+  
+  // USB scanner setup
+  setupUSBScanner();
+  
+  // Check trial lock
+  checkTrialLock();
+  
+  renderAll();
+}
+
+function updateSubBadge() {
+  const badge = document.getElementById('subStatusBadge');
+  if (!badge) return;
+  if (trialStatus.plan === 'free') {
+    badge.className = 'sub-badge free';
+    badge.textContent = `Free (${3 - trialStatus.trial_bills_used} bills left)`;
+  } else if (currentUser?.subscription_expiry) {
+    const exp = new Date(currentUser.subscription_expiry);
+    if (exp < new Date()) {
+      badge.className = 'sub-badge expired';
+      badge.textContent = 'Expired';
+    } else {
+      badge.className = 'sub-badge active';
+      const days = Math.ceil((exp - new Date()) / 86400000);
+      badge.textContent = `Active (${days}d)`;
+    }
+  }
+}
+
+function checkTrialLock() {
+  const banner = document.getElementById('trialLockBanner');
+  if (trialStatus.is_locked) {
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+// ======================== BILL MANAGEMENT ========================
+function newBillId() { return 'bill_' + Date.now(); }
+function newBillNumber() { return 'INV-' + String(billCounter++).padStart(4,'0'); }
+
+function createNewBill() {
+  if (trialStatus.is_locked) {
+    toast('Free trial ended. Upgrade to continue.', 'error');
+    showScreen('screen-landing');
+    return;
+  }
+  const bill = {
+    id: newBillId(),
+    billNumber: newBillNumber(),
+    cart: [],
+    customer: { name:'', mobile:'' },
+    paymentMode: 'Cash',
+    discount: 0,
+    discountType: 'flat',
+    loyaltyDiscount: 0,
+    notes: '',
+    status: 'active',
+    createdAt: new Date().toISOString()
+  };
+  billSessions.unshift(bill);
+  activeBillId = bill.id;
+  localStorage.setItem('billCounter', billCounter);
+  saveState();
+  renderAll();
+  toast('New bill created', 'success');
+}
+
+function getActiveBill() {
+  return billSessions.find(b => b.id === activeBillId) || null;
+}
+
+function switchToBill(id) {
+  activeBillId = id;
+  saveState();
+  renderAll();
+}
+
+function holdBill(id) {
+  const bill = billSessions.find(b => b.id === id);
+  if (bill) { bill.status = 'hold'; saveState(); }
+  // Auto switch to another active bill or create new
+  const active = billSessions.find(b => b.status === 'active');
+  if (active) activeBillId = active.id;
+  else createNewBill();
+  renderAll();
+  toast('Bill held', 'info');
+}
+
+function holdCurrentBill() {
+  const bill = getActiveBill();
+  if (bill && bill.cart.length > 0) holdBill(bill.id);
+  else toast('Cart is empty', 'error');
+}
+
+function resumeBill(id) {
+  const bill = billSessions.find(b => b.id === id);
+  if (bill) { bill.status = 'active'; activeBillId = id; saveState(); renderAll(); }
+}
+
+function closeBillTab(id) {
+  const bill = billSessions.find(b => b.id === id);
+  if (!bill || bill.cart.length > 0) return;
+  billSessions = billSessions.filter(b => b.id !== id);
+  if (activeBillId === id) {
+    const next = billSessions.find(b => b.status !== 'completed');
+    if (next) activeBillId = next.id;
+    else createNewBill();
+  }
+  saveState(); renderAll();
+}
+
+function calcBill(bill) {
+  let subtotal = bill.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  let tax = bill.cart.reduce((s, i) => s + (i.price * i.quantity * (i.taxPercent || 0) / 100), 0);
+  let disc = bill.discountType === 'percent' ? subtotal * bill.discount / 100 : (bill.discount || 0);
+  let loyaltyDisc = bill.loyaltyDiscount || 0;
+  let final = Math.max(0, subtotal + tax - disc - loyaltyDisc);
+  return { subtotal, tax, disc, loyaltyDisc, final };
+}
+
+function saveState() {
+  // Keep only last 20 completed bills in session
+  const nonCompleted = billSessions.filter(b => b.status !== 'completed');
+  const lastCompleted = billSessions.filter(b => b.status === 'completed').slice(0, 5);
+  billSessions = [...nonCompleted, ...lastCompleted];
+  localStorage.setItem('bill_sessions', JSON.stringify(billSessions));
+  localStorage.setItem('active_bill_id', activeBillId);
+}
+
+// ======================== RENDER ========================
+function renderAll() {
+  renderTabs();
+  renderActiveBill();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('billTabsBar');
+  const visible = billSessions.filter(b => b.status !== 'completed');
+  
+  bar.innerHTML = `<button class="new-tab-btn" onclick="createNewBill()" title="Ctrl+N">＋</button>`;
+  
+  visible.forEach(bill => {
+    const { final } = calcBill(bill);
+    const isActive = bill.id === activeBillId;
+    const cls = isActive ? 'bill-tab active' : bill.status === 'hold' ? 'bill-tab hold' : 'bill-tab';
+    const icon = bill.status === 'hold' ? '⏸' : '🧾';
+    const label = bill.cart.length > 0 ? `${icon} ${bill.billNumber} (${bill.cart.length})` : `${icon} ${bill.billNumber}`;
+    bar.insertAdjacentHTML('beforeend', 
+      `<div class="${cls}" onclick="switchToBill('${bill.id}')" ondblclick="event.stopPropagation();closeBillTab('${bill.id}')" title="${bill.status === 'hold' ? 'On Hold' : 'Double-click to close empty'}">${label}</div>`
+    );
+  });
+}
+
+function renderActiveBill() {
+  const bill = getActiveBill();
+  const cartItems = document.getElementById('cartItems');
+  const cartEmpty = document.getElementById('cartEmpty');
+  const summaryBar = document.getElementById('summaryBar');
+  const billMeta = document.getElementById('billMeta');
+  const actionBar = document.getElementById('actionBar');
+
+  if (!bill || bill.status === 'completed') {
+    cartItems.innerHTML = '';
+    cartEmpty.style.display = 'block';
+    summaryBar.style.display = 'none';
+    return;
+  }
+
+  // Cart empty/filled
+  if (bill.cart.length === 0) {
+    cartItems.innerHTML = '';
+    cartEmpty.style.display = 'block';
+    summaryBar.style.display = 'none';
+  } else {
+    cartEmpty.style.display = 'none';
+    summaryBar.style.display = 'block';
+    
+    const isLocked = trialStatus.is_locked;
+    cartItems.innerHTML = bill.cart.map((item, idx) => `
+      <div class="cart-item${isLocked ? ' free-watermark' : ''}">
+        <div class="item-name">
+          ${item.name}
+          <small>₹${item.price.toFixed(2)} each${item.taxPercent ? ` +${item.taxPercent}% tax` : ''}</small>
+        </div>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},-1)">−</button>
+          <span class="qty-num">${item.quantity}</span>
+          <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},1)">+</button>
+        </div>
+        <div class="item-price">₹${(item.price * item.quantity).toFixed(2)}</div>
+        <span class="item-del" onclick="removeItem('${bill.id}',${idx})">✕</span>
+      </div>`).join('');
+
+    // Summary
+    const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+    document.getElementById('sumSubtotal').textContent = '₹' + subtotal.toFixed(2);
+    document.getElementById('sumTotal').textContent = '₹' + final.toFixed(2);
+    document.getElementById('sumTaxRow').style.display = tax > 0 ? 'flex' : 'none';
+    document.getElementById('sumTax').textContent = '₹' + tax.toFixed(2);
+    document.getElementById('sumDiscRow').style.display = disc > 0 ? 'flex' : 'none';
+    document.getElementById('sumDisc').textContent = '-₹' + disc.toFixed(2);
+    document.getElementById('sumPtsRow').style.display = loyaltyDisc > 0 ? 'flex' : 'none';
+    document.getElementById('sumPts').textContent = '-₹' + loyaltyDisc.toFixed(2);
+    
+    // Meta tags
+    let meta = `<span class="meta-tag">${bill.billNumber}</span>`;
+    if (bill.customer?.name) meta += `<span class="meta-tag">👤 ${bill.customer.name}</span>`;
+    if (bill.paymentMode) meta += `<span class="meta-tag">💳 ${bill.paymentMode}</span>`;
+    if (bill.status === 'hold') meta += `<span class="meta-tag" style="color:var(--warn);">⏸ On Hold</span>`;
+    billMeta.innerHTML = meta;
+  }
+
+  // Hold/resume button
+  const holdBtn = actionBar.querySelector('button');
+  if (bill.status === 'hold') {
+    holdBtn.textContent = '▶ Resume';
+    holdBtn.onclick = () => resumeBill(bill.id);
+  } else {
+    holdBtn.textContent = '⏸ Hold';
+    holdBtn.onclick = holdCurrentBill;
+  }
+}
+
+// ======================== CART OPERATIONS ========================
+function addToCart(product, qty=1) {
+  if (trialStatus.is_locked) {
+    toast('Free trial ended! Upgrade to continue.', 'error');
+    return;
+  }
+  const bill = getActiveBill();
+  if (!bill || bill.status === 'completed') return;
+  
+  const existing = bill.cart.find(i => i.barcode === product.barcode && i.id === product.id);
+  if (existing) {
+    existing.quantity += qty;
+  } else {
+    bill.cart.push({
+      id: product.id,
+      barcode: product.barcode || '',
+      name: product.name,
+      price: product.price,
+      quantity: qty,
+      taxPercent: product.tax_percent || 0
+    });
+  }
+  saveState(); renderAll();
+  
+  if ('vibrate' in navigator) navigator.vibrate(30);
+  if (window.speechSynthesis) {
+    const u = new SpeechSynthesisUtterance(product.name);
+    u.volume = 0.5; u.rate = 1.2;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+function changeQty(billId, idx, delta) {
+  const bill = billSessions.find(b => b.id === billId);
+  if (!bill) return;
+  bill.cart[idx].quantity = Math.max(1, bill.cart[idx].quantity + delta);
+  saveState(); renderAll();
+}
+
+function removeItem(billId, idx) {
+  const bill = billSessions.find(b => b.id === billId);
+  if (!bill) return;
+  bill.cart.splice(idx, 1);
+  saveState(); renderAll();
+}
+
+// ======================== BARCODE INPUT ========================
+function handleBarcodeInput(e) {
+  if (e.key === 'Enter') {
+    const val = e.target.value.trim();
+    if (val) processBarcode(val);
+    e.target.value = '';
+  }
+}
+
+function processBarcode(code) {
+  const product = products.find(p => p.barcode === code);
+  if (product) {
+    addToCart(product);
+    toast(`${product.name} added`, 'success');
+  } else {
+    toast(`Barcode ${code} not found`, 'error');
+    showManualEntry(code);
+  }
+}
+
+// ======================== USB SCANNER ========================
+function setupUSBScanner() {
+  // USB barcode scanners type rapidly + Enter
+  document.addEventListener('keypress', (e) => {
+    // Skip if focused on an input (let it handle normally)
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    
+    if (e.key === 'Enter') {
+      if (usbScanBuffer.length > 3) {
+        processBarcode(usbScanBuffer.trim());
+        document.getElementById('usbIndicator').style.display = 'flex';
+      }
+      usbScanBuffer = '';
+      clearTimeout(usbScanTimer);
+    } else {
+      usbScanBuffer += e.key;
+      clearTimeout(usbScanTimer);
+      usbScanTimer = setTimeout(() => { usbScanBuffer = ''; }, 300);
+    }
+  });
+}
+
+// ======================== CAMERA SCANNER ========================
+function startScanner() {
+  const modal = document.getElementById('scannerModal');
+  modal.classList.add('show');
+  
+  Quagga.init({
+    inputStream: {
+      type: 'LiveStream',
+      target: document.getElementById('scannerVideo'),
+      constraints: { 
+        facingMode: 'environment',
+        width: { min: 640 }, height: { min: 480 }
+      }
+    },
+    decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader'] }
+  }, (err) => {
+    if (err) {
+      toast('Camera not available', 'error');
+      stopScanner();
+      return;
+    }
+    Quagga.start();
+  });
+  
+  let lastCode = '', lastTime = 0;
+  Quagga.onDetected((result) => {
+    const code = result.codeResult.code;
+    const now = Date.now();
+    if (code === lastCode && now - lastTime < 2000) return;
+    lastCode = code; lastTime = now;
+    if ('vibrate' in navigator) navigator.vibrate([100,50,100]);
+    stopScanner();
+    processBarcode(code);
+  });
+}
+
+function stopScanner() {
+  document.getElementById('scannerModal').classList.remove('show');
+  try { Quagga.stop(); } catch(e) {}
+}
+
+// ======================== MANUAL ENTRY ========================
+function showManualEntry(prefill='') {
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>✏️ Add Product</h3>
+    <label>Search / Barcode</label>
+    <input id="manualCode" value="${prefill}" placeholder="Barcode or product name" autofocus>
+    <div id="searchResults" style="max-height:200px;overflow-y:auto;margin:8px 0;"></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px;">
+      <label>Quick Add (not in list)</label>
+      <input id="manualName" placeholder="Product name">
+      <input id="manualPrice" type="number" placeholder="Price (₹)" style="margin-top:8px;" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-accent" onclick="manualAdd()">Add to Cart</button>
+    </div>
+  `);
+  
+  document.getElementById('manualCode').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const results = q.length > 1 ? products.filter(p => 
+      p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q))
+    ) : [];
+    document.getElementById('searchResults').innerHTML = results.map(p => `
+      <div onclick="addFromSearch(${p.id});closeModal();" style="padding:8px 10px;background:var(--surface);border-radius:8px;margin:3px 0;cursor:pointer;border:1px solid var(--border);">
+        <strong style="font-size:13px;">${p.name}</strong>
+        <span style="float:right;color:var(--accent);font-weight:700;">₹${p.price.toFixed(2)}</span>
+        <small style="display:block;color:var(--text2);">${p.barcode || 'No barcode'} | ${p.category}</small>
+      </div>`).join('');
+  });
+}
+
+function addFromSearch(pid) {
+  const product = products.find(p => p.id === pid);
+  if (product) { addToCart(product); toast(`${product.name} added`, 'success'); }
+}
+
+function manualAdd() {
+  const name = document.getElementById('manualName').value.trim();
+  const price = parseFloat(document.getElementById('manualPrice').value) || 0;
+  if (!name) { toast('Product name required', 'error'); return; }
+  addToCart({ id: 'manual_' + Date.now(), barcode:'', name, price, tax_percent:0 });
+  closeModal();
+  toast(`${name} added`, 'success');
+}
+
+// ======================== COMPLETE BILL ========================
+async function completeBill() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) { toast('Cart is empty', 'error'); return; }
+  if (trialStatus.is_locked) { toast('Upgrade required', 'error'); return; }
+  
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  
+  // Show confirm/payment modal
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>✅ Complete Bill ${bill.billNumber}</h3>
+    <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:14px;margin:12px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:1.4rem;font-weight:800;">
+        <span>Total</span><span>₹${final.toFixed(2)}</span>
+      </div>
+      ${bill.customer?.name ? `<div style="font-size:13px;color:var(--text2);margin-top:4px;">Customer: ${bill.customer.name}</div>` : ''}
+    </div>
+    <label>Payment Mode</label>
+    <select id="finalPayMode">
+      <option value="Cash" ${bill.paymentMode==='Cash'?'selected':''}>💵 Cash</option>
+      <option value="UPI" ${bill.paymentMode==='UPI'?'selected':''}>📱 UPI</option>
+      <option value="Card" ${bill.paymentMode==='Card'?'selected':''}>💳 Card</option>
+    </select>
+    ${settings.upi ? `<div id="billQR" style="text-align:center;margin:12px 0;"></div>` : ''}
+    <div class="modal-actions" style="flex-wrap:wrap;gap:6px;">
+      <button class="btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>
+      <button class="btn-outline" onclick="printBill('${bill.id}')" style="flex:1;">🖨️ Print</button>
+      <button class="btn-accent" onclick="finalizeBill('${bill.id}',true)" style="flex:1;">✅ Done</button>
+    </div>
+  `);
+  
+  // Generate UPI QR
+  if (settings.upi) {
+    setTimeout(() => {
+      const qrDiv = document.getElementById('billQR');
+      if (qrDiv && typeof QRCode !== 'undefined') {
+        const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
+        new QRCode(qrDiv, { text: upiStr, width: 120, height: 120 });
+      }
+    }, 200);
+  }
+  
+  document.getElementById('finalPayMode').onchange = (e) => { bill.paymentMode = e.target.value; };
+}
+
+async function finalizeBill(billId, save=true) {
+  const bill = billSessions.find(b => b.id === billId);
+  if (!bill) return;
+  
+  bill.paymentMode = document.getElementById('finalPayMode')?.value || bill.paymentMode;
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  
+  // Save to server
+  if (save && authToken) {
+    try {
+      await apiCall('/api/bills', {
+        method: 'POST',
+        body: JSON.stringify({
+          bill_number: bill.billNumber,
+          cart_json: JSON.stringify(bill.cart),
+          customer_name: bill.customer?.name || '',
+          customer_mobile: bill.customer?.mobile || '',
+          payment_mode: bill.paymentMode,
+          subtotal, tax_total: tax, discount: disc,
+          discount_type: bill.discountType,
+          final_amount: final,
+          notes: bill.notes || '',
+          loyalty_points_used: bill.loyaltyPoints || 0
+        })
+      });
+      
+      // Update trial status
+      if (trialStatus.plan === 'free') {
+        trialStatus.trial_bills_used += 1;
+        trialStatus.is_locked = trialStatus.trial_bills_used >= FREE_BILL_LIMIT;
+        trialStatus.trial_remaining = Math.max(0, FREE_BILL_LIMIT - trialStatus.trial_bills_used);
+        updateSubBadge();
+        checkTrialLock();
+      }
+      
+      // Save to history localStorage
+      const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
+      hist.unshift({ ...bill, subtotal, tax, disc, final, completedAt: new Date().toISOString() });
+      localStorage.setItem('sales_history', JSON.stringify(hist.slice(0, 200)));
+      
+    } catch(e) {
+      if (e.message === 'FREE_TRIAL_EXPIRED') {
+        trialStatus.is_locked = true;
+        checkTrialLock(); updateSubBadge();
+        closeModal();
+        toast('Free trial ended! Upgrade to continue.', 'error');
+        return;
+      }
+    }
+  }
+  
+  bill.status = 'completed';
+  
+  // WhatsApp offer (if customer mobile)
+  if (bill.customer?.mobile) {
+    const waMsg = encodeURIComponent(`🛒 *${settings.shopName}*\n\n✅ Bill #${bill.billNumber} - ₹${final.toFixed(2)}\n\nThank you for shopping! 🙏\n\n🎁 Visit again within 7 days & get ₹30 OFF on purchase above ₹500!`);
+    const mobile = bill.customer.mobile.replace(/\D/g,'');
+    setTimeout(() => {
+      if (confirm('Send bill on WhatsApp?')) {
+        window.open(`https://wa.me/91${mobile}?text=${waMsg}`, '_blank');
+      }
+    }, 500);
+  }
+  
+  closeModal();
+  saveState();
+  
+  // Create new bill
+  const active = billSessions.find(b => b.status === 'active');
+  if (active) activeBillId = active.id;
+  else createNewBill();
+  
+  renderAll();
+  toast(`Bill ${bill.billNumber} completed! ₹${final.toFixed(2)}`, 'success');
+}
+
+// ======================== PRINT / EXPORT ========================
+function printBill(billId) {
+  const bill = billSessions.find(b => b.id === billId) || getActiveBill();
+  if (!bill || bill.cart.length === 0) { toast('Cart empty', 'error'); return; }
+  
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  const isFreeBill = trialStatus.plan === 'free';
+  const date = new Date().toLocaleDateString('en-IN');
+  
+  const pa = document.getElementById('printArea');
+  pa.innerHTML = `
+    <div style="padding:20px;font-family:Arial;background:white;max-width:400px;margin:0 auto;">
+      ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:8px;margin-bottom:12px;font-size:12px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL VERSION — Upgrade for Professional Bills</div>' : ''}
+      <h2 style="text-align:center;">${settings.shopName}</h2>
+      <p style="text-align:center;font-size:12px;">${settings.address}</p>
+      <p style="text-align:center;font-size:12px;">${settings.mobile}${settings.gstNumber ? ' | GST: '+settings.gstNumber : ''}</p>
+      <hr style="margin:8px 0;">
+      <p style="font-size:12px;">Bill: <b>${bill.billNumber}</b> | Date: ${date}</p>
+      ${bill.customer?.name ? `<p style="font-size:12px;">Customer: ${bill.customer.name} ${bill.customer.mobile||''}</p>` : ''}
+      <hr style="margin:8px 0;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tr style="background:#f3f4f6;"><th style="padding:4px;text-align:left;">Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Total</th></tr>
+        ${bill.cart.map(i => `<tr><td style="padding:4px;">${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
+      </table>
+      <hr style="margin:8px 0;">
+      <p style="font-size:12px;text-align:right;">Subtotal: ₹${subtotal.toFixed(2)}</p>
+      ${tax > 0 ? `<p style="font-size:12px;text-align:right;">Tax: ₹${tax.toFixed(2)}</p>` : ''}
+      ${disc > 0 ? `<p style="font-size:12px;text-align:right;">Discount: -₹${disc.toFixed(2)}</p>` : ''}
+      <h3 style="text-align:right;font-size:1.1rem;">Total: ₹${final.toFixed(2)}</h3>
+      <p style="font-size:11px;text-align:right;">Payment: ${bill.paymentMode}</p>
+      <div id="qrCodePrint" style="text-align:center;margin:12px 0;"></div>
+      <p style="text-align:center;font-size:11px;">${settings.footer}</p>
+    </div>`;
+  pa.style.display = 'block';
+  
+  setTimeout(() => {
+    if (settings.upi) {
+      const qrDiv = document.getElementById('qrCodePrint');
+      if (qrDiv && typeof QRCode !== 'undefined') {
+        const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
+        new QRCode(qrDiv, { text: upiStr, width: 80, height: 80 });
+      }
+    }
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 500);
+    }, 300);
+  }, 200);
+}
+
+function openExportPanel() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) { toast('Cart empty', 'error'); return; }
+  
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>📤 Export Bill</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <button class="btn-outline" style="padding:14px;" onclick="printBill();closeModal();">🖨️ Print</button>
+      <button class="btn-outline" style="padding:14px;" onclick="downloadPDF();closeModal();">📄 PDF</button>
+      <button class="btn-outline" style="padding:14px;" onclick="downloadJPG();closeModal();">🖼️ JPG</button>
+      <button class="btn-outline" style="padding:14px;" onclick="shareWhatsApp();closeModal();">💬 WhatsApp</button>
+    </div>
+    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeModal()">Cancel</button>
+  `);
+}
+
+async function downloadPDF() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) return;
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  const isFreeBill = trialStatus.plan === 'free';
+  const pa = document.getElementById('printArea');
+  
+  pa.innerHTML = `<div style="padding:20px;font-family:Arial;background:white;">
+    ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:8px;margin-bottom:12px;font-size:11px;font-weight:bold;color:#dc2626;">FREE TRIAL VERSION — Upgrade for Professional Bills</div>' : ''}
+    <h2>${settings.shopName}</h2>
+    <p style="font-size:12px;">${settings.address} | ${settings.mobile}</p>
+    <p style="font-size:12px;">Bill: ${bill.billNumber} | ${new Date().toLocaleDateString('en-IN')}</p>
+    ${bill.customer?.name ? `<p style="font-size:12px;">Customer: ${bill.customer.name}</p>` : ''}
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">
+      <tr style="background:#f3f4f6;"><th style="padding:4px;text-align:left;">Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Total</th></tr>
+      ${bill.cart.map(i => `<tr><td style="padding:3px;">${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
+    </table>
+    <p style="text-align:right;">Subtotal: ₹${subtotal.toFixed(2)}</p>
+    ${disc > 0 ? `<p style="text-align:right;">Discount: -₹${disc.toFixed(2)}</p>` : ''}
+    <h3 style="text-align:right;">Total: ₹${final.toFixed(2)}</h3>
+    <div id="qrCodePrint" style="text-align:center;"></div>
+    <p style="text-align:center;font-size:11px;">${settings.footer}</p>
+  </div>`;
+  pa.style.display = 'block';
+  
+  setTimeout(async () => {
+    if (settings.upi) {
+      const qrDiv = document.getElementById('qrCodePrint');
+      if (qrDiv) new QRCode(qrDiv, { text:`upi://pay?pa=${settings.upi}&am=${final.toFixed(2)}&cu=INR`, width:80, height:80 });
+    }
+    setTimeout(async () => {
+      try {
+        await html2pdf().set({ margin:5, filename:`${bill.billNumber}.pdf`, image:{type:'jpeg',quality:.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4'} }).from(pa).save();
+        toast('PDF downloaded!', 'success');
+      } catch(e) { toast('PDF error', 'error'); }
+      pa.style.display = 'none'; pa.innerHTML = '';
+    }, 400);
+  }, 200);
+}
+
+async function downloadJPG() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) return;
+  const { subtotal, tax, disc, final } = calcBill(bill);
+  const pa = document.getElementById('printArea');
+  const isFreeBill = trialStatus.plan === 'free';
+  
+  pa.innerHTML = `<div style="padding:20px;font-family:Arial;background:white;width:400px;">
+    ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:11px;font-weight:bold;color:#dc2626;">FREE TRIAL VERSION</div>' : ''}
+    <h2>${settings.shopName}</h2>
+    <p>${settings.address}</p><p>Bill: ${bill.billNumber}</p>
+    ${bill.cart.map(i => `<p>${i.name} x${i.quantity} - ₹${(i.price*i.quantity).toFixed(2)}</p>`).join('')}
+    <hr><h3>Total: ₹${final.toFixed(2)}</h3>
+    <p>${settings.footer}</p>
+  </div>`;
+  pa.style.display = 'block';
+  pa.style.position = 'absolute';
+  pa.style.left = '-9999px';
+  
+  setTimeout(async () => {
+    try {
+      const canvas = await html2canvas(pa, { scale:2, backgroundColor:'#ffffff' });
+      const a = document.createElement('a');
+      a.download = `${bill.billNumber}.jpg`;
+      a.href = canvas.toDataURL('image/jpeg', .95);
+      a.click();
+      toast('JPG downloaded!', 'success');
+    } catch(e) { toast('JPG error', 'error'); }
+    pa.style.display = 'none'; pa.style.position = ''; pa.innerHTML = '';
+  }, 300);
+}
+
+function shareWhatsApp() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) return;
+  const { final } = calcBill(bill);
+  const itemList = bill.cart.map(i => `${i.name} x${i.quantity} - ₹${(i.price*i.quantity).toFixed(2)}`).join('\n');
+  const msg = `🛒 *${settings.shopName}*\nBill: ${bill.billNumber}\n${new Date().toLocaleDateString('en-IN')}\n\n${itemList}\n\nTotal: ₹${final.toFixed(2)}\n\n${settings.footer}`;
+  
+  if (bill.customer?.mobile) {
+    window.open(`https://wa.me/91${bill.customer.mobile.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+  } else if (navigator.share) {
+    navigator.share({ text: msg });
+  } else {
+    navigator.clipboard.writeText(msg);
+    toast('Copied to clipboard!', 'success');
+  }
+}
+
+// ======================== CUSTOMER PANEL ========================
+function openCustomerPanel() {
+  const bill = getActiveBill();
+  if (!bill) return;
+  
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>👤 Customer Details</h3>
+    <label>Name</label>
+    <input id="custName" value="${bill.customer?.name || ''}" placeholder="Customer name">
+    <label>Mobile</label>
+    <input id="custMobile" value="${bill.customer?.mobile || ''}" placeholder="Mobile number" type="tel" id="custMobile">
+    <label>Payment Mode</label>
+    <select id="custPayMode">
+      <option value="Cash" ${bill.paymentMode==='Cash'?'selected':''}>💵 Cash</option>
+      <option value="UPI" ${bill.paymentMode==='UPI'?'selected':''}>📱 UPI</option>
+      <option value="Card" ${bill.paymentMode==='Card'?'selected':''}>💳 Card</option>
+    </select>
+    <div id="loyaltyInfo" style="margin-top:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveCustomer('${bill.id}')">Save</button>
+    </div>
+  `);
+  
+  document.getElementById('custMobile').addEventListener('blur', async (e) => {
+    const mob = e.target.value.trim();
+    if (mob.length >= 10) {
+      try {
+        const cust = await apiCall(`/api/customers/lookup/${mob}`);
+        const balance = cust.total_points - cust.used_points;
+        const discount = Math.floor(balance / 100) * 50;
+        document.getElementById('loyaltyInfo').innerHTML = `
+          <div class="points-badge">
+            <div class="points-big">${balance} <small style="font-size:1rem;">pts</small></div>
+            <div class="points-label">Loyalty Balance — Redeem for ₹${discount} OFF</div>
+            ${balance >= 100 ? `<button onclick="redeemPoints('${bill.id}','${mob}',${balance})" style="background:#fff;color:#d97706;border:none;padding:6px 12px;border-radius:8px;font-weight:700;margin-top:8px;cursor:pointer;">Redeem ₹${discount} Discount</button>` : ''}
+          </div>`;
+      } catch(e) { /* new customer */ }
+    }
+  });
+}
+
+function saveCustomer(billId) {
+  const bill = billSessions.find(b => b.id === billId);
+  if (!bill) return;
+  bill.customer = { name: document.getElementById('custName').value, mobile: document.getElementById('custMobile').value };
+  bill.paymentMode = document.getElementById('custPayMode').value;
+  saveState(); renderAll(); closeModal();
+}
+
+async function redeemPoints(billId, mobile, balance) {
+  const points = Math.min(balance, 100 * Math.floor(balance / 100)); // Multiples of 100
+  try {
+    const res = await apiCall(`/api/customers/redeem?mobile=${mobile}&points=${points}`, { method:'POST' });
+    const bill = billSessions.find(b => b.id === billId);
+    if (bill) { bill.loyaltyDiscount = (bill.loyaltyDiscount || 0) + res.discount; bill.loyaltyPoints = points; }
+    saveState(); renderAll(); closeModal();
+    toast(`₹${res.discount} loyalty discount applied!`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ======================== DISCOUNT PANEL ========================
+function openDiscountPanel() {
+  const bill = getActiveBill();
+  if (!bill) return;
+  
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>🏷️ Apply Discount</h3>
+    <label>Type</label>
+    <select id="discType">
+      <option value="flat" ${bill.discountType==='flat'?'selected':''}>Flat Amount (₹)</option>
+      <option value="percent" ${bill.discountType==='percent'?'selected':''}>Percentage (%)</option>
+    </select>
+    <label>Value</label>
+    <input id="discValue" type="number" value="${bill.discount || 0}" min="0">
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveDiscount('${bill.id}')">Apply</button>
+    </div>
+  `);
+}
+
+function saveDiscount(billId) {
+  const bill = billSessions.find(b => b.id === billId);
+  if (!bill) return;
+  bill.discountType = document.getElementById('discType').value;
+  bill.discount = parseFloat(document.getElementById('discValue').value) || 0;
+  saveState(); renderAll(); closeModal();
+  toast('Discount applied', 'success');
+}
+
+// ======================== SETTINGS ========================
+function openSettings() {
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <h3>⚙️ Settings</h3>
+    <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
+    <label>Address</label><input id="setAddr" value="${settings.address || ''}">
+    <label>Mobile</label><input id="setMob" value="${settings.mobile || ''}">
+    <label>UPI ID</label><input id="setUpi" value="${settings.upi || ''}">
+    <label>GST Number</label><input id="setGst" value="${settings.gstNumber || ''}">
+    <label>Footer Message</label><input id="setFooter" value="${settings.footer}">
+    <label>Tax % (default)</label><input id="setTax" type="number" value="${settings.taxPercent || 0}" min="0" max="100">
+    <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">Save Settings</button>
+    <button class="btn-outline" style="width:100%;margin-top:6px;" onclick="closeDrawer()">Cancel</button>
+    <hr style="margin:16px 0;">
+    <h3>📦 Manage Products</h3>
+    <button class="btn-outline" style="width:100%;padding:10px;" onclick="closeDrawer();setTimeout(showProducts,100);">Open Products →</button>
+    <hr style="margin:16px 0;">
+    <button class="btn-danger" style="width:100%;padding:10px;" onclick="doLogout()">🚪 Logout</button>
+  `);
+}
+
+async function saveSettings() {
+  settings = {
+    shopName: document.getElementById('setShop').value,
+    address: document.getElementById('setAddr').value,
+    mobile: document.getElementById('setMob').value,
+    upi: document.getElementById('setUpi').value,
+    gstNumber: document.getElementById('setGst').value,
+    footer: document.getElementById('setFooter').value,
+    taxPercent: parseFloat(document.getElementById('setTax').value) || 0
+  };
+  localStorage.setItem('pos_settings', JSON.stringify(settings));
+  try {
+    await apiCall('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        shop_name: settings.shopName, address: settings.address, mobile: settings.mobile,
+        upi_id: settings.upi, gst_number: settings.gstNumber, footer: settings.footer,
+        tax_percent: settings.taxPercent
+      })
+    });
+  } catch(e) {}
+  closeDrawer();
+  toast('Settings saved!', 'success');
+}
+
+// ======================== PRODUCTS ========================
+function showProducts() {
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <h3>📦 Products</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input id="prodSearch" placeholder="🔍 Search..." style="flex:1;" oninput="filterProducts(this.value)">
+      <button class="btn-accent btn-sm" onclick="showAddProduct()">+ Add</button>
+    </div>
+    <div id="prodList" class="prod-grid"></div>
+    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
+  `);
+  renderProductList();
+}
+
+function renderProductList(filter='') {
+  const list = document.getElementById('prodList');
+  if (!list) return;
+  const filtered = filter ? products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) || (p.barcode && p.barcode.includes(filter))) : products;
+  list.innerHTML = filtered.length === 0 ? '<p style="color:var(--text2);font-size:13px;grid-column:span 2;text-align:center;padding:20px;">No products found</p>' :
+    filtered.map(p => `
+      <div class="prod-card">
+        <div class="prod-card-name">${p.name}</div>
+        <div class="prod-card-price">₹${p.price.toFixed(2)}</div>
+        <small style="color:var(--text2);font-size:11px;">${p.barcode || 'No barcode'} | ${p.category}</small>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="prod-card-add" style="flex:1;" onclick="addFromSearch(${p.id})">+ Add</button>
+          <button class="btn-outline btn-sm" onclick="showEditProduct(${p.id})" style="padding:5px;">✏️</button>
+          <button class="btn-sm" style="background:var(--danger2);color:var(--danger);border-radius:7px;padding:5px;" onclick="deleteProduct(${p.id})">🗑️</button>
+        </div>
+      </div>`).join('');
+}
+
+function filterProducts(val) { renderProductList(val); }
+
+function showAddProduct() {
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>➕ Add Product</h3>
+    <label>Product Name *</label><input id="pName" placeholder="e.g. Tata Salt 1kg">
+    <label>Barcode</label><input id="pBarcode" placeholder="Barcode (optional)">
+    <label>Price (₹) *</label><input id="pPrice" type="number" placeholder="0.00" min="0" step="0.01">
+    <label>Category</label>
+    <select id="pCat">
+      <option>Grocery</option><option>Dairy</option><option>Fruits & Veg</option>
+      <option>Snacks</option><option>Beverages</option><option>Personal Care</option><option>Other</option>
+    </select>
+    <label>Tax %</label><input id="pTax" type="number" value="0" min="0" max="100">
+    <label>Stock</label><input id="pStock" type="number" value="0" min="0">
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-accent" onclick="addProduct()">Save</button>
+    </div>
+  `);
+}
+
+async function addProduct() {
+  const name = document.getElementById('pName').value.trim();
+  const price = parseFloat(document.getElementById('pPrice').value);
+  if (!name || isNaN(price)) { toast('Name & price required', 'error'); return; }
+  try {
+    const res = await apiCall('/api/products', {
+      method: 'POST',
+      body: JSON.stringify({
+        barcode: document.getElementById('pBarcode').value.trim(),
+        name, price,
+        category: document.getElementById('pCat').value,
+        tax_percent: parseFloat(document.getElementById('pTax').value) || 0,
+        stock: parseInt(document.getElementById('pStock').value) || 0
+      })
+    });
+    products.push({ id: res.id, barcode: document.getElementById('pBarcode').value.trim(), name, price, category: document.getElementById('pCat').value, tax_percent: parseFloat(document.getElementById('pTax').value)||0 });
+    localStorage.setItem('pos_products', JSON.stringify(products));
+    closeModal();
+    toast(`${name} added!`, 'success');
+    showProducts();
+  } catch(e) { toast(e.message || 'Error', 'error'); }
+}
+
+async function deleteProduct(pid) {
+  if (!confirm('Delete this product?')) return;
+  try {
+    await apiCall(`/api/products/${pid}`, { method:'DELETE' });
+    products = products.filter(p => p.id !== pid);
+    localStorage.setItem('pos_products', JSON.stringify(products));
+    renderProductList();
+    toast('Deleted', 'info');
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ======================== CUSTOMERS VIEW ========================
+async function showCustomers() {
+  let custHtml = '<p style="color:var(--text2);font-size:13px;">Loading...</p>';
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <h3>👥 Customers & Loyalty</h3>
+    <div id="custListContainer">${custHtml}</div>
+    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
+  `);
+  
+  try {
+    const customers = await apiCall('/api/customers');
+    document.getElementById('custListContainer').innerHTML = customers.length === 0 
+      ? '<p style="color:var(--text2);font-size:13px;text-align:center;padding:20px;">No customers yet</p>'
+      : customers.map(c => {
+          const balance = c.total_points - c.used_points;
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;">
+            <div style="display:flex;justify-content:space-between;">
+              <div><strong>${c.name}</strong><small style="display:block;color:var(--text2);">${c.mobile}</small></div>
+              <div style="text-align:right;"><span style="background:var(--warn2);color:#92400e;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;">${balance} pts</span>
+              <small style="display:block;color:var(--text2);margin-top:2px;">₹${c.total_spend.toFixed(0)} total</small></div>
+            </div>
+          </div>`;
+        }).join('');
+  } catch(e) { document.getElementById('custListContainer').innerHTML = '<p style="color:var(--danger);">Failed to load</p>'; }
+}
+
+// ======================== SALES HISTORY ========================
+async function showHistory() {
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <h3>📊 Sales History</h3>
+    <div id="histContainer"><p style="color:var(--text2);font-size:13px;">Loading...</p></div>
+    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
+  `);
+  
+  try {
+    const bills = await apiCall('/api/bills');
+    const today = bills.filter(b => b.completed_at && b.completed_at.startsWith(new Date().toISOString().slice(0,10)));
+    const todayTotal = today.reduce((s, b) => s + b.final_amount, 0);
+    
+    document.getElementById('histContainer').innerHTML = `
+      <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:12px;">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--accent);">₹${todayTotal.toFixed(2)}</div>
+        <div style="font-size:12px;color:var(--text2);">Today's Sales (${today.length} bills)</div>
+      </div>
+      <div class="history-list">
+        ${bills.map(b => `
+          <div class="hist-item">
+            <div class="hist-info">
+              <div class="hist-bill">${b.bill_number}</div>
+              <div class="hist-cust">${b.customer_name || 'Walk-in'} | ${b.payment_mode}</div>
+              <div style="font-size:11px;color:var(--text2);">${b.completed_at ? new Date(b.completed_at).toLocaleString('en-IN') : ''}</div>
+            </div>
+            <div class="hist-amount">₹${b.final_amount.toFixed(2)}</div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    // Fallback to localStorage
+    const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
+    document.getElementById('histContainer').innerHTML = hist.slice(0,50).map(b => `
+      <div class="hist-item">
+        <div class="hist-info"><div class="hist-bill">${b.billNumber}</div><div class="hist-cust">${b.customer?.name || 'Walk-in'}</div></div>
+        <div class="hist-amount">₹${b.final?.toFixed(2) || 0}</div>
+      </div>`).join('') || '<p style="color:var(--text2);">No history</p>';
+  }
+}
+
+// ======================== MODAL / DRAWER HELPERS ========================
+function openModal(html) {
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  document.getElementById('modalBox').innerHTML = '';
+}
+
+function openDrawer(html) {
+  const drawer = document.getElementById('drawerBox');
+  drawer.innerHTML = html;
+  drawer.classList.remove('hidden');
+  document.getElementById('drawerOverlay').classList.add('show');
+}
+
+function closeDrawer() {
+  document.getElementById('drawerBox').classList.add('hidden');
+  document.getElementById('drawerOverlay').classList.remove('show');
+}
+
+// ======================== LANDING PAGE ACTIONS ========================
+let selectedPlanName = '';
+function selectPlan(plan) {
+  selectedPlanName = plan;
+  document.getElementById('planMonthly').classList.toggle('selected', plan === 'monthly');
+  document.getElementById('planYearly').classList.toggle('selected', plan === 'yearly');
+  
+  const amount = plan === 'monthly' ? '₹299' : '₹3,200';
+  const upiSection = document.getElementById('upiSection');
+  document.getElementById('planAmountDisplay').textContent = amount;
+  upiSection.style.display = 'block';
+  upiSection.scrollIntoView({ behavior:'smooth' });
+  
+  // Generate QR
+  const qrCont = document.getElementById('upiQRContainer');
+  qrCont.innerHTML = '';
+  const upiStr = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${plan==='monthly'?'299':'3200'}&cu=INR`;
+  setTimeout(() => {
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(qrCont, { text: upiStr, width: 200, height: 200 });
+    }
+  }, 100);
+}
+
+function proceedToForm() {
+  if (!selectedPlanName) { toast('Please select a plan first', 'error'); return; }
+  document.getElementById('regPlanBadge').textContent = selectedPlanName === 'monthly' ? 'Monthly — ₹299' : 'Yearly — ₹3,200';
+  showScreen('screen-register');
+}
+
+function startFreeTrial() {
+  showScreen('screen-login');
+  setTimeout(() => switchLoginTab('trial'), 100);
+}
+
+function updateFileName(input) {
+  const name = input.files[0]?.name || 'No file selected';
+  document.getElementById('fileName').textContent = name;
+}
+
+async function submitRegistration(e) {
+  e.preventDefault();
+  const btn = document.getElementById('regSubmitBtn');
+  const receipt = document.getElementById('reg_receipt').files[0];
+  if (!receipt) { toast('Please upload payment screenshot', 'error'); return; }
+  
+  const store = document.getElementById('reg_store').value;
+  if (!store) { toast('Please select store type', 'error'); return; }
+  
+  btn.textContent = 'Submitting...'; btn.disabled = true;
+  
+  const fd = new FormData();
+  fd.append('full_name', document.getElementById('reg_name').value);
+  fd.append('email', document.getElementById('reg_email').value);
+  fd.append('whatsapp', document.getElementById('reg_whatsapp').value);
+  fd.append('username', document.getElementById('reg_username').value);
+  fd.append('city', document.getElementById('reg_city').value);
+  fd.append('store_type', store);
+  fd.append('upi_used', document.getElementById('reg_upi').value);
+  fd.append('plan', selectedPlanName || 'monthly');
+  fd.append('receipt', receipt);
+  
+  try {
+    await apiForm('/api/auth/register', fd);
+    openModal(`
+      <div style="text-align:center;padding:20px;">
+        <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
+        <h2>Registration Submitted!</h2>
+        <p style="color:var(--text2);margin:12px 0;">Admin will verify your payment and send login credentials to your WhatsApp and Email within <strong>24 hours</strong>.</p>
+        <p style="color:var(--text2);font-size:13px;">Check your WhatsApp: ${document.getElementById('reg_whatsapp').value}</p>
+        <button class="btn-accent" style="width:100%;margin-top:16px;padding:12px;" onclick="closeModal();showScreen('screen-login')">Go to Login</button>
+      </div>
+    `);
+  } catch(e) {
+    toast(e.message || 'Submission failed', 'error');
+    btn.textContent = 'Submit Registration →'; btn.disabled = false;
+  }
+}
+
+// ======================== KEYBOARD SHORTCUTS ========================
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'n') { e.preventDefault(); if (document.getElementById('screen-app').classList.contains('active')) createNewBill(); }
+  if (e.key === 'Escape') { closeModal(); closeDrawer(); stopScanner(); }
+});
+
+// Dark mode toggle
+document.getElementById('darkToggle')?.addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('darkMode', document.body.classList.contains('dark'));
+});
+
+// ======================== AUTO-LOGIN CHECK ========================
+window.addEventListener('load', async () => {
+  if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
+  
+  if (loadAuth()) {
+    try {
+      // Verify token still valid
+      const me = await apiCall('/api/auth/me');
+      currentUser = { ...currentUser, ...me };
+      localStorage.setItem('pos_user', JSON.stringify(currentUser));
+      await initApp();
+    } catch(e) {
+      // Token expired
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_user');
+      showScreen('screen-login');
+    }
+  }
+});
+</script>
+</body>
+</html>
