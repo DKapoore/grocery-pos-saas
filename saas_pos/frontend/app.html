@@ -3,613 +3,462 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>GroceryPOS — Smart Billing for Every Shop</title>
+<title>GroceryPOS — Smart Billing</title>
 <meta name="theme-color" content="#0f172a">
-<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdyb2NlcnkgUE9TIiwKICAic2hvcnRfbmFtZSI6ICJQT1MiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzBmMTcyYSIsCiAgInRoZW1lX2NvbG9yIjogIiMwZjE3MmEiCn0=">
-
 <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <style>
 :root {
-  --bg: #ffffff; --surface: #f8fafc; --text: #0f172a; --text2: #475569;
-  --border: #e2e8f0; --primary: #0f172a; --accent: #16a34a; --accent2: #dcfce7;
-  --danger: #dc2626; --danger2: #fee2e2; --warn: #f59e0b; --warn2: #fef3c7;
-  --info: #3b82f6; --info2: #dbeafe; --shadow: 0 4px 12px rgba(0,0,0,.08);
-  --shadow-lg: 0 10px 30px rgba(0,0,0,.12); --r: 14px;
+  --bg:#ffffff;--surface:#f8fafc;--text:#0f172a;--text2:#475569;
+  --border:#e2e8f0;--accent:#16a34a;--accent2:#dcfce7;
+  --danger:#dc2626;--danger2:#fee2e2;--warn:#f59e0b;--warn2:#fef3c7;
+  --info:#3b82f6;--info2:#dbeafe;
+  --shadow:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 10px 30px rgba(0,0,0,.12);--r:14px;
 }
-body.dark {
-  --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --text2: #94a3b8;
-  --border: #334155; --accent2: #064e3b; --danger2: #7f1d1d; --warn2: #78350f;
-  --info2: #1e3a5f; --shadow: 0 4px 12px rgba(0,0,0,.4); --shadow-lg: 0 10px 30px rgba(0,0,0,.6);
-}
-* { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',system-ui,-apple-system,sans-serif; }
-body { background:var(--bg); color:var(--text); transition:background .3s,color .3s; }
-input,select,textarea { width:100%; padding:10px 12px; border:2px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font-size:16px; outline:none; transition:.2s; }
-input:focus,select:focus,textarea:focus { border-color:var(--accent); }
-label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin:10px 0 4px; }
-button { cursor:pointer; border:none; font-size:14px; font-weight:600; border-radius:10px; padding:10px 16px; transition:.2s; }
-.btn-accent { background:var(--accent); color:#fff; }
-.btn-accent:hover { background:#15803d; }
-.btn-primary { background:var(--primary); color:#fff; }
-.btn-outline { background:transparent; border:2px solid var(--border); color:var(--text); }
-.btn-outline:hover { border-color:var(--accent); color:var(--accent); }
-.btn-danger { background:var(--danger); color:#fff; }
-.btn-sm { padding:6px 12px; font-size:12px; }
-.hidden { display:none!important; }
-.toast-container { position:fixed; top:16px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
-.toast { padding:12px 18px; border-radius:10px; color:#fff; font-size:14px; font-weight:600; box-shadow:var(--shadow-lg); animation:slideIn .3s ease; max-width:300px; }
-.toast.success { background:#16a34a; }
-.toast.error { background:#dc2626; }
-.toast.info { background:#3b82f6; }
-@keyframes slideIn { from { transform:translateX(100px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+body.dark{--bg:#0f172a;--surface:#1e293b;--text:#f1f5f9;--text2:#94a3b8;--border:#334155;--accent2:#064e3b;--danger2:#7f1d1d;--warn2:#78350f;--info2:#1e3a5f;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;}
+input,select,textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:16px;outline:none;transition:.2s;margin:4px 0 10px;}
+input:focus,select:focus{border-color:var(--accent);}
+label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-top:8px;}
+button{cursor:pointer;border:none;font-weight:600;border-radius:10px;padding:10px 16px;transition:.2s;font-size:14px;}
+button:active{transform:scale(.97);}
+.btn-accent{background:var(--accent);color:#fff;}
+.btn-accent:hover{background:#15803d;}
+.btn-outline{background:transparent;border:2px solid var(--border);color:var(--text);}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-warn{background:var(--warn);color:#000;}
+.btn-info{background:var(--info);color:#fff;}
+.btn-sm{padding:6px 10px;font-size:12px;}
+.hidden{display:none!important;}
+.toast-container{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast{padding:12px 18px;border-radius:10px;color:#fff;font-size:14px;font-weight:600;box-shadow:var(--shadow-lg);animation:slideIn .3s ease;max-width:300px;}
+.toast.success{background:#16a34a;}.toast.error{background:#dc2626;}.toast.info{background:#3b82f6;}.toast.warn{background:#f59e0b;color:#000;}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+.screen{display:none;}
+.screen.active{display:block;}
 
-/* ==================== SCREENS ==================== */
-/* FIX: Each screen is full-page, no scroll bleed */
-.screen { display:none; min-height:100vh; }
-.screen.active { display:block; }
+/* ===== LANDING ===== */
+#screen-landing{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f4c2a 100%);min-height:100vh;}
+.landing-wrap{max-width:960px;margin:0 auto;padding:0 20px;}
+.landing-nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0;}
+.logo{font-size:1.5rem;font-weight:800;color:#fff;letter-spacing:-1px;}
+.logo span{color:#4ade80;}
+.nav-btns{display:flex;gap:10px;}
+.hero{text-align:center;padding:60px 0 40px;}
+.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;color:#fff;line-height:1.15;}
+.hero h1 span{color:#4ade80;}
+.hero p{font-size:1.1rem;color:#94a3b8;margin:16px 0 32px;max-width:600px;margin-left:auto;margin-right:auto;}
+.trial-badge{display:inline-block;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);color:#4ade80;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:24px;}
+.pricing-section{padding:40px 0;}
+.pricing-section h2{text-align:center;font-size:1.8rem;font-weight:800;color:#fff;margin-bottom:8px;}
+.pricing-sub{text-align:center;color:#94a3b8;margin-bottom:28px;}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
+.price-card{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.1);border-radius:20px;padding:28px;transition:.3s;cursor:pointer;}
+.price-card:hover,.price-card.selected{border-color:#4ade80;}
+.popular-badge{background:#f59e0b;color:#0f172a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;display:inline-block;margin-bottom:12px;}
+.price-amount{font-size:2.5rem;font-weight:800;color:#fff;}
+.price-amount span{font-size:1rem;color:#94a3b8;}
+.price-features{margin-top:16px;display:flex;flex-direction:column;gap:8px;}
+.price-feat{color:#94a3b8;font-size:13px;display:flex;align-items:center;gap:8px;}
+.price-feat::before{content:'✓';color:#4ade80;font-weight:700;}
+.upi-section{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:28px;margin:24px 0;text-align:center;}
+.upi-section h3{color:#fff;font-size:1.2rem;margin-bottom:16px;}
+#upiQRContainer{display:flex;justify-content:center;margin:16px 0;}
+.upi-id-display{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);border-radius:10px;padding:10px 16px;color:#4ade80;font-weight:700;display:inline-block;}
+.proceed-btn{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-size:1.1rem;padding:14px 32px;border-radius:12px;margin-top:16px;}
 
-/* ==================== LANDING PAGE ==================== */
-#screen-landing { background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f4c2a 100%); min-height:100vh; overflow-y:auto; }
-.landing-wrap { max-width:960px; margin:0 auto; padding:0 20px; }
-.landing-nav { display:flex; justify-content:space-between; align-items:center; padding:20px 0; }
-.logo { font-size:1.5rem; font-weight:800; color:#fff; letter-spacing:-1px; }
-.logo span { color:#4ade80; }
-.nav-btns { display:flex; gap:10px; }
-.nav-btns button { padding:8px 18px; border-radius:8px; font-size:14px; }
-.hero { text-align:center; padding:60px 0 40px; }
-.hero h1 { font-size:clamp(2rem,5vw,3.5rem); font-weight:800; color:#fff; line-height:1.15; }
-.hero h1 span { color:#4ade80; }
-.hero p { font-size:1.1rem; color:#94a3b8; margin:16px 0 32px; max-width:600px; margin-left:auto; margin-right:auto; }
-.hero-cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-.trial-badge { display:inline-block; background:rgba(74,222,128,.15); border:1px solid rgba(74,222,128,.3); color:#4ade80; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; margin-bottom:24px; }
+/* ===== REGISTER ===== */
+#screen-register{background:var(--bg);min-height:100vh;}
+.form-wrap{max-width:560px;margin:0 auto;padding:20px;}
+.form-header{display:flex;align-items:center;gap:12px;padding:16px 0;border-bottom:2px solid var(--border);margin-bottom:20px;}
+.info-note{background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px;font-size:13px;color:#92400e;margin:12px 0;}
+.file-upload{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;}
+.file-upload input{display:none;}
+.file-name{font-size:13px;color:var(--accent);margin-top:8px;font-weight:600;}
 
-.steps-section { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:24px; margin:32px 0; }
-.steps-title { text-align:center; font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:20px; }
-.steps-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
-.step-card { background:rgba(255,255,255,.08); border-radius:12px; padding:14px; text-align:center; }
-.step-num { font-size:1.8rem; font-weight:800; color:#4ade80; }
-.step-en { font-size:12px; color:#fff; font-weight:600; margin-top:4px; }
-.step-hi { font-size:11px; color:#94a3b8; margin-top:2px; }
+/* ===== LOGIN ===== */
+#screen-login{background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{width:100%;max-width:420px;background:var(--surface);border-radius:20px;padding:32px;box-shadow:var(--shadow-lg);}
+.login-tabs{display:flex;background:var(--bg);border-radius:10px;padding:4px;margin-bottom:20px;}
+.login-tab{flex:1;padding:8px;border-radius:8px;background:none;border:none;color:var(--text2);font-weight:600;}
+.login-tab.active{background:var(--accent);color:#fff;}
+.forgot-link{text-align:center;margin-top:12px;font-size:13px;color:var(--accent);cursor:pointer;}
 
-.pricing-section { padding:40px 0; }
-.pricing-section h2 { text-align:center; font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:8px; }
-.pricing-sub { text-align:center; color:#94a3b8; margin-bottom:28px; }
-.pricing-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
-.price-card { background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.1); border-radius:20px; padding:28px; transition:.3s; cursor:pointer; }
-.price-card:hover,.price-card.selected { border-color:#4ade80; background:rgba(74,222,128,.08); }
-.price-card.popular { border-color:#f59e0b; }
-.popular-badge { background:#f59e0b; color:#0f172a; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; display:inline-block; margin-bottom:12px; }
-.price-amount { font-size:2.5rem; font-weight:800; color:#fff; }
-.price-amount span { font-size:1rem; color:#94a3b8; }
-.price-plan { font-size:1rem; color:#94a3b8; margin-top:4px; }
-.price-save { background:rgba(74,222,128,.2); color:#4ade80; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:600; display:inline-block; margin-top:8px; }
-.price-features { margin-top:16px; display:flex; flex-direction:column; gap:8px; }
-.price-feat { color:#94a3b8; font-size:13px; display:flex; align-items:center; gap:8px; }
-.price-feat::before { content:'✓'; color:#4ade80; font-weight:700; }
-.price-btn { width:100%; margin-top:20px; padding:12px; font-size:15px; border-radius:12px; }
-
-.upi-section { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:28px; margin:24px 0; text-align:center; }
-.upi-section h3 { color:#fff; font-size:1.2rem; margin-bottom:16px; }
-#upiQRContainer { display:flex; justify-content:center; margin:16px 0; min-height:220px; align-items:center; }
-#upiQRContainer canvas, #upiQRContainer img { border-radius:12px; }
-.upi-id-display { background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); border-radius:10px; padding:10px 16px; color:#4ade80; font-weight:700; font-size:1rem; display:inline-block; margin:8px 0; }
-.proceed-btn { background:linear-gradient(135deg,#16a34a,#15803d); color:#fff; font-size:1.1rem; padding:14px 32px; border-radius:12px; margin-top:16px; }
-
-/* ==================== REGISTRATION FORM ==================== */
-#screen-register { background:var(--bg); overflow-y:auto; }
-.form-wrap { max-width:560px; margin:0 auto; padding:20px; }
-.form-header { display:flex; align-items:center; gap:12px; padding:16px 0; border-bottom:2px solid var(--border); margin-bottom:20px; }
-.form-header button { background:none; border:none; font-size:1.5rem; color:var(--text2); }
-.form-title { font-size:1.3rem; font-weight:700; }
-.form-plan-badge { background:var(--accent2); color:var(--accent); padding:4px 12px; border-radius:8px; font-size:13px; font-weight:600; }
-.info-note { background:#fef3c7; border:1px solid #f59e0b; border-radius:10px; padding:12px; font-size:13px; color:#92400e; margin:12px 0; }
-.submit-btn { width:100%; padding:14px; font-size:1rem; border-radius:12px; margin-top:16px; }
-.file-upload { border:2px dashed var(--border); border-radius:10px; padding:20px; text-align:center; cursor:pointer; transition:.2s; }
-.file-upload:hover { border-color:var(--accent); }
-.file-upload input { display:none; }
-.file-name { font-size:13px; color:var(--accent); margin-top:8px; font-weight:600; }
-
-/* ==================== LOGIN ==================== */
-/* FIX: Login is a separate full-page, flexbox centered, no scroll to app */
-#screen-login { background:var(--bg); display:none; }
-#screen-login.active { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
-.login-box { width:100%; max-width:420px; background:var(--surface); border-radius:20px; padding:32px; box-shadow:var(--shadow-lg); }
-.login-logo { text-align:center; margin-bottom:24px; }
-.login-logo .logo { font-size:1.8rem; }
-.login-tabs { display:flex; background:var(--bg); border-radius:10px; padding:4px; margin-bottom:20px; }
-.login-tab { flex:1; padding:8px; border-radius:8px; background:none; border:none; color:var(--text2); font-weight:600; font-size:14px; }
-.login-tab.active { background:var(--accent); color:#fff; }
-.forgot-link { text-align:center; margin-top:12px; font-size:13px; color:var(--accent); cursor:pointer; }
-
-/* ==================== POS APP ==================== */
-/* FIX: App screen is isolated full-height flex, never scrolls with other screens */
-#screen-app { display:none; }
-#screen-app.active { display:flex; height:100vh; width:100%; overflow:hidden; }
-.app-wrap { width:100%; max-width:680px; margin:0 auto; display:flex; flex-direction:column; height:100vh; background:var(--surface); box-shadow:var(--shadow-lg); overflow:hidden; }
+/* ===== POS APP — FULL SCREEN ===== */
+#screen-app{position:fixed;inset:0;z-index:1000;display:none;flex-direction:column;background:var(--surface);}
+#screen-app.active{display:flex;}
+.app-wrap{width:100%;max-width:600px;margin:0 auto;display:flex;flex-direction:column;height:100vh;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;position:relative;}
 
 /* App Header */
-.app-header { padding:10px 14px; background:var(--bg); border-bottom:2px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
-.app-header .logo-sm { font-size:1rem; font-weight:800; }
-.app-header .logo-sm span { color:var(--accent); }
-.header-icons { display:flex; gap:4px; flex-wrap:wrap; }
-.icon-btn { background:var(--bg); border:2px solid var(--border); padding:7px 10px; border-radius:9px; cursor:pointer; font-size:14px; color:var(--text); transition:.2s; min-width:38px; min-height:38px; display:flex; align-items:center; justify-content:center; }
-.icon-btn:hover { border-color:var(--accent); color:var(--accent); }
-.sub-badge { font-size:10px; padding:2px 7px; border-radius:6px; font-weight:700; }
-.sub-badge.free { background:var(--warn2); color:#92400e; }
-.sub-badge.active { background:var(--accent2); color:#166534; }
-.sub-badge.expired { background:var(--danger2); color:var(--danger); }
+.app-header{padding:10px 14px;background:var(--bg);border-bottom:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;z-index:10;}
+.app-logo{font-size:1rem;font-weight:800;color:var(--text);}
+.app-logo span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:4px;}
+.icon-btn{background:var(--bg);border:2px solid var(--border);padding:7px 9px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);transition:.2s;min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+.sub-badge{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:700;border:none;}
+.sub-badge.free{background:var(--warn2);color:#92400e;}
+.sub-badge.active{background:var(--accent2);color:#166534;}
+.sub-badge.expired{background:var(--danger2);color:var(--danger);}
 
 /* Bill Tabs */
-.tabs-bar { display:flex; align-items:center; padding:8px 10px; gap:6px; background:var(--bg); border-bottom:1px solid var(--border); overflow-x:auto; flex-shrink:0; scrollbar-width:none; }
-.tabs-bar::-webkit-scrollbar { display:none; }
-.bill-tab { flex-shrink:0; padding:6px 12px; border-radius:8px; border:2px solid var(--border); background:var(--bg); color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; transition:.2s; white-space:nowrap; }
-.bill-tab.active { border-color:var(--accent); background:var(--accent); color:#fff; }
-.bill-tab.hold { border-color:var(--warn); background:var(--warn2); color:#92400e; }
-.new-tab-btn { flex-shrink:0; padding:6px 10px; border-radius:8px; background:var(--accent2); border:2px dashed var(--accent); color:var(--accent); font-size:16px; font-weight:700; cursor:pointer; }
-
-/* Barcode Area */
-.scan-bar { padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; gap:6px; flex-shrink:0; }
-.scan-input-wrap { flex:1; position:relative; }
-.scan-input-wrap input { padding:9px 12px 9px 36px; font-size:14px; }
-.scan-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text2); font-size:14px; pointer-events:none; }
+.tabs-bar{display:flex;align-items:center;padding:6px 8px;gap:5px;background:var(--bg);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;scrollbar-width:none;}
+.tabs-bar::-webkit-scrollbar{display:none;}
+.bill-tab{flex-shrink:0;padding:5px 10px;border-radius:8px;border:2px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:.2s;white-space:nowrap;position:relative;}
+.bill-tab.active{border-color:var(--accent);background:var(--accent);color:#fff;}
+.bill-tab.hold{border-color:var(--warn);background:var(--warn2);color:#92400e;}
+.bill-tab .tab-dot{position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;}
+.dot-active{background:var(--accent);}
+.dot-hold{background:var(--warn);animation:blink 1s infinite;}
+.new-tab-btn{flex-shrink:0;padding:5px 10px;border-radius:8px;background:var(--accent2);border:2px dashed var(--accent);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;}
 
 /* Cart Area */
-.cart-area { flex:1; overflow-y:auto; padding:8px 10px; background:var(--surface); }
-.cart-empty { text-align:center; padding:40px 20px; color:var(--text2); }
-.cart-empty .empty-icon { font-size:3rem; margin-bottom:8px; }
-.cart-item { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--bg); border-radius:12px; margin-bottom:6px; border:1px solid var(--border); }
-.item-name { flex:1; font-weight:600; font-size:14px; }
-.item-name small { display:block; color:var(--text2); font-weight:400; font-size:12px; }
-.qty-ctrl { display:flex; align-items:center; gap:4px; }
-.qty-btn { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; background:var(--surface); border:1px solid var(--border); cursor:pointer; }
-.qty-num { width:28px; text-align:center; font-size:13px; font-weight:700; }
-.item-price { font-size:13px; font-weight:700; color:var(--accent); min-width:60px; text-align:right; }
-.item-del { color:var(--danger); font-size:14px; cursor:pointer; padding:4px; }
+.cart-area{flex:1;overflow-y:auto;padding:8px 10px;background:var(--surface);}
+.cart-empty{text-align:center;padding:40px 20px;color:var(--text2);}
+.cart-empty .ei{font-size:3rem;margin-bottom:8px;}
+.cart-item{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border-radius:12px;margin-bottom:6px;border:1px solid var(--border);transition:.2s;}
+.cart-item:hover{border-color:var(--accent);}
+.item-info{flex:1;}
+.item-name{font-weight:600;font-size:14px;}
+.item-meta{font-size:11px;color:var(--text2);margin-top:2px;}
+.qty-ctrl{display:flex;align-items:center;gap:3px;}
+.qty-btn{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;background:var(--surface);border:1px solid var(--border);cursor:pointer;color:var(--text);}
+.qty-num{width:30px;text-align:center;font-size:13px;font-weight:700;}
+.item-price{font-size:13px;font-weight:700;color:var(--accent);min-width:58px;text-align:right;}
+.item-del{color:var(--danger);font-size:16px;cursor:pointer;padding:4px;border:none;background:none;}
 
 /* Summary Bar */
-.summary-bar { padding:10px 14px; background:var(--bg); border-top:2px solid var(--border); flex-shrink:0; }
-.summary-row { display:flex; justify-content:space-between; font-size:13px; color:var(--text2); margin-bottom:3px; }
-.summary-total { display:flex; justify-content:space-between; font-size:1.3rem; font-weight:800; color:var(--text); margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
-.bill-meta { display:flex; gap:8px; font-size:11px; color:var(--text2); margin-bottom:6px; flex-wrap:wrap; }
-.meta-tag { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:2px 8px; }
+.summary-bar{padding:10px 14px;background:var(--bg);border-top:2px solid var(--border);flex-shrink:0;}
+.bill-meta{display:flex;gap:6px;font-size:11px;color:var(--text2);margin-bottom:6px;flex-wrap:wrap;}
+.meta-tag{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 7px;}
+.sum-row{display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:2px;}
+.sum-total{display:flex;justify-content:space-between;font-size:1.3rem;font-weight:800;color:var(--text);margin-top:6px;padding-top:6px;border-top:2px solid var(--accent);}
+.sum-total span:last-child{color:var(--accent);}
 
-/* Action Bar */
-.action-bar { padding:8px 10px; background:var(--bg); border-top:1px solid var(--border); display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1.5fr; gap:6px; flex-shrink:0; }
-.action-bar button { padding:9px 6px; font-size:12px; border-radius:9px; }
-.action-bar .btn-complete { background:var(--accent); color:#fff; font-size:13px; }
+/* Trial Lock */
+.trial-lock{background:linear-gradient(135deg,#dc2626,#9b1c1c);padding:12px 14px;text-align:center;color:#fff;flex-shrink:0;}
+.trial-lock h3{font-size:.95rem;margin-bottom:3px;}
+.trial-lock p{font-size:11px;opacity:.85;margin-bottom:8px;}
+.trial-lock button{background:#fff;color:#dc2626;padding:6px 16px;border-radius:8px;font-weight:700;}
 
-/* Trial Lock Banner */
-.trial-lock { background:linear-gradient(135deg,#dc2626,#9b1c1c); padding:14px; text-align:center; color:#fff; flex-shrink:0; }
-.trial-lock h3 { font-size:1rem; margin-bottom:4px; }
-.trial-lock p { font-size:12px; opacity:.85; margin-bottom:10px; }
-.trial-lock button { background:#fff; color:#dc2626; padding:8px 20px; border-radius:8px; font-weight:700; }
+/* ===== BOTTOM ACTION BUTTONS (Reference UI Style) ===== */
+.bottom-actions{padding:10px 10px;background:var(--bg);border-top:2px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:7px;}
+
+/* Row 1: Big Scan + Add buttons */
+.action-row-main{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.btn-big{padding:14px 10px;font-size:1rem;border-radius:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;min-height:52px;}
+
+/* Row 2: Small utility buttons */
+.action-row-small{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;}
+.btn-mini{padding:8px 4px;font-size:11px;font-weight:600;border-radius:9px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:48px;justify-content:center;}
+.btn-mini .mi{font-size:16px;}
+
+/* Row 3: Complete bill */
+.action-row-complete{display:grid;grid-template-columns:1fr;gap:0;}
+.btn-complete{padding:13px;font-size:1rem;border-radius:12px;font-weight:800;}
 
 /* Modals & Drawers */
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:none; align-items:flex-end; justify-content:center; }
-.modal-overlay.show { display:flex; }
-.modal-box { background:var(--bg); border-radius:20px 20px 0 0; padding:24px; width:100%; max-width:560px; max-height:85vh; overflow-y:auto; }
-.modal-box h3 { margin-bottom:16px; font-size:1.1rem; }
-.modal-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px; }
-.modal-actions { display:flex; gap:8px; margin-top:16px; }
-.modal-actions button { flex:1; padding:11px; }
-.drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:none; }
-.drawer-overlay.show { display:block; }
-.drawer { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:560px; background:var(--bg); border-radius:20px 20px 0 0; padding:20px; z-index:101; max-height:85vh; overflow-y:auto; }
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);}
+.modal-overlay.show{display:flex;}
+.modal-box{background:var(--bg);border-radius:20px 20px 0 0;padding:24px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;animation:slideUp .25s ease;}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-box h3{margin-bottom:14px;font-size:1.1rem;}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+.modal-actions{display:flex;gap:8px;margin-top:14px;}
+.modal-actions button{flex:1;padding:11px;}
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:none;}
+.drawer-overlay.show{display:block;}
+.drawer-box{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;background:var(--bg);border-radius:20px 20px 0 0;padding:20px;z-index:2001;max-height:80vh;overflow-y:auto;animation:slideUp .25s ease;}
+.drawer-box.hidden{display:none!important;}
 
 /* Scanner */
-.scanner-modal { position:fixed; inset:0; background:#000; z-index:200; display:none; }
-.scanner-modal.show { display:flex; flex-direction:column; align-items:center; justify-content:center; }
-#scannerVideo { width:100%; max-width:500px; }
-.scanner-close { position:absolute; top:20px; right:20px; background:rgba(255,255,255,.2); border:none; color:#fff; width:44px; height:44px; border-radius:50%; font-size:18px; cursor:pointer; }
-.scanner-frame { position:absolute; width:250px; height:250px; border:3px solid #4ade80; border-radius:12px; pointer-events:none; }
-.scanner-line { position:absolute; width:100%; height:2px; background:rgba(74,222,128,.7); animation:scanLine 2s linear infinite; }
-@keyframes scanLine { 0%{top:0} 100%{top:calc(100% - 2px)} }
+.scanner-modal{position:fixed;inset:0;background:#000;z-index:3000;display:none;}
+.scanner-modal.show{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#scannerVideo{width:100%;max-width:500px;}
+.scanner-close{position:absolute;top:20px;right:20px;background:rgba(255,255,255,.2);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;}
+.scanner-frame{position:absolute;width:240px;height:240px;border:3px solid #4ade80;border-radius:12px;pointer-events:none;}
+.scanner-line{position:absolute;width:100%;height:2px;background:rgba(74,222,128,.8);animation:scanLine 2s linear infinite;}
+@keyframes scanLine{0%{top:0}100%{top:calc(100% - 2px)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* Products Panel */
-.prod-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:350px; overflow-y:auto; margin:8px 0; }
-.prod-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:4px; }
-.prod-card-name { font-size:13px; font-weight:600; }
-.prod-card-price { font-size:12px; color:var(--accent); font-weight:700; }
-.prod-card-add { background:var(--accent); color:#fff; padding:5px 10px; border-radius:7px; font-size:12px; margin-top:4px; }
+/* Products Grid */
+.prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:350px;overflow-y:auto;margin:8px 0;}
+.prod-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;}
+.prod-card-name{font-size:13px;font-weight:600;}
+.prod-card-price{font-size:12px;color:var(--accent);font-weight:700;margin-top:2px;}
+.prod-card-sub{font-size:11px;color:var(--text2);}
+.prod-card-btns{display:flex;gap:4px;margin-top:6px;}
+.prod-card-btns button{flex:1;padding:5px;font-size:12px;border-radius:7px;}
 
-/* Sales History */
-.history-list { max-height:400px; overflow-y:auto; }
-.hist-item { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
-.hist-info { font-size:13px; }
-.hist-bill { font-weight:700; }
-.hist-cust { color:var(--text2); font-size:12px; }
-.hist-amount { font-size:1rem; font-weight:800; color:var(--accent); }
+/* History & Customers */
+.list-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;}
+.list-item-row{display:flex;justify-content:space-between;align-items:center;}
+.list-amount{font-size:1rem;font-weight:800;color:var(--accent);}
 
-/* Print Area — ALWAYS OFF-SCREEN until printing */
-#printArea {
-  position:absolute; left:-9999px; top:-9999px;
-  background:#fff; color:#000;
-}
-
-/* Settings tabs */
-.settings-tabs { display:flex; gap:6px; margin-bottom:14px; }
-.settings-tab { flex:1; padding:8px; border-radius:8px; border:2px solid var(--border); background:var(--bg); color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; }
-.settings-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-
-/* Bill format selector */
-.format-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
-.format-card { border:2px solid var(--border); border-radius:10px; padding:12px; text-align:center; cursor:pointer; transition:.2s; }
-.format-card.selected { border-color:var(--accent); background:var(--accent2); }
-.format-card .format-icon { font-size:1.4rem; margin-bottom:4px; }
-.format-card .format-name { font-size:12px; font-weight:700; color:var(--text); }
-.format-card .format-desc { font-size:11px; color:var(--text2); margin-top:2px; }
-
-/* Loyalty */
-.points-badge { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:10px; padding:12px 16px; margin:8px 0; }
-.points-big { font-size:2rem; font-weight:800; }
-.points-label { font-size:12px; opacity:.85; }
-
-/* Subscription expired overlay */
-.expired-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
-.expired-box { background:var(--bg); border-radius:20px; padding:32px; text-align:center; max-width:380px; width:100%; }
-.expired-icon { font-size:3rem; margin-bottom:12px; }
-.expired-box h2 { font-size:1.3rem; margin-bottom:8px; }
-.expired-box p { color:var(--text2); font-size:14px; margin-bottom:20px; }
-
-/* Responsive */
-@media (max-width: 640px) {
-  .steps-grid { grid-template-columns:1fr 1fr; }
-  .pricing-grid { grid-template-columns:1fr; }
-  .prod-grid { grid-template-columns:1fr; }
-  .action-bar { grid-template-columns:1fr 1fr 1fr; grid-template-rows:auto auto; }
-  .action-bar .btn-complete { grid-column:span 3; }
-}
-@media (min-width: 768px) {
-  #screen-app.active { background:var(--surface); }
-  .app-wrap { border-left:1px solid var(--border); border-right:1px solid var(--border); }
-}
-
-/* ==================== BILL PRINT TEMPLATES ==================== */
-/* Thermal 80mm */
-.bill-thermal {
-  width: 302px;  /* 80mm */
-  padding: 12px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  background: #fff;
-  color: #000;
-}
-.bill-thermal .shop-name { font-size:16px; font-weight:700; text-align:center; }
-.bill-thermal .shop-info { font-size:10px; text-align:center; margin-bottom:6px; }
-.bill-thermal hr { border:none; border-top:1px dashed #000; margin:6px 0; }
-.bill-thermal table { width:100%; font-size:11px; border-collapse:collapse; }
-.bill-thermal .total-row { font-size:14px; font-weight:700; }
-.bill-thermal .footer-text { text-align:center; font-size:10px; margin-top:8px; }
-.bill-thermal .qr-wrap { text-align:center; margin:8px 0; }
-
-/* A4 */
-.bill-a4 {
-  width: 794px;  /* A4 width at 96dpi */
-  padding: 30px;
-  font-family: Arial, sans-serif;
-  font-size: 13px;
-  background: #fff;
-  color: #000;
-}
-.bill-a4 .shop-name { font-size:22px; font-weight:700; }
-.bill-a4 .header-band { background:#0f172a; color:#fff; padding:16px 20px; border-radius:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
-.bill-a4 table { width:100%; border-collapse:collapse; margin:12px 0; }
-.bill-a4 table th { background:#f1f5f9; padding:8px; text-align:left; font-size:12px; }
-.bill-a4 table td { padding:7px 8px; border-bottom:1px solid #e2e8f0; font-size:12px; }
-.bill-a4 .total-section { background:#f8fafc; border:2px solid #e2e8f0; border-radius:8px; padding:14px; margin-top:12px; }
-.bill-a4 .grand-total { font-size:18px; font-weight:800; color:#16a34a; }
-.bill-a4 .footer-band { background:#f1f5f9; border-top:2px solid #e2e8f0; padding:12px; text-align:center; margin-top:20px; font-size:11px; color:#475569; border-radius:0 0 8px 8px; }
-.bill-a4 .qr-wrap { float:right; margin-left:16px; }
-
-/* A5 */
-.bill-a5 {
-  width: 559px;  /* A5 width at 96dpi */
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  font-size: 12px;
-  background: #fff;
-  color: #000;
-}
-.bill-a5 .shop-name { font-size:18px; font-weight:700; }
-.bill-a5 .header-band { background:#0f172a; color:#fff; padding:12px 16px; border-radius:6px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
-.bill-a5 table { width:100%; border-collapse:collapse; margin:10px 0; }
-.bill-a5 table th { background:#f1f5f9; padding:6px 8px; text-align:left; font-size:11px; }
-.bill-a5 table td { padding:5px 8px; border-bottom:1px solid #e2e8f0; font-size:11px; }
-.bill-a5 .total-section { background:#f8fafc; border:2px solid #e2e8f0; border-radius:6px; padding:10px; margin-top:10px; }
-.bill-a5 .grand-total { font-size:16px; font-weight:800; color:#16a34a; }
-.bill-a5 .footer-band { background:#f1f5f9; border-top:2px solid #e2e8f0; padding:10px; text-align:center; margin-top:14px; font-size:10px; color:#475569; }
-.bill-a5 .qr-wrap { float:right; margin-left:12px; }
-
-@media print {
-  body > *:not(#printArea) { display:none!important; }
-  #printArea { position:static!important; left:auto!important; top:auto!important; display:block!important; }
-}
+/* Print */
+#printArea{display:none;}
+@media print{body>*:not(#printArea){display:none!important;}#printArea{display:block!important;}}
+@media(max-width:480px){.pricing-grid{grid-template-columns:1fr;}.prod-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 
-<!-- ==================== TOAST ==================== -->
 <div class="toast-container" id="toastContainer"></div>
 <div id="printArea"></div>
 
-<!-- ==================== SCREEN: LANDING ==================== -->
+<!-- ===== LANDING ===== -->
 <div id="screen-landing" class="screen active">
   <div class="landing-wrap">
     <nav class="landing-nav">
       <div class="logo">Grocery<span>POS</span></div>
       <div class="nav-btns">
         <button class="btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3);" onclick="showScreen('screen-login')">Login</button>
-        <button class="btn-accent" onclick="scrollToPricing()">Get Started</button>
+        <button class="btn-accent" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})">Get Started</button>
       </div>
     </nav>
-
     <div class="hero">
-      <div class="trial-badge">🎁 3 Free Bills — No Credit Card Needed</div>
+      <div class="trial-badge">🎁 3 Free Bills — No Credit Card</div>
       <h1>Smart Billing for<br><span>Every Shop</span></h1>
-      <p>Cloud POS system for grocery, kirana, and retail shops. Works on mobile, tablet & desktop.</p>
-      <div class="hero-cta">
-        <button class="btn-accent" style="padding:13px 28px;font-size:1rem;" onclick="startFreeTrial()">Start Free Trial</button>
-        <button class="btn-outline" style="padding:13px 28px;font-size:1rem;color:#fff;border-color:rgba(255,255,255,.3);" onclick="scrollToPricing()">View Plans</button>
+      <p>Cloud POS for kirana, grocery & retail. Works on mobile & desktop.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
+        <button class="btn-accent" style="padding:13px 28px;font-size:1rem;" onclick="showScreen('screen-login')">Start Free Trial</button>
+        <button class="btn-outline" style="padding:13px 28px;color:#fff;border-color:rgba(255,255,255,.3);" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})">View Plans</button>
       </div>
     </div>
-
-    <div class="steps-section">
-      <div class="steps-title">📋 How to Get Started | कैसे शुरू करें</div>
-      <div class="steps-grid">
-        <div class="step-card"><div class="step-num">1</div><div class="step-en">Choose Plan</div><div class="step-hi">प्लान चुनें</div></div>
-        <div class="step-card"><div class="step-num">2</div><div class="step-en">Pay via UPI QR</div><div class="step-hi">QR से पेमेंट करें</div></div>
-        <div class="step-card"><div class="step-num">3</div><div class="step-en">Fill Form + Upload Receipt</div><div class="step-hi">फॉर्म भरें, रसीद अपलोड करें</div></div>
-        <div class="step-card"><div class="step-num">4</div><div class="step-en">Admin Verifies</div><div class="step-hi">पेमेंट वेरिफिकेशन होगा</div></div>
-        <div class="step-card"><div class="step-num">5</div><div class="step-en">Get Password on WhatsApp + Email within 24hrs</div><div class="step-hi">24 घंटे में पासवर्ड मिलेगा</div></div>
-      </div>
-    </div>
-
     <div class="pricing-section" id="pricingSection">
       <h2>Choose Your Plan</h2>
       <p class="pricing-sub">Unlimited billing after activation</p>
       <div class="pricing-grid">
-        <div class="price-card" id="planMonthly" onclick="selectPlan('monthly')">
+        <div class="price-card" onclick="selectPlan('monthly',299)">
           <div class="price-amount">₹299 <span>/ month</span></div>
-          <div class="price-plan">Monthly Plan</div>
+          <div style="color:#94a3b8;margin-top:4px;font-size:.9rem;">Monthly Plan</div>
           <div class="price-features">
             <div class="price-feat">Unlimited bills</div>
-            <div class="price-feat">Thermal / A4 / A5 billing</div>
-            <div class="price-feat">PDF, JPEG & WhatsApp export</div>
-            <div class="price-feat">Customer loyalty points</div>
+            <div class="price-feat">Barcode scanning</div>
+            <div class="price-feat">PDF / JPG / WhatsApp export</div>
             <div class="price-feat">Sales history</div>
           </div>
-          <button class="btn-outline price-btn" id="monthlyBtn">Select Monthly</button>
+          <button class="btn-outline" style="width:100%;margin-top:18px;color:#fff;border-color:rgba(255,255,255,.3);">Select Monthly</button>
         </div>
-        <div class="price-card" id="planYearly" onclick="selectPlan('yearly')">
+        <div class="price-card" onclick="selectPlan('yearly',3200)">
           <div class="popular-badge">🔥 Best Value</div>
           <div class="price-amount">₹3,200 <span>/ year</span></div>
-          <div class="price-plan">Yearly Plan</div>
-          <div class="price-save">Save ₹1,388 vs Monthly</div>
+          <div style="color:#94a3b8;margin-top:4px;font-size:.9rem;">Yearly Plan</div>
+          <div style="background:rgba(74,222,128,.2);color:#4ade80;padding:3px 10px;border-radius:8px;font-size:12px;display:inline-block;margin-top:6px;">Save ₹1,388</div>
           <div class="price-features">
             <div class="price-feat">Everything in Monthly</div>
             <div class="price-feat">Priority support</div>
-            <div class="price-feat">Free updates</div>
             <div class="price-feat">Multi-device access</div>
           </div>
-          <button class="btn-accent price-btn" id="yearlyBtn">Select Yearly ⭐</button>
+          <button class="btn-accent" style="width:100%;margin-top:18px;">Select Yearly ⭐</button>
         </div>
       </div>
     </div>
-
     <div class="upi-section" id="upiSection" style="display:none;">
-      <h3>💳 Pay Now via UPI</h3>
-      <p style="color:#94a3b8;font-size:14px;margin-bottom:12px;">Scan QR or use UPI ID below</p>
+      <h3>💳 Pay via UPI</h3>
+      <p style="color:#94a3b8;font-size:14px;">Scan QR or use UPI ID</p>
       <div id="upiQRContainer"></div>
       <div class="upi-id-display">dkapoore@oksbi</div>
-      <p style="color:#94a3b8;font-size:13px;margin-top:8px;">Amount: <strong id="planAmountDisplay" style="color:#4ade80;"></strong></p>
-      <p style="color:#94a3b8;font-size:12px;margin-top:4px;">Screenshot lene ke baad form fill karein</p>
-      <button class="proceed-btn" onclick="proceedToForm()">✅ Payment Done — Fill Form</button>
+      <p style="color:#94a3b8;font-size:13px;margin-top:8px;">Amount: <strong id="planAmtDisplay" style="color:#4ade80;"></strong></p>
+      <button class="proceed-btn" onclick="showScreen('screen-register')">✅ Payment Done — Fill Form</button>
     </div>
-
     <div style="height:60px;"></div>
   </div>
 </div>
 
-<!-- ==================== SCREEN: REGISTER ==================== -->
+<!-- ===== REGISTER ===== -->
 <div id="screen-register" class="screen">
   <div class="form-wrap">
     <div class="form-header">
-      <button onclick="showScreen('screen-landing')">←</button>
-      <div>
-        <div class="form-title">Payment Registration</div>
-        <div class="form-plan-badge" id="regPlanBadge">Monthly — ₹299</div>
-      </div>
+      <button onclick="showScreen('screen-landing')" style="background:none;border:none;font-size:1.5rem;color:var(--text2);">←</button>
+      <div><div style="font-size:1.2rem;font-weight:700;">Payment Registration</div>
+      <div id="regPlanBadge" style="background:var(--accent2);color:var(--accent);padding:3px 10px;border-radius:7px;font-size:12px;font-weight:600;display:inline-block;margin-top:3px;">Monthly — ₹299</div></div>
     </div>
-    <div class="info-note">⚠️ <strong>Important:</strong> Your login password will be sent on <strong>Email and WhatsApp</strong> after payment verification.</div>
-    <div class="info-note" style="background:#dbeafe;border-color:#3b82f6;color:#1e3a5f;">📝 पेमेंट वेरिफिकेशन के बाद 24 घंटे में आपका पासवर्ड WhatsApp और Email पर भेजा जाएगा।</div>
+    <div class="info-note">⚠️ Login credentials will be sent to your <strong>WhatsApp & Email</strong> within 24 hours after verification.</div>
     <form id="regForm" onsubmit="submitRegistration(event)">
-      <label>Full Name / पूरा नाम *</label>
-      <input id="reg_name" required placeholder="Your full name">
-      <label>Email ID *</label>
-      <input id="reg_email" type="email" required placeholder="yourname@email.com">
-      <label>WhatsApp Mobile Number *</label>
-      <input id="reg_whatsapp" type="tel" required placeholder="10-digit mobile number" maxlength="10">
-      <label>Username (for login) *</label>
-      <input id="reg_username" required placeholder="Choose a username (no spaces)" pattern="[a-zA-Z0-9_]+" title="Letters, numbers and underscore only">
-      <label>City / शहर *</label>
-      <input id="reg_city" required placeholder="Your city">
-      <label>Store / Business Type *</label>
+      <label>Full Name *</label><input id="reg_name" required placeholder="Your full name">
+      <label>Email ID *</label><input id="reg_email" type="email" required placeholder="email@example.com">
+      <label>WhatsApp Number *</label><input id="reg_whatsapp" type="tel" required placeholder="10-digit number" maxlength="10">
+      <label>Username (for login) *</label><input id="reg_username" required placeholder="No spaces" pattern="[a-zA-Z0-9_]+">
+      <label>City *</label><input id="reg_city" required placeholder="Your city">
+      <label>Store Type *</label>
       <select id="reg_store">
-        <option value="">Select store type</option>
-        <option>Grocery / Kirana</option><option>Supermarket</option><option>Pharmacy / Medical</option>
-        <option>Vegetable & Fruit Shop</option><option>General Store</option><option>Bakery</option>
-        <option>Electronics</option><option>Other Retail</option>
+        <option value="">Select type</option>
+        <option>Grocery / Kirana</option><option>Supermarket</option>
+        <option>Pharmacy / Medical</option><option>Vegetable & Fruit</option>
+        <option>General Store</option><option>Bakery</option><option>Other Retail</option>
       </select>
-      <label>UPI ID Used for Payment *</label>
-      <input id="reg_upi" required placeholder="e.g. 9876543210@ybl">
-      <label>Payment Screenshot / रसीद *</label>
+      <label>UPI ID Used for Payment *</label><input id="reg_upi" required placeholder="e.g. 9876543210@ybl">
+      <label>Payment Screenshot *</label>
       <div class="file-upload" onclick="document.getElementById('reg_receipt').click()">
         <div>📎 Click to upload payment screenshot</div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">JPG, PNG, PDF accepted</div>
-        <input type="file" id="reg_receipt" accept="image/*,.pdf" onchange="updateFileName(this)">
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">JPG, PNG, PDF</div>
+        <input type="file" id="reg_receipt" accept="image/*,.pdf" onchange="document.getElementById('fileName').textContent=this.files[0]?.name||'No file'">
         <div class="file-name" id="fileName">No file selected</div>
       </div>
-      <button type="submit" class="btn-accent submit-btn" id="regSubmitBtn">Submit Registration →</button>
+      <button type="submit" class="btn-accent" style="width:100%;padding:14px;margin-top:16px;font-size:1rem;" id="regSubmitBtn">Submit Registration →</button>
     </form>
   </div>
 </div>
 
-<!-- ==================== SCREEN: LOGIN ==================== -->
-<!-- FIX: Completely isolated screen, flex centered -->
+<!-- ===== LOGIN ===== -->
 <div id="screen-login" class="screen">
-  <div class="login-box">
-    <div class="login-logo">
-      <div class="logo" style="color:var(--text)">Grocery<span>POS</span></div>
-      <p style="font-size:13px;color:var(--text2);margin-top:4px;">Cloud Billing Platform</p>
-    </div>
-    <div class="login-tabs">
-      <button class="login-tab active" id="tabLogin" onclick="switchLoginTab('login')">🔐 Login</button>
-      <button class="login-tab" id="tabTrial" onclick="switchLoginTab('trial')">🎁 Free Trial</button>
-    </div>
-    <div id="loginForm">
-      <label>Username</label>
-      <input id="loginUser" placeholder="Enter username">
-      <label>Password</label>
-      <input id="loginPass" type="password" placeholder="Enter password">
-      <button class="btn-accent" style="width:100%;margin-top:16px;padding:13px;font-size:1rem;" onclick="doLogin()">Login →</button>
-      <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
-    </div>
-    <div id="trialForm" class="hidden">
-      <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;font-size:13px;color:#166534;margin-bottom:16px;">
-        🎁 <strong>3 Free Bills</strong> — No payment needed. Try the full POS system!
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);">
+    <div class="login-box">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div class="logo" style="color:var(--text);font-size:1.8rem;">Grocery<span>POS</span></div>
+        <p style="font-size:13px;color:var(--text2);margin-top:4px;">Cloud Billing Platform</p>
       </div>
-      <label>Choose a Username</label>
-      <input id="trialUser" placeholder="e.g. myshop123">
-      <button class="btn-accent" style="width:100%;margin-top:16px;padding:13px;font-size:1rem;" onclick="doFreeTrial()">Start Free Trial →</button>
-      <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+      <div class="login-tabs">
+        <button class="login-tab active" id="tabLogin" onclick="switchLoginTab('login')">🔐 Login</button>
+        <button class="login-tab" id="tabTrial" onclick="switchLoginTab('trial')">🎁 Free Trial</button>
+      </div>
+      <div id="loginForm">
+        <label>Username</label><input id="loginUser" placeholder="Enter username">
+        <label>Password</label><input id="loginPass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doLogin()">Login →</button>
+        <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+      </div>
+      <div id="trialForm" class="hidden">
+        <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;font-size:13px;color:#166534;margin-bottom:14px;">🎁 <strong>3 Free Bills</strong> — No payment needed!</div>
+        <label>Choose Username</label><input id="trialUser" placeholder="e.g. myshop123">
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doFreeTrial()">Start Free Trial →</button>
+        <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ==================== SCREEN: POS APP ==================== -->
+<!-- ===== POS APP ===== -->
 <div id="screen-app" class="screen">
 <div class="app-wrap">
 
+  <!-- Header -->
   <div class="app-header">
     <div>
-      <div class="logo-sm">Grocery<span>POS</span></div>
-      <div id="subStatusBadge" class="sub-badge free">Free</div>
+      <div class="app-logo">Grocery<span>POS</span></div>
+      <button class="sub-badge free" id="subBadge" onclick="showScreen('screen-landing')" style="cursor:pointer;">Free</button>
     </div>
-    <div class="header-icons">
-      <button class="icon-btn" onclick="showHistory()" title="Sales History">📊</button>
+    <div class="header-right">
+      <button class="icon-btn" onclick="toggleDark()" id="darkBtn" title="Dark Mode">🌙</button>
+      <button class="icon-btn" onclick="showHistory()" title="History">📊</button>
       <button class="icon-btn" onclick="showCustomers()" title="Customers">👥</button>
       <button class="icon-btn" onclick="showProducts()" title="Products">📦</button>
       <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
-      <button class="icon-btn" id="darkToggle" title="Dark Mode">🌙</button>
       <button class="icon-btn" onclick="doLogout()" title="Logout">🚪</button>
     </div>
   </div>
 
+  <!-- Trial Lock Banner -->
   <div class="trial-lock hidden" id="trialLockBanner">
-    <h3>🔒 FREE VERSION — Upgrade Required</h3>
-    <p>3 free bills used. Upgrade to continue billing.</p>
-    <button onclick="showScreen('screen-landing')">Upgrade Plan ↗</button>
+    <h3>🔒 Free Limit Reached</h3>
+    <p>3 free bills used. Upgrade to continue.</p>
+    <button onclick="showScreen('screen-landing')">Upgrade ↗</button>
   </div>
 
-  <div class="tabs-bar" id="billTabsBar">
+  <!-- Bill Tabs -->
+  <div class="tabs-bar" id="tabsBar">
     <button class="new-tab-btn" onclick="createNewBill()" title="New Bill (Ctrl+N)">＋</button>
   </div>
 
-  <div class="scan-bar">
-    <div class="scan-input-wrap">
-      <span class="scan-icon">📷</span>
-      <input id="barcodeInput" placeholder="Scan barcode or type product name..." onkeydown="handleBarcodeInput(event)" autocomplete="off">
-    </div>
-    <button class="icon-btn" onclick="startScanner()" title="Camera Scanner">📸</button>
-    <button class="icon-btn" onclick="showManualEntry()" title="Quick Add">✏️</button>
-  </div>
-
+  <!-- Cart -->
   <div class="cart-area" id="cartArea">
     <div class="cart-empty" id="cartEmpty">
-      <div class="empty-icon">🛒</div>
-      <div>Cart is empty</div>
-      <div style="font-size:12px;color:var(--text2);margin-top:4px;">Scan barcode or search product</div>
+      <div class="ei">🛒</div>
+      <div style="font-weight:600;">Cart is empty</div>
+      <div style="font-size:12px;margin-top:4px;">Scan barcode or tap ➕ Add below</div>
     </div>
     <div id="cartItems"></div>
   </div>
 
+  <!-- Summary -->
   <div class="summary-bar" id="summaryBar" style="display:none;">
     <div class="bill-meta" id="billMeta"></div>
-    <div class="summary-row"><span>Subtotal</span><span id="sumSubtotal">₹0</span></div>
-    <div class="summary-row" id="sumTaxRow" style="display:none;"><span>Tax</span><span id="sumTax">₹0</span></div>
-    <div class="summary-row" id="sumDiscRow" style="display:none;"><span>Discount</span><span id="sumDisc" style="color:var(--danger);">-₹0</span></div>
-    <div class="summary-total"><span>TOTAL</span><span id="sumTotal">₹0</span></div>
+    <div class="sum-row"><span>Subtotal</span><span id="sumSubtotal">₹0.00</span></div>
+    <div class="sum-row" id="sumTaxRow" style="display:none;"><span>Tax</span><span id="sumTax">₹0.00</span></div>
+    <div class="sum-row" id="sumDiscRow" style="display:none;"><span>Discount</span><span id="sumDisc" style="color:var(--danger);">-₹0.00</span></div>
+    <div class="sum-total"><span>TOTAL</span><span id="sumTotal">₹0.00</span></div>
   </div>
 
-  <div class="action-bar" id="actionBar">
-    <button class="btn-outline" onclick="holdCurrentBill()">⏸ Hold</button>
-    <button class="btn-outline" onclick="openCustomerPanel()">👤 Cust</button>
-    <button class="btn-outline" onclick="openDiscountPanel()">🏷️ Disc</button>
-    <button class="btn-outline" onclick="openExportPanel()">📤 Export</button>
-    <button class="btn-accent btn-complete" onclick="completeBill()">✅ Bill</button>
+  <!-- ===== BOTTOM ACTIONS (Reference UI Style) ===== -->
+  <div class="bottom-actions">
+    <!-- Row 1: Big primary action buttons -->
+    <div class="action-row-main">
+      <button class="btn-accent btn-big" onclick="startScanner()">
+        <span style="font-size:1.3rem;">📷</span> Scan
+      </button>
+      <button class="btn-outline btn-big" onclick="showManualEntry()" style="border:2px solid var(--accent);color:var(--accent);">
+        <span style="font-size:1.3rem;">➕</span> Add
+      </button>
+    </div>
+    <!-- Row 2: Small utility buttons -->
+    <div class="action-row-small">
+      <button class="btn-outline btn-mini" onclick="holdCurrentBill()">
+        <span class="mi">⏸️</span><span>Hold</span>
+      </button>
+      <button class="btn-outline btn-mini" onclick="openCustomerPanel()">
+        <span class="mi">👤</span><span>Customer</span>
+      </button>
+      <button class="btn-outline btn-mini" onclick="openDiscountPanel()">
+        <span class="mi">🏷️</span><span>Discount</span>
+      </button>
+      <button class="btn-outline btn-mini" onclick="openExportPanel()">
+        <span class="mi">📤</span><span>Export</span>
+      </button>
+      <button class="btn-outline btn-mini" onclick="printBillDirect()">
+        <span class="mi">🖨️</span><span>Print</span>
+      </button>
+    </div>
+    <!-- Row 3: Complete Bill -->
+    <div class="action-row-complete">
+      <button class="btn-accent btn-complete" onclick="completeBill()">✅ Complete Bill</button>
+    </div>
   </div>
+
 </div>
 </div>
 
-<!-- ==================== SCANNER MODAL ==================== -->
+<!-- Scanner Modal -->
 <div class="scanner-modal" id="scannerModal">
   <div id="scannerVideo"></div>
   <div class="scanner-frame"><div class="scanner-line"></div></div>
   <button class="scanner-close" onclick="stopScanner()">✕</button>
-  <div style="position:absolute;bottom:40px;color:#fff;font-size:14px;text-align:center;">Barcode camera ke saamne rakhe</div>
+  <div style="position:absolute;bottom:40px;color:#fff;font-size:14px;text-align:center;width:100%;">Camera ke saamne barcode rakhe</div>
 </div>
 
+<!-- Modal Overlay -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
   <div class="modal-box" id="modalBox" onclick="event.stopPropagation()"></div>
 </div>
 
+<!-- Drawer -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-<div class="drawer hidden" id="drawerBox"></div>
+<div class="drawer-box hidden" id="drawerBox"></div>
 
-<!-- ==================== MAIN SCRIPT ==================== -->
 <script>
 // ======================== CONFIG ========================
-const API = window.location.origin.includes('localhost') || window.location.hostname === '127.0.0.1'
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8000'
   : 'https://grocery-pos-backend-lwfh.onrender.com';
 
-const UPI_ID = 'dkapoore@oksbi';
-const UPI_NAME = 'GroceryPOS';
-const FREE_BILL_LIMIT = 3;
-
 // ======================== STATE ========================
-let currentUser = null;
-let authToken = null;
-let settings = {
-  shopName:'My Shop', upi:'', address:'', mobile:'', footer:'Thank you!',
-  taxPercent:0, gstNumber:'',
-  billFormat: 'thermal'  // NEW: 'thermal' | 'a4' | 'a5'
-};
+let currentUser = null, authToken = null;
+let settings = { shopName:'My Shop', upi:'', address:'', mobile:'', footer:'Thank you! Visit Again 🙏', taxPercent:0, gstNumber:'' };
 let products = [];
 let billSessions = [];
 let activeBillId = null;
-let billCounter = parseInt(localStorage.getItem('billCounter') || '1');
-let selectedPlan = null;
+let billCounter = parseInt(localStorage.getItem('billCounter')||'1');
 let trialStatus = { plan:'free', trial_bills_used:0, is_locked:false };
-let usbScanBuffer = '';
-let usbScanTimer = null;
+let selectedPlan = null;
 
-// ======================== SCREEN ROUTER ========================
-// FIX: Each screen is completely isolated; body scroll reset on each switch
+// ======================== SCREEN ========================
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById(id);
-  if (el) el.classList.add('active');
-  window.scrollTo(0, 0);
-  document.body.style.overflow = (id === 'screen-app') ? 'hidden' : '';
-}
-
-function scrollToPricing() {
-  showScreen('screen-landing');
-  setTimeout(() => document.getElementById('pricingSection').scrollIntoView({ behavior:'smooth' }), 100);
+  document.getElementById(id)?.classList.add('active');
 }
 
 // ======================== TOAST ========================
@@ -619,21 +468,18 @@ function toast(msg, type='success') {
   t.className = `toast ${type}`;
   t.textContent = msg;
   c.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  setTimeout(() => t.remove(), 3000);
 }
 
-// ======================== AUTH ========================
-async function apiCall(endpoint, options={}) {
-  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+// ======================== API ========================
+async function apiCall(endpoint, opts={}) {
+  const headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  try {
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'API Error');
-    return data;
-  } catch(e) { throw e; }
+  const res = await fetch(`${API}${endpoint}`, { ...opts, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'API Error');
+  return data;
 }
-
 async function apiForm(endpoint, formData) {
   const headers = {};
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -643,24 +489,22 @@ async function apiForm(endpoint, formData) {
   return data;
 }
 
+// ======================== AUTH ========================
 function saveAuth(token, user) {
   authToken = token; currentUser = user;
   localStorage.setItem('pos_token', token);
   localStorage.setItem('pos_user', JSON.stringify(user));
 }
-
 function loadAuth() {
   const t = localStorage.getItem('pos_token');
   const u = localStorage.getItem('pos_user');
   if (t && u) { authToken = t; currentUser = JSON.parse(u); return true; }
   return false;
 }
-
 function doLogout() {
   authToken = null; currentUser = null;
   localStorage.removeItem('pos_token'); localStorage.removeItem('pos_user');
-  showScreen('screen-login');
-  toast('Logged out', 'info');
+  showScreen('screen-login'); toast('Logged out', 'info');
 }
 
 async function doLogin() {
@@ -668,7 +512,7 @@ async function doLogin() {
   const password = document.getElementById('loginPass').value;
   if (!username || !password) { toast('Username & password required', 'error'); return; }
   try {
-    const data = await apiCall('/api/auth/login', { method:'POST', body: JSON.stringify({ username, password }) });
+    const data = await apiCall('/api/auth/login', { method:'POST', body:JSON.stringify({username,password}) });
     saveAuth(data.token, data.user);
     await initApp();
   } catch(e) { toast(e.message || 'Login failed', 'error'); }
@@ -676,9 +520,9 @@ async function doLogin() {
 
 async function doFreeTrial() {
   const username = document.getElementById('trialUser').value.trim();
-  if (!username || username.length < 3) { toast('Username min 3 characters', 'error'); return; }
+  if (!username || username.length < 3) { toast('Min 3 characters', 'error'); return; }
   try {
-    const data = await apiCall('/api/auth/free-trial', { method:'POST', body: JSON.stringify({ username, password:'' }) });
+    const data = await apiCall('/api/auth/free-trial', { method:'POST', body:JSON.stringify({username,password:''}) });
     saveAuth(data.token, data.user);
     await initApp();
   } catch(e) { toast(e.message || 'Failed', 'error'); }
@@ -694,7 +538,6 @@ function switchLoginTab(tab) {
 // ======================== APP INIT ========================
 async function initApp() {
   showScreen('screen-app');
-
   try {
     const [settData, prodData, tsData] = await Promise.all([
       apiCall('/api/settings'),
@@ -706,54 +549,49 @@ async function initApp() {
       upi: settData.upi_id || '',
       address: settData.address || '',
       mobile: settData.mobile || '',
-      footer: settData.footer || 'Thank you!',
+      footer: settData.footer || 'Thank you! 🙏',
       taxPercent: settData.tax_percent || 0,
-      gstNumber: settData.gst_number || '',
-      billFormat: settData.bill_format || localStorage.getItem('bill_format') || 'thermal'
+      gstNumber: settData.gst_number || ''
     };
     products = prodData;
     trialStatus = tsData;
   } catch(e) {
     const saved = JSON.parse(localStorage.getItem('pos_settings') || '{}');
-    if (saved.shopName) settings = { ...settings, ...saved };
-    settings.billFormat = localStorage.getItem('bill_format') || 'thermal';
+    if (saved.shopName) settings = saved;
     products = JSON.parse(localStorage.getItem('pos_products') || '[]');
   }
-
   billSessions = JSON.parse(localStorage.getItem('bill_sessions') || '[]');
   activeBillId = localStorage.getItem('active_bill_id');
-
   if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
-
   if (billSessions.length === 0) createNewBill();
   else if (!activeBillId || !billSessions.find(b => b.id === activeBillId)) {
     const ab = billSessions.find(b => b.status !== 'completed');
     activeBillId = ab ? ab.id : billSessions[0].id;
   }
-
   updateSubBadge();
-  setupUSBScanner();
   checkTrialLock();
+  setupUSBScanner();
   renderAll();
 }
 
-function updateSubBadge() {
-  const badge = document.getElementById('subStatusBadge');
-  if (!badge) return;
-  if (trialStatus.plan === 'free') {
-    badge.className = 'sub-badge free';
-    badge.textContent = `Free (${3 - trialStatus.trial_bills_used} bills left)`;
-  } else if (currentUser?.subscription_expiry) {
-    const exp = new Date(currentUser.subscription_expiry);
-    if (exp < new Date()) { badge.className = 'sub-badge expired'; badge.textContent = 'Expired'; }
-    else { badge.className = 'sub-badge active'; badge.textContent = `Active (${Math.ceil((exp-new Date())/86400000)}d)`; }
-  }
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('darkMode', document.body.classList.contains('dark'));
 }
 
+function updateSubBadge() {
+  const b = document.getElementById('subBadge');
+  if (!b) return;
+  if (trialStatus.plan === 'free') {
+    b.className = 'sub-badge free'; b.textContent = `Free (${3-trialStatus.trial_bills_used} left)`;
+  } else if (currentUser?.subscription_expiry) {
+    const exp = new Date(currentUser.subscription_expiry);
+    if (exp < new Date()) { b.className = 'sub-badge expired'; b.textContent = 'Expired'; }
+    else { b.className = 'sub-badge active'; b.textContent = `Active (${Math.ceil((exp-new Date())/86400000)}d)`; }
+  }
+}
 function checkTrialLock() {
-  const banner = document.getElementById('trialLockBanner');
-  if (trialStatus.is_locked) banner.classList.remove('hidden');
-  else banner.classList.add('hidden');
+  document.getElementById('trialLockBanner').classList.toggle('hidden', !trialStatus.is_locked);
 }
 
 // ======================== BILL MANAGEMENT ========================
@@ -761,140 +599,170 @@ function newBillId() { return 'bill_' + Date.now(); }
 function newBillNumber() { return 'INV-' + String(billCounter++).padStart(4,'0'); }
 
 function createNewBill() {
-  if (trialStatus.is_locked) { toast('Free trial ended. Upgrade to continue.', 'error'); showScreen('screen-landing'); return; }
-  const bill = { id:newBillId(), billNumber:newBillNumber(), cart:[], customer:{name:'',mobile:''}, paymentMode:'Cash', discount:0, discountType:'flat', loyaltyDiscount:0, notes:'', status:'active', createdAt:new Date().toISOString() };
-  billSessions.unshift(bill); activeBillId = bill.id;
-  localStorage.setItem('billCounter', billCounter);
+  localStorage.setItem('billCounter', String(billCounter));
+  const bill = {
+    id: newBillId(), billNumber: newBillNumber(),
+    status: 'active', cart: [],
+    customer: { name:'', mobile:'' },
+    paymentMode: 'Cash',
+    discount: 0, discountType: 'flat',
+    loyaltyDiscount: 0, notes: '',
+    createdAt: new Date().toISOString()
+  };
+  billSessions.push(bill);
+  activeBillId = bill.id;
   saveState(); renderAll();
-  toast('New bill created', 'success');
+  return bill;
 }
 
-function getActiveBill() { return billSessions.find(b => b.id === activeBillId) || null; }
-function switchToBill(id) { activeBillId = id; saveState(); renderAll(); }
+function getActiveBill() {
+  return billSessions.find(b => b.id === activeBillId) || (billSessions.length > 0 ? billSessions[0] : createNewBill());
+}
+
+function switchToBill(id) {
+  const b = billSessions.find(b => b.id === id);
+  if (!b) return;
+  if (b.status === 'completed') { toast('Bill already done. Open new bill.', 'info'); return; }
+  activeBillId = id;
+  saveState(); renderAll();
+}
 
 function holdCurrentBill() {
-  const bill = getActiveBill();
-  if (!bill || bill.cart.length === 0) { toast('Cart is empty', 'error'); return; }
-  bill.status = 'hold'; saveState();
-  const active = billSessions.find(b => b.status === 'active');
-  if (active) activeBillId = active.id;
-  else createNewBill();
-  renderAll(); toast('Bill held', 'info');
-}
-
-function resumeBill(id) {
-  const bill = billSessions.find(b => b.id === id);
-  if (bill) { bill.status = 'active'; activeBillId = id; saveState(); renderAll(); }
+  const b = getActiveBill();
+  if (!b) return;
+  if (b.status === 'hold') {
+    b.status = 'active';
+    toast('Bill resumed', 'success');
+  } else {
+    b.status = 'hold';
+    toast('Bill on hold ⏸️', 'warn');
+  }
+  saveState(); renderAll();
 }
 
 function closeBillTab(id) {
-  const bill = billSessions.find(b => b.id === id);
-  if (!bill || bill.cart.length > 0) return;
-  billSessions = billSessions.filter(b => b.id !== id);
+  const b = billSessions.find(x => x.id === id);
+  if (!b) return;
+  if (b.cart.length > 0 && !confirm('Close this bill? Items will be lost.')) return;
+  billSessions = billSessions.filter(x => x.id !== id);
   if (activeBillId === id) {
-    const next = billSessions.find(b => b.status !== 'completed');
-    if (next) activeBillId = next.id; else createNewBill();
+    const active = billSessions.find(x => x.status !== 'completed');
+    if (active) activeBillId = active.id;
+    else if (billSessions.length > 0) activeBillId = billSessions[billSessions.length-1].id;
+    else createNewBill();
   }
   saveState(); renderAll();
 }
 
 function calcBill(bill) {
-  let subtotal = bill.cart.reduce((s,i) => s + i.price * i.quantity, 0);
-  let tax = bill.cart.reduce((s,i) => s + (i.price * i.quantity * (i.taxPercent||0) / 100), 0);
-  let disc = bill.discountType === 'percent' ? subtotal * bill.discount / 100 : (bill.discount || 0);
-  let loyaltyDisc = bill.loyaltyDiscount || 0;
-  let final = Math.max(0, subtotal + tax - disc - loyaltyDisc);
+  let subtotal = 0, tax = 0;
+  (bill.cart||[]).forEach(i => {
+    const line = parseFloat(i.price) * (i.quantity||1);
+    subtotal += line;
+    tax += line * ((i.tax||0)/100);
+  });
+  let disc = bill.discountType === 'percent'
+    ? subtotal * ((bill.discount||0)/100)
+    : (bill.discount||0);
+  disc = Math.min(disc, subtotal);
+  const loyaltyDisc = bill.loyaltyDiscount || 0;
+  const final = Math.max(0, subtotal + tax - disc - loyaltyDisc);
   return { subtotal, tax, disc, loyaltyDisc, final };
 }
 
 function saveState() {
-  const nonCompleted = billSessions.filter(b => b.status !== 'completed');
-  const lastCompleted = billSessions.filter(b => b.status === 'completed').slice(0, 5);
-  billSessions = [...nonCompleted, ...lastCompleted];
   localStorage.setItem('bill_sessions', JSON.stringify(billSessions));
   localStorage.setItem('active_bill_id', activeBillId);
+  localStorage.setItem('billCounter', String(billCounter));
 }
 
 // ======================== RENDER ========================
 function renderAll() { renderTabs(); renderActiveBill(); }
 
 function renderTabs() {
-  const bar = document.getElementById('billTabsBar');
-  const visible = billSessions.filter(b => b.status !== 'completed');
-  bar.innerHTML = `<button class="new-tab-btn" onclick="createNewBill()" title="Ctrl+N">＋</button>`;
-  visible.forEach(bill => {
-    const isActive = bill.id === activeBillId;
-    const cls = isActive ? 'bill-tab active' : bill.status === 'hold' ? 'bill-tab hold' : 'bill-tab';
-    const icon = bill.status === 'hold' ? '⏸' : '🧾';
-    const label = bill.cart.length > 0 ? `${icon} ${bill.billNumber} (${bill.cart.length})` : `${icon} ${bill.billNumber}`;
-    bar.insertAdjacentHTML('beforeend',
-      `<div class="${cls}" onclick="switchToBill('${bill.id}')" ondblclick="event.stopPropagation();closeBillTab('${bill.id}')" title="Double-click to close empty">${label}</div>`);
+  const bar = document.getElementById('tabsBar');
+  const activeBills = billSessions.filter(b => b.status !== 'completed');
+  let html = `<button class="new-tab-btn" onclick="createNewBill()" title="New Bill (Ctrl+N)">＋</button>`;
+  activeBills.forEach(b => {
+    const { final } = calcBill(b);
+    const isActive = b.id === activeBillId;
+    const cls = isActive ? 'bill-tab active' : b.status === 'hold' ? 'bill-tab hold' : 'bill-tab';
+    const dotCls = b.status === 'hold' ? 'tab-dot dot-hold' : 'tab-dot dot-active';
+    html += `<div class="${cls}" onclick="switchToBill('${b.id}')" ondblclick="event.stopPropagation();closeBillTab('${b.id}')" title="Double-click to close">
+      <span class="${dotCls}"></span>
+      ${b.billNumber}<br><small style="font-size:10px;opacity:.8;">₹${final.toFixed(0)}</small>
+    </div>`;
   });
+  bar.innerHTML = html;
 }
 
 function renderActiveBill() {
   const bill = getActiveBill();
-  const cartItems = document.getElementById('cartItems');
-  const cartEmpty = document.getElementById('cartEmpty');
-  const summaryBar = document.getElementById('summaryBar');
-  const billMeta = document.getElementById('billMeta');
-  const actionBar = document.getElementById('actionBar');
+  const cartEl = document.getElementById('cartItems');
+  const emptyEl = document.getElementById('cartEmpty');
+  const sumBar = document.getElementById('summaryBar');
 
-  if (!bill || bill.status === 'completed') {
-    cartItems.innerHTML = ''; cartEmpty.style.display = 'block'; summaryBar.style.display = 'none'; return;
+  if (!bill || bill.cart.length === 0) {
+    emptyEl.style.display = 'block';
+    cartEl.innerHTML = '';
+    sumBar.style.display = 'none';
+    return;
   }
-  if (bill.cart.length === 0) {
-    cartItems.innerHTML = ''; cartEmpty.style.display = 'block'; summaryBar.style.display = 'none';
-  } else {
-    cartEmpty.style.display = 'none'; summaryBar.style.display = 'block';
-    cartItems.innerHTML = bill.cart.map((item, idx) => `
-      <div class="cart-item">
-        <div class="item-name">${item.name}<small>₹${item.price.toFixed(2)} each${item.taxPercent ? ` +${item.taxPercent}%` : ''}</small></div>
-        <div class="qty-ctrl">
-          <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},-1)">−</button>
-          <span class="qty-num">${item.quantity}</span>
-          <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},1)">+</button>
-        </div>
-        <div class="item-price">₹${(item.price * item.quantity).toFixed(2)}</div>
-        <span class="item-del" onclick="removeItem('${bill.id}',${idx})">✕</span>
-      </div>`).join('');
+  emptyEl.style.display = 'none';
+  sumBar.style.display = 'block';
 
-    const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
-    document.getElementById('sumSubtotal').textContent = '₹' + subtotal.toFixed(2);
-    document.getElementById('sumTotal').textContent = '₹' + final.toFixed(2);
-    document.getElementById('sumTaxRow').style.display = tax > 0 ? 'flex' : 'none';
-    document.getElementById('sumTax').textContent = '₹' + tax.toFixed(2);
-    document.getElementById('sumDiscRow').style.display = disc > 0 ? 'flex' : 'none';
-    document.getElementById('sumDisc').textContent = '-₹' + disc.toFixed(2);
+  cartEl.innerHTML = bill.cart.map((item, idx) => `
+    <div class="cart-item">
+      <div class="item-info">
+        <div class="item-name">${item.name}</div>
+        <div class="item-meta">₹${parseFloat(item.price).toFixed(2)} each${item.tax>0?' | Tax:'+item.tax+'%':''}</div>
+      </div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},-1)">−</button>
+        <span class="qty-num">${item.quantity}</span>
+        <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},1)">+</button>
+      </div>
+      <div class="item-price">₹${(parseFloat(item.price)*item.quantity).toFixed(2)}</div>
+      <button class="item-del" onclick="removeItem('${bill.id}',${idx})">✕</button>
+    </div>
+  `).join('');
 
-    let meta = `<span class="meta-tag">${bill.billNumber}</span>`;
-    if (bill.customer?.name) meta += `<span class="meta-tag">👤 ${bill.customer.name}</span>`;
-    if (bill.paymentMode) meta += `<span class="meta-tag">💳 ${bill.paymentMode}</span>`;
-    meta += `<span class="meta-tag" style="background:var(--info2);color:var(--info);">📄 ${(settings.billFormat||'thermal').toUpperCase()}</span>`;
-    billMeta.innerHTML = meta;
-  }
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  document.getElementById('sumSubtotal').textContent = '₹' + subtotal.toFixed(2);
+  document.getElementById('sumTaxRow').style.display = tax > 0 ? 'flex' : 'none';
+  document.getElementById('sumTax').textContent = '₹' + tax.toFixed(2);
+  document.getElementById('sumDiscRow').style.display = disc > 0 ? 'flex' : 'none';
+  document.getElementById('sumDisc').textContent = '-₹' + disc.toFixed(2);
+  document.getElementById('sumTotal').textContent = '₹' + final.toFixed(2);
 
-  const holdBtn = actionBar.querySelector('button');
-  if (bill.status === 'hold') { holdBtn.textContent = '▶ Resume'; holdBtn.onclick = () => resumeBill(bill.id); }
-  else { holdBtn.textContent = '⏸ Hold'; holdBtn.onclick = holdCurrentBill; }
+  // Bill meta
+  const meta = [];
+  if (bill.customer?.name) meta.push(`👤 ${bill.customer.name}`);
+  if (bill.paymentMode) meta.push(`💳 ${bill.paymentMode}`);
+  if (bill.discount > 0) meta.push(`🏷️ Disc: ${bill.discountType==='percent'?bill.discount+'%':'₹'+bill.discount}`);
+  if (bill.status === 'hold') meta.push('⏸️ ON HOLD');
+  document.getElementById('billMeta').innerHTML = meta.map(m => `<span class="meta-tag">${m}</span>`).join('');
 }
 
-// ======================== CART OPERATIONS ========================
+// ======================== CART OPS ========================
 function addToCart(product, qty=1) {
-  if (trialStatus.is_locked) { toast('Free trial ended! Upgrade to continue.', 'error'); return; }
   const bill = getActiveBill();
-  if (!bill || bill.status === 'completed') return;
-  const existing = bill.cart.find(i => i.barcode === product.barcode && i.id === product.id);
-  if (existing) existing.quantity += qty;
-  else bill.cart.push({ id:product.id, barcode:product.barcode||'', name:product.name, price:product.price, quantity:qty, taxPercent:product.tax_percent||0 });
+  if (!bill || bill.status === 'completed') { createNewBill(); return; }
+  if (trialStatus.is_locked) { toast('Free limit reached! Upgrade to continue.', 'error'); showScreen('screen-landing'); return; }
+  const ex = bill.cart.find(p => p.barcode === product.barcode && p.id === product.id);
+  if (ex) ex.quantity += qty;
+  else bill.cart.push({ ...product, quantity: qty, tax: product.tax || 0 });
+  bill.updatedAt = new Date().toISOString();
   saveState(); renderAll();
-  if ('vibrate' in navigator) navigator.vibrate(30);
+  if (navigator.vibrate) navigator.vibrate(30);
 }
 
 function changeQty(billId, idx, delta) {
   const bill = billSessions.find(b => b.id === billId);
   if (!bill) return;
-  bill.cart[idx].quantity = Math.max(1, bill.cart[idx].quantity + delta);
+  const newQty = (bill.cart[idx]?.quantity || 1) + delta;
+  if (newQty <= 0) { if (confirm('Remove this item?')) { bill.cart.splice(idx, 1); } }
+  else { bill.cart[idx].quantity = newQty; }
   saveState(); renderAll();
 }
 
@@ -906,502 +774,417 @@ function removeItem(billId, idx) {
 }
 
 // ======================== BARCODE INPUT ========================
-function handleBarcodeInput(e) {
-  if (e.key === 'Enter') {
-    const val = e.target.value.trim();
-    if (val) processBarcode(val);
-    e.target.value = '';
-  }
+function setupUSBScanner() {
+  let buf = '', timer = null;
+  document.addEventListener('keypress', e => {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    if (e.key === 'Enter') {
+      if (buf.length > 3) processBarcode(buf);
+      buf = '';
+    } else { buf += e.key; }
+    clearTimeout(timer);
+    timer = setTimeout(() => { buf = ''; }, 100);
+  });
 }
 
 function processBarcode(code) {
-  const product = products.find(p => p.barcode === code);
-  if (product) { addToCart(product); toast(`${product.name} added`, 'success'); }
-  else { toast(`Barcode ${code} not found`, 'error'); showManualEntry(code); }
+  const p = products.find(x => x.barcode === code);
+  if (p) { addToCart(p); toast(`${p.name} added ✅`, 'success'); }
+  else { toast('Product not found — add manually', 'info'); showManualEntry(code); }
 }
 
-// ======================== USB SCANNER ========================
-function setupUSBScanner() {
-  document.addEventListener('keypress', (e) => {
-    const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-    if (e.key === 'Enter') {
-      if (usbScanBuffer.length > 3) processBarcode(usbScanBuffer.trim());
-      usbScanBuffer = ''; clearTimeout(usbScanTimer);
-    } else {
-      usbScanBuffer += e.key;
-      clearTimeout(usbScanTimer);
-      usbScanTimer = setTimeout(() => { usbScanBuffer = ''; }, 300);
-    }
-  });
-}
+// ======================== SCANNER ========================
+let scannerActive = false;
 
-// ======================== CAMERA SCANNER ========================
 function startScanner() {
   const modal = document.getElementById('scannerModal');
   modal.classList.add('show');
-  Quagga.init({ inputStream:{ type:'LiveStream', target:document.getElementById('scannerVideo'), constraints:{ facingMode:'environment', width:{min:640}, height:{min:480} } }, decoder:{ readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader'] } }, (err) => {
-    if (err) { toast('Camera not available', 'error'); stopScanner(); return; }
-    Quagga.start();
+  if (typeof Quagga === 'undefined') { toast('Scanner library not loaded', 'error'); return; }
+  Quagga.init({
+    inputStream: { name:'Live', type:'LiveStream', target:document.querySelector('#scannerVideo'), constraints:{ facingMode:'environment' } },
+    decoder: { readers:['ean_reader','ean_8_reader','upc_reader','code_128_reader','code_39_reader'] }
+  }, err => {
+    if (err) { toast('Camera error: ' + err.message, 'error'); stopScanner(); return; }
+    Quagga.start(); scannerActive = true;
   });
-  let lastCode='', lastTime=0;
-  Quagga.onDetected((result) => {
-    const code = result.codeResult.code;
-    const now = Date.now();
-    if (code === lastCode && now - lastTime < 2000) return;
-    lastCode = code; lastTime = now;
-    if ('vibrate' in navigator) navigator.vibrate([100,50,100]);
-    stopScanner(); processBarcode(code);
+  Quagga.onDetected(result => {
+    const code = result?.codeResult?.code;
+    if (code) { stopScanner(); processBarcode(code); }
   });
 }
 
 function stopScanner() {
+  if (scannerActive) { try { Quagga.stop(); } catch(e){} scannerActive = false; }
   document.getElementById('scannerModal').classList.remove('show');
-  try { Quagga.stop(); } catch(e) {}
+  document.getElementById('scannerVideo').innerHTML = '';
 }
 
 // ======================== MANUAL ENTRY ========================
 function showManualEntry(prefill='') {
   openModal(`
     <div class="modal-handle"></div>
-    <h3>✏️ Add Product</h3>
-    <label>Search / Barcode</label>
-    <input id="manualCode" value="${prefill}" placeholder="Barcode or product name" autofocus>
-    <div id="searchResults" style="max-height:200px;overflow-y:auto;margin:8px 0;"></div>
-    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px;">
-      <label>Quick Add (not in list)</label>
-      <input id="manualName" placeholder="Product name">
-      <input id="manualPrice" type="number" placeholder="Price (₹)" style="margin-top:8px;" min="0">
+    <h3>➕ Add Product to Bill</h3>
+    <label>Barcode / Code</label>
+    <input id="manBarcode" value="${prefill}" placeholder="Optional">
+    <label>Product Name *</label>
+    <input id="manName" placeholder="Enter name">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label>Price (₹) *</label><input id="manPrice" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      <div><label>Tax %</label><input id="manTax" type="number" value="0" min="0" max="100"></div>
     </div>
+    <label>Quantity</label>
+    <input id="manQty" type="number" value="1" min="1">
+    <hr style="margin:10px 0;border-color:var(--border);">
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">Or search from saved products:</p>
+    <input id="quickSearch" placeholder="🔍 Type to search..." oninput="quickSearchProducts(this.value)">
+    <div id="quickResults" style="max-height:180px;overflow-y:auto;"></div>
     <div class="modal-actions">
       <button class="btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn-accent" onclick="manualAdd()">Add to Cart</button>
+      <button class="btn-accent" onclick="manualAdd()">Add to Bill ➕</button>
     </div>
   `);
-  document.getElementById('manualCode').addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase();
-    const results = q.length > 1 ? products.filter(p => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q))) : [];
-    document.getElementById('searchResults').innerHTML = results.map(p => `
-      <div onclick="addFromSearch(${p.id});closeModal();" style="padding:8px 10px;background:var(--surface);border-radius:8px;margin:3px 0;cursor:pointer;border:1px solid var(--border);">
-        <strong style="font-size:13px;">${p.name}</strong>
-        <span style="float:right;color:var(--accent);font-weight:700;">₹${p.price.toFixed(2)}</span>
-        <small style="display:block;color:var(--text2);">${p.barcode || 'No barcode'} | ${p.category}</small>
-      </div>`).join('');
-  });
+  document.getElementById('manName').focus();
+  quickSearchProducts('');
+}
+
+function quickSearchProducts(q) {
+  const el = document.getElementById('quickResults');
+  if (!el) return;
+  const list = q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || (p.barcode||'').includes(q)) : products.slice(0, 10);
+  if (list.length === 0) { el.innerHTML = '<p style="font-size:12px;color:var(--text2);padding:8px;">No products found</p>'; return; }
+  el.innerHTML = list.map(p => `
+    <div onclick="addFromSearch(${p.id});closeModal();" style="padding:10px;background:var(--surface);border-radius:8px;margin:3px 0;cursor:pointer;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:600;">${p.name}</span>
+      <span style="font-size:13px;color:var(--accent);font-weight:700;">₹${parseFloat(p.price).toFixed(2)}</span>
+    </div>`).join('');
 }
 
 function addFromSearch(pid) {
-  const product = products.find(p => p.id === pid);
-  if (product) { addToCart(product); toast(`${product.name} added`, 'success'); }
+  const p = products.find(x => x.id === pid);
+  if (p) { addToCart(p); toast(`${p.name} added ✅`, 'success'); }
 }
 
 function manualAdd() {
-  const name = document.getElementById('manualName').value.trim();
-  const price = parseFloat(document.getElementById('manualPrice').value) || 0;
-  if (!name) { toast('Product name required', 'error'); return; }
-  addToCart({ id:'manual_'+Date.now(), barcode:'', name, price, tax_percent:0 });
-  closeModal(); toast(`${name} added`, 'success');
+  const name = document.getElementById('manName').value.trim();
+  const price = parseFloat(document.getElementById('manPrice').value);
+  if (!name || isNaN(price) || price < 0) { toast('Name & price required', 'error'); return; }
+  const product = {
+    id: Date.now(),
+    barcode: document.getElementById('manBarcode').value || ('M' + Date.now()),
+    name, price,
+    tax: parseFloat(document.getElementById('manTax').value) || 0,
+    unit: 'piece', category: 'Quick'
+  };
+  addToCart(product, parseInt(document.getElementById('manQty').value) || 1);
+  closeModal();
 }
 
 // ======================== COMPLETE BILL ========================
 async function completeBill() {
   const bill = getActiveBill();
-  if (!bill || bill.cart.length === 0) { toast('Cart is empty', 'error'); return; }
-  if (trialStatus.is_locked) { toast('Upgrade required', 'error'); return; }
+  if (!bill || bill.cart.length === 0) { toast('Cart is empty!', 'error'); return; }
+  if (trialStatus.is_locked) { toast('Upgrade to complete more bills', 'error'); showScreen('screen-landing'); return; }
   const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
 
   openModal(`
     <div class="modal-handle"></div>
-    <h3>✅ Complete Bill ${bill.billNumber}</h3>
-    <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:14px;margin:12px 0;">
-      <div style="display:flex;justify-content:space-between;font-size:1.4rem;font-weight:800;">
-        <span>Total</span><span>₹${final.toFixed(2)}</span>
-      </div>
-      ${bill.customer?.name ? `<div style="font-size:13px;color:var(--text2);margin-top:4px;">Customer: ${bill.customer.name}</div>` : ''}
+    <h3>✅ Complete Bill</h3>
+    <div style="background:var(--accent2);border-radius:12px;padding:16px;margin-bottom:14px;text-align:center;">
+      <div style="font-size:2rem;font-weight:900;color:var(--accent);">₹${final.toFixed(2)}</div>
+      <div style="font-size:13px;color:var(--text2);">${bill.billNumber} • ${bill.cart.length} items</div>
     </div>
     <label>Payment Mode</label>
-    <select id="finalPayMode">
+    <select id="pmMode" style="margin-bottom:14px;">
       <option value="Cash" ${bill.paymentMode==='Cash'?'selected':''}>💵 Cash</option>
       <option value="UPI" ${bill.paymentMode==='UPI'?'selected':''}>📱 UPI</option>
       <option value="Card" ${bill.paymentMode==='Card'?'selected':''}>💳 Card</option>
     </select>
-    ${settings.upi ? `<div id="billQRComplete" style="text-align:center;margin:14px 0;min-height:130px;display:flex;align-items:center;justify-content:center;"></div>` : ''}
-    <div class="modal-actions" style="flex-wrap:wrap;gap:6px;">
-      <button class="btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>
-      <button class="btn-outline" onclick="printBill('${bill.id}')" style="flex:1;">🖨️ Print</button>
-      <button class="btn-accent" onclick="finalizeBill('${bill.id}',true)" style="flex:1;">✅ Done</button>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-outline" onclick="printBill('${bill.id}')">🖨️ Print</button>
+      <button class="btn-accent" onclick="finalizeBill('${bill.id}',true)">✅ Done</button>
     </div>
   `);
-
-  // FIX: Generate QR for payment modal — wait for DOM then use canvas approach
-  if (settings.upi) {
-    setTimeout(() => {
-      const qrDiv = document.getElementById('billQRComplete');
-      if (!qrDiv) return;
-      qrDiv.innerHTML = '';
-      const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
-      try {
-        new QRCode(qrDiv, { text: upiStr, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
-      } catch(e) {
-        qrDiv.innerHTML = `<div style="font-size:11px;color:var(--text2);padding:10px;">UPI: ${settings.upi}<br>₹${final.toFixed(2)}</div>`;
-      }
-    }, 300);
-  }
-
-  document.getElementById('finalPayMode').onchange = (e) => { bill.paymentMode = e.target.value; };
 }
 
 async function finalizeBill(billId, save=true) {
   const bill = billSessions.find(b => b.id === billId);
   if (!bill) return;
-  bill.paymentMode = document.getElementById('finalPayMode')?.value || bill.paymentMode;
+  const pmMode = document.getElementById('pmMode')?.value || 'Cash';
+  bill.paymentMode = pmMode;
   const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
 
   if (save && authToken) {
     try {
-      await apiCall('/api/bills', { method:'POST', body:JSON.stringify({ bill_number:bill.billNumber, cart_json:JSON.stringify(bill.cart), customer_name:bill.customer?.name||'', customer_mobile:bill.customer?.mobile||'', payment_mode:bill.paymentMode, subtotal, tax_total:tax, discount:disc, discount_type:bill.discountType, final_amount:final, notes:bill.notes||'', loyalty_points_used:bill.loyaltyPoints||0 }) });
+      await apiCall('/api/bills', {
+        method:'POST',
+        body: JSON.stringify({
+          bill_number: bill.billNumber,
+          cart_json: JSON.stringify(bill.cart),
+          customer_name: bill.customer?.name || '',
+          customer_mobile: bill.customer?.mobile || '',
+          payment_mode: pmMode,
+          subtotal, tax_total:tax, discount:disc,
+          discount_type: bill.discountType,
+          final_amount: final,
+          notes: bill.notes||'',
+          loyalty_points_used: bill.loyaltyPoints||0
+        })
+      });
       if (trialStatus.plan === 'free') {
         trialStatus.trial_bills_used += 1;
-        trialStatus.is_locked = trialStatus.trial_bills_used >= FREE_BILL_LIMIT;
+        trialStatus.is_locked = trialStatus.trial_bills_used >= 3;
         updateSubBadge(); checkTrialLock();
       }
-      const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
-      hist.unshift({ ...bill, subtotal, tax, disc, final, completedAt:new Date().toISOString() });
-      localStorage.setItem('sales_history', JSON.stringify(hist.slice(0, 200)));
+      const hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
+      hist.unshift({...bill, subtotal, tax, disc, final, completedAt:new Date().toISOString()});
+      localStorage.setItem('sales_history', JSON.stringify(hist.slice(0,200)));
     } catch(e) {
       if (e.message === 'FREE_TRIAL_EXPIRED') {
         trialStatus.is_locked = true; checkTrialLock(); updateSubBadge();
-        closeModal(); toast('Free trial ended! Upgrade to continue.', 'error'); return;
+        closeModal(); toast('Free trial ended! Upgrade.', 'error'); return;
       }
     }
   }
 
   bill.status = 'completed';
+  // WhatsApp
   if (bill.customer?.mobile) {
-    const waMsg = encodeURIComponent(`🛒 *${settings.shopName}*\n\n✅ Bill #${bill.billNumber} - ₹${final.toFixed(2)}\n\nThank you for shopping! 🙏`);
-    const mobile = bill.customer.mobile.replace(/\D/g,'');
-    setTimeout(() => { if (confirm('Send bill on WhatsApp?')) window.open(`https://wa.me/91${mobile}?text=${waMsg}`, '_blank'); }, 500);
+    const mob = bill.customer.mobile.replace(/\D/g,'');
+    const waMsg = encodeURIComponent(`🛒 *${settings.shopName}*\n\n✅ Bill: ${bill.billNumber}\nAmount: ₹${final.toFixed(2)}\n\nThank you! 🙏`);
+    setTimeout(() => { if(confirm('Send bill on WhatsApp?')) window.open(`https://wa.me/91${mob}?text=${waMsg}`,'_blank'); }, 400);
   }
-
   closeModal(); saveState();
   const active = billSessions.find(b => b.status === 'active');
-  if (active) activeBillId = active.id; else createNewBill();
+  if (active) activeBillId = active.id;
+  else createNewBill();
   renderAll();
-  toast(`Bill ${bill.billNumber} completed! ₹${final.toFixed(2)}`, 'success');
+  toast(`Bill ${bill.billNumber} done! ₹${final.toFixed(2)} ✅`, 'success');
 }
 
-// ======================== BILL TEMPLATES ========================
-function generateBillHTML(bill) {
+// ======================== BILL HTML GENERATOR ========================
+function getBillSize() {
+  return document.getElementById('billSizeSelect')?.value || 'thermal';
+}
+
+function generateBillHTML(bill, size='thermal') {
   const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  const isFree = trialStatus.plan === 'free';
   const date = new Date().toLocaleDateString('en-IN');
-  const time = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-  const fmt = settings.billFormat || 'thermal';
-  const isFreeBill = trialStatus.plan === 'free';
-  const qrId = 'qr_' + Date.now();
+  const time = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 
-  const itemsRows = bill.cart.map(i =>
-    `<tr><td>${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`
-  ).join('');
+  const widths = { thermal:'300px', a5:'520px', a4:'740px' };
+  const fonts  = { thermal:'11px',  a5:'13px',  a4:'14px'  };
+  const w = widths[size]||widths.thermal, f = fonts[size]||fonts.thermal;
+  const titleSize = size==='thermal' ? '15px' : '20px';
+  const totSize   = size==='thermal' ? '14px' : '18px';
 
-  const trialBanner = isFreeBill
-    ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:11px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>`
+  const upiStr = settings.upi
+    ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`
     : '';
 
-  if (fmt === 'thermal') {
-    return `<div class="bill-thermal">
-      ${trialBanner}
-      <div class="shop-name">${settings.shopName}</div>
-      <div class="shop-info">${settings.address}<br>${settings.mobile}${settings.gstNumber ? ' | GST: '+settings.gstNumber : ''}</div>
-      <hr>
-      <div style="display:flex;justify-content:space-between;font-size:10px;">
-        <span>Bill: <b>${bill.billNumber}</b></span><span>${date} ${time}</span>
-      </div>
-      ${bill.customer?.name ? `<div style="font-size:10px;">Customer: ${bill.customer.name} ${bill.customer.mobile||''}</div>` : ''}
-      <hr>
-      <table>
-        <tr style="font-weight:700;"><td>Item</td><td style="text-align:center;">Qty</td><td style="text-align:right;">Rate</td><td style="text-align:right;">Amt</td></tr>
-        ${itemsRows}
-      </table>
-      <hr>
-      <div style="text-align:right;font-size:11px;">Subtotal: ₹${subtotal.toFixed(2)}</div>
-      ${tax > 0 ? `<div style="text-align:right;font-size:11px;">Tax: ₹${tax.toFixed(2)}</div>` : ''}
-      ${disc > 0 ? `<div style="text-align:right;font-size:11px;">Discount: -₹${disc.toFixed(2)}</div>` : ''}
-      <hr>
-      <div class="total-row" style="display:flex;justify-content:space-between;">
-        <span>TOTAL</span><span>₹${final.toFixed(2)}</span>
-      </div>
-      <div style="font-size:10px;text-align:right;">Payment: ${bill.paymentMode}</div>
-      ${settings.upi ? `<div class="qr-wrap"><div id="${qrId}"></div><div style="font-size:9px;margin-top:2px;">Scan to Pay UPI</div></div>` : ''}
-      <hr>
-      <div class="footer-text">${settings.footer}</div>
-    </div>`;
-  }
-
-  if (fmt === 'a4') {
-    return `<div class="bill-a4">
-      ${trialBanner}
-      <div class="header-band">
-        <div><div class="shop-name">${settings.shopName}</div><div style="font-size:12px;opacity:.8;">${settings.address}</div></div>
-        <div style="text-align:right;font-size:12px;">
-          ${settings.mobile}<br>
-          ${settings.gstNumber ? 'GST: '+settings.gstNumber : ''}
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-        <div><div style="font-size:11px;color:#475569;">Bill Number</div><div style="font-size:16px;font-weight:700;">${bill.billNumber}</div></div>
-        <div style="text-align:right;"><div style="font-size:11px;color:#475569;">Date & Time</div><div style="font-size:14px;font-weight:600;">${date} ${time}</div></div>
-      </div>
-      ${bill.customer?.name ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;"><strong>Customer:</strong> ${bill.customer.name}${bill.customer.mobile ? '  |  📞 '+bill.customer.mobile : ''}</div>` : ''}
-      <table>
-        <tr><th>#</th><th>Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amount</th></tr>
-        ${bill.cart.map((i,idx) => `<tr><td style="color:#475569;">${idx+1}</td><td>${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
-      </table>
-      <div class="total-section">
-        ${settings.upi ? `<div class="qr-wrap"><div id="${qrId}"></div><div style="font-size:10px;text-align:center;margin-top:4px;">Scan to Pay</div></div>` : ''}
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;"><span>Subtotal:</span><span>₹${subtotal.toFixed(2)}</span></div>
-        ${tax > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;"><span>Tax:</span><span>₹${tax.toFixed(2)}</span></div>` : ''}
-        ${disc > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;color:#dc2626;"><span>Discount:</span><span>-₹${disc.toFixed(2)}</span></div>` : ''}
-        <div style="display:flex;justify-content:space-between;margin-top:8px;" class="grand-total"><span>GRAND TOTAL</span><span>₹${final.toFixed(2)}</span></div>
-        <div style="font-size:11px;color:#475569;margin-top:6px;">Payment Mode: ${bill.paymentMode}</div>
-        <div style="clear:both;"></div>
-      </div>
-      <div class="footer-band">${settings.footer}</div>
-    </div>`;
-  }
-
-  // A5
-  return `<div class="bill-a5">
-    ${trialBanner}
-    <div class="header-band">
-      <div><div class="shop-name">${settings.shopName}</div><div style="font-size:11px;opacity:.8;">${settings.address}</div></div>
-      <div style="text-align:right;font-size:11px;">${settings.mobile}<br>${settings.gstNumber || ''}</div>
+  return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+    ${isFree ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:10px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>` : ''}
+    <div style="text-align:center;margin-bottom:10px;">
+      <div style="font-size:${titleSize};font-weight:900;color:#000;">${settings.shopName}</div>
+      ${settings.address?`<div style="font-size:${f};color:#000;">${settings.address}</div>`:''}
+      ${settings.mobile?`<div style="font-size:${f};color:#000;">📞 ${settings.mobile}</div>`:''}
+      ${settings.gstNumber?`<div style="font-size:${f};color:#000;">GST: ${settings.gstNumber}</div>`:''}
     </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:11px;">
-      <div><div style="color:#475569;">Bill No.</div><div style="font-weight:700;font-size:14px;">${bill.billNumber}</div></div>
-      <div style="text-align:right;"><div style="color:#475569;">Date</div><div style="font-weight:600;">${date} ${time}</div></div>
+    <hr style="border:1px dashed #000;margin:6px 0;">
+    <div style="display:flex;justify-content:space-between;font-size:${f};color:#000;">
+      <b>Bill# ${bill.billNumber}</b><span>${date} ${time}</span>
     </div>
-    ${bill.customer?.name ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:10px;font-size:11px;"><strong>Customer:</strong> ${bill.customer.name}${bill.customer.mobile ? ' | '+bill.customer.mobile : ''}</div>` : ''}
-    <table>
-      <tr><th>Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Total</th></tr>
-      ${bill.cart.map(i => `<tr><td>${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
+    ${bill.customer?.name?`<div style="font-size:${f};color:#000;margin-top:2px;">👤 ${bill.customer.name}${bill.customer.mobile?' | '+bill.customer.mobile:''}</div>`:''}
+    ${bill.paymentMode?`<div style="font-size:${f};color:#000;">💳 ${bill.paymentMode}</div>`:''}
+    <hr style="border:1px dashed #000;margin:6px 0;">
+    <table style="width:100%;border-collapse:collapse;font-size:${f};color:#000;">
+      <thead><tr style="background:#eee;">
+        <th style="padding:4px 3px;text-align:left;border-bottom:1px solid #000;">Item</th>
+        <th style="padding:4px 3px;text-align:center;border-bottom:1px solid #000;">Qty</th>
+        <th style="padding:4px 3px;text-align:right;border-bottom:1px solid #000;">Rate</th>
+        <th style="padding:4px 3px;text-align:right;border-bottom:1px solid #000;">Total</th>
+      </tr></thead>
+      <tbody>${bill.cart.map(i=>`
+        <tr>
+          <td style="padding:3px;color:#000;border-bottom:1px solid #ddd;">${i.name}</td>
+          <td style="padding:3px;text-align:center;color:#000;border-bottom:1px solid #ddd;">${i.quantity}</td>
+          <td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">₹${parseFloat(i.price).toFixed(2)}</td>
+          <td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">₹${(parseFloat(i.price)*i.quantity).toFixed(2)}</td>
+        </tr>`).join('')}
+      </tbody>
     </table>
-    <div class="total-section">
-      ${settings.upi ? `<div class="qr-wrap"><div id="${qrId}"></div></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span>Subtotal:</span><span>₹${subtotal.toFixed(2)}</span></div>
-      ${disc > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#dc2626;margin-bottom:3px;"><span>Discount:</span><span>-₹${disc.toFixed(2)}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;" class="grand-total"><span>TOTAL</span><span>₹${final.toFixed(2)}</span></div>
-      <div style="font-size:11px;color:#475569;margin-top:4px;">Payment: ${bill.paymentMode}</div>
-      <div style="clear:both;"></div>
+    <hr style="border:1px dashed #000;margin:6px 0;">
+    <div style="font-size:${f};color:#000;">
+      <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>₹${(subtotal+(disc||0)+(loyaltyDisc||0)).toFixed(2)}</span></div>
+      ${tax>0?`<div style="display:flex;justify-content:space-between;"><span>Tax:</span><span>₹${tax.toFixed(2)}</span></div>`:''}
+      ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
+      ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
     </div>
-    <div class="footer-band">${settings.footer}</div>
+    <div style="display:flex;justify-content:space-between;font-size:${totSize};font-weight:900;color:#000;border-top:2px solid #000;padding-top:6px;margin-top:4px;">
+      <span>TOTAL:</span><span>₹${final.toFixed(2)}</span>
+    </div>
+    ${upiStr?`
+    <div style="text-align:center;margin:14px 0;">
+      <div style="font-size:${f};font-weight:bold;color:#000;margin-bottom:6px;">📱 Scan to Pay via UPI</div>
+      <div style="display:flex;justify-content:center;align-items:center;">
+        <div id="billQR" style="display:inline-block;background:#fff;padding:6px;border:2px solid #000;border-radius:6px;"></div>
+      </div>
+      <div style="margin-top:6px;">
+        <div style="font-size:${size==='thermal'?'13px':'16px'};font-weight:900;color:#000;background:#f0f0f0;display:inline-block;padding:4px 12px;border-radius:6px;border:1px solid #ccc;">₹${final.toFixed(2)}</div>
+      </div>
+      <div style="font-size:${f};font-weight:bold;color:#000;margin-top:4px;">${settings.upi}</div>
+      <div style="font-size:${size==='thermal'?'9px':'11px'};color:#555;margin-top:3px;font-style:italic;">Scan QR se seedha ₹${final.toFixed(2)} pay karein</div>
+    </div>`:''}
+    <hr style="border:1px dashed #000;margin:8px 0;">
+    <div style="text-align:center;font-size:${f};color:#000;font-style:italic;">${settings.footer||'Thank you! 🙏'}</div>
   </div>`;
-
-  // Return qrId for later use
-  window._lastQrId = qrId;
 }
 
-// FIX: Generate QR properly with a reliable function that waits for element
-function generateQRInElement(elementId, upiStr, size=100) {
-  return new Promise((resolve) => {
-    const tryGenerate = (attempts=0) => {
-      const el = document.getElementById(elementId);
-      if (!el) {
-        if (attempts < 20) setTimeout(() => tryGenerate(attempts+1), 100);
-        else resolve(false);
-        return;
-      }
-      el.innerHTML = '';
-      try {
-        new QRCode(el, {
-          text: upiStr,
-          width: size,
-          height: size,
-          correctLevel: QRCode.CorrectLevel.M
-        });
-        resolve(true);
-      } catch(e) {
-        el.innerHTML = `<div style="font-size:9px;word-break:break-all;padding:4px;">${upiStr}</div>`;
-        resolve(false);
-      }
-    };
-    tryGenerate();
-  });
-}
-
-// ======================== PRINT / EXPORT ========================
-function printBill(billId) {
-  const bill = billSessions.find(b => b.id === billId) || getActiveBill();
-  if (!bill || bill.cart.length === 0) { toast('Cart empty', 'error'); return; }
-  const { final } = calcBill(bill);
-
+async function renderBillWithQR(bill, size) {
   const pa = document.getElementById('printArea');
-  const billHTML = generateBillHTML(bill);
-
-  // Extract qrId from the bill HTML
-  const qrMatch = billHTML.match(/id="(qr_\d+)"/);
-  const qrId = qrMatch ? qrMatch[1] : null;
-
-  pa.innerHTML = billHTML;
-  pa.style.position = 'static';
-  pa.style.left = '';
-
-  const doprint = () => {
-    window.print();
-    setTimeout(() => {
-      pa.style.position = 'absolute';
-      pa.style.left = '-9999px';
-      pa.innerHTML = '';
-    }, 800);
-  };
-
-  if (settings.upi && qrId) {
-    const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
-    generateQRInElement(qrId, upiStr, 100).then(() => setTimeout(doprint, 400));
-  } else {
-    setTimeout(doprint, 200);
+  pa.innerHTML = generateBillHTML(bill, size);
+  pa.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;background:#fff;';
+  await new Promise(r => setTimeout(r, 200));
+  const qrDiv = document.getElementById('billQR');
+  if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+    const upiStr = `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${calcBill(bill).final.toFixed(2)}&cu=INR`;
+    new QRCode(qrDiv, { text:upiStr, width:100, height:100, correctLevel:QRCode.CorrectLevel.M });
+    await new Promise(r => setTimeout(r, 600));
   }
+  return document.getElementById('billContent');
 }
 
+// ======================== EXPORT PANEL ========================
 function openExportPanel() {
   const bill = getActiveBill();
-  if (!bill || bill.cart.length === 0) { toast('Cart empty', 'error'); return; }
-  const fmt = settings.billFormat || 'thermal';
-
+  if (!bill || bill.cart.length === 0) { toast('Cart is empty!', 'error'); return; }
   openModal(`
     <div class="modal-handle"></div>
     <h3>📤 Export Bill</h3>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Current format: <strong>${fmt.toUpperCase()}</strong> — Change in ⚙️ Settings → Bill Format</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
-      <button class="btn-outline" style="padding:14px;" onclick="printBill();closeModal();">🖨️ Print</button>
-      <button class="btn-outline" style="padding:14px;" onclick="downloadPDF();closeModal();">📄 PDF</button>
-      <button class="btn-outline" style="padding:14px;" onclick="downloadJPG();closeModal();">🖼️ JPEG</button>
-      <button class="btn-outline" style="padding:14px;" onclick="shareWhatsApp();closeModal();">💬 WhatsApp</button>
+    <label>Bill Size / Format</label>
+    <select id="billSizeSelect" style="margin-bottom:12px;">
+      <option value="thermal">🧾 Thermal (58mm)</option>
+      <option value="a5">📋 A5</option>
+      <option value="a4">📄 A4</option>
+    </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="btn-outline" style="padding:16px;font-size:1rem;" onclick="printBillDirect();closeModal();">🖨️ Print</button>
+      <button class="btn-outline" style="padding:16px;font-size:1rem;" onclick="downloadPDF();">📄 PDF</button>
+      <button class="btn-outline" style="padding:16px;font-size:1rem;" onclick="downloadJPG();">🖼️ JPEG</button>
+      <button class="btn-outline" style="padding:16px;font-size:1rem;" onclick="shareWhatsApp();closeModal();">💬 WhatsApp</button>
     </div>
     <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeModal()">Cancel</button>
   `);
 }
 
-// FIX: PDF download — proper QR generation and opacity fix
+function printBillDirect() {
+  const bill = getActiveBill();
+  if (!bill || bill.cart.length === 0) { toast('Cart empty!', 'error'); return; }
+  const size = getBillSize();
+  const pa = document.getElementById('printArea');
+  pa.innerHTML = generateBillHTML(bill, size);
+  pa.style.display = 'block';
+  setTimeout(() => {
+    const qrDiv = document.getElementById('billQR');
+    if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+      new QRCode(qrDiv, { text:`upi://pay?pa=${encodeURIComponent(settings.upi)}&am=${calcBill(bill).final.toFixed(2)}&cu=INR`, width:90, height:90 });
+    }
+    setTimeout(() => { window.print(); setTimeout(() => { pa.style.display='none'; pa.innerHTML=''; }, 500); }, 400);
+  }, 200);
+}
+
+function printBill(billId) {
+  const bill = billSessions.find(b => b.id === billId) || getActiveBill();
+  if (!bill) return;
+  printBillDirect();
+}
+
 async function downloadPDF() {
   const bill = getActiveBill();
   if (!bill || bill.cart.length === 0) return;
-  const { final } = calcBill(bill);
-  const fmt = settings.billFormat || 'thermal';
+  const size = getBillSize();
+  const target = await renderBillWithQR(bill, size);
   const pa = document.getElementById('printArea');
-  const billHTML = generateBillHTML(bill);
-  const qrMatch = billHTML.match(/id="(qr_\d+)"/);
-  const qrId = qrMatch ? qrMatch[1] : null;
-
-  pa.innerHTML = billHTML;
-  pa.style.position = 'absolute';
-  pa.style.left = '-9999px';
-  pa.style.top = '0';
-
-  const pdfFmt = fmt === 'a4' ? 'a4' : fmt === 'a5' ? 'a5' : [80, 297]; // thermal ~80mm width
-
-  const doDownload = async () => {
-    try {
-      const opt = {
-        margin: fmt === 'thermal' ? 2 : 8,
-        filename: `${bill.billNumber}.pdf`,
-        image: { type:'jpeg', quality:0.98 },
-        html2canvas: {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          // FIX: force full opacity rendering
-          useCORS: true,
-          allowTaint: true,
-          imageTimeout: 5000,
-          logging: false
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: fmt === 'thermal' ? [80, 297] : fmt === 'a5' ? 'a5' : 'a4',
-          orientation: 'portrait'
-        }
-      };
-      await html2pdf().set(opt).from(pa).save();
-      toast('PDF downloaded!', 'success');
-    } catch(e) { toast('PDF error: ' + e.message, 'error'); }
-    pa.style.position = 'absolute';
-    pa.style.left = '-9999px';
-    pa.innerHTML = '';
-  };
-
-  if (settings.upi && qrId) {
-    const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
-    await generateQRInElement(qrId, upiStr, 100);
-    setTimeout(doDownload, 500);
-  } else {
-    setTimeout(doDownload, 300);
-  }
+  const fmts = { thermal:[80,220], a5:'a5', a4:'a4' };
+  try {
+    await html2pdf().set({
+      margin: size==='thermal'?2:5,
+      filename:`${bill.billNumber}_${size}.pdf`,
+      image:{ type:'jpeg', quality:1.0 },
+      html2canvas:{ scale:3, backgroundColor:'#ffffff', useCORS:true, logging:false },
+      jsPDF:{ unit:'mm', format:fmts[size]||'a4', orientation:'portrait' }
+    }).from(target).save();
+    toast('PDF downloaded! ✅', 'success');
+  } catch(e) { toast('PDF error', 'error'); }
+  pa.style.cssText=''; pa.innerHTML='';
+  closeModal();
 }
 
-// FIX: JPEG download — proper QR + full opacity fix
 async function downloadJPG() {
   const bill = getActiveBill();
   if (!bill || bill.cart.length === 0) return;
-  const { final } = calcBill(bill);
+  const size = getBillSize();
+  const target = await renderBillWithQR(bill, size);
   const pa = document.getElementById('printArea');
-  const billHTML = generateBillHTML(bill);
-  const qrMatch = billHTML.match(/id="(qr_\d+)"/);
-  const qrId = qrMatch ? qrMatch[1] : null;
-
-  pa.innerHTML = billHTML;
-  pa.style.position = 'absolute';
-  pa.style.left = '-9999px';
-  pa.style.top = '0';
-
-  const doDownload = async () => {
-    try {
-      // FIX: Force white background and full opacity
-      const canvas = await html2canvas(pa, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        imageTimeout: 5000,
-        onclone: (doc) => {
-          // FIX: Ensure all text in cloned doc is fully opaque
-          const allElems = doc.querySelectorAll('*');
-          allElems.forEach(el => {
-            el.style.opacity = '1';
-            el.style.color = el.style.color || '#000000';
-          });
-        }
-      });
-
-      const link = document.createElement('a');
-      link.download = `${bill.billNumber}.jpg`;
-      link.href = canvas.toDataURL('image/jpeg', 0.95);
-      link.click();
-      toast('JPEG downloaded!', 'success');
-    } catch(e) { toast('JPEG error: ' + e.message, 'error'); }
-    pa.style.position = 'absolute';
-    pa.style.left = '-9999px';
-    pa.style.top = '';
-    pa.innerHTML = '';
-  };
-
-  if (settings.upi && qrId) {
-    const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
-    await generateQRInElement(qrId, upiStr, 100);
-    setTimeout(doDownload, 600);
-  } else {
-    setTimeout(doDownload, 300);
-  }
+  try {
+    const canvas = await html2canvas(target, {
+      scale:3, backgroundColor:'#ffffff', useCORS:true, allowTaint:true, logging:false
+    });
+    const a = document.createElement('a');
+    a.download = `${bill.billNumber}_${size}.jpg`;
+    a.href = canvas.toDataURL('image/jpeg', 1.0);
+    a.click();
+    toast('JPEG downloaded! ✅', 'success');
+  } catch(e) { toast('JPG error: '+e.message, 'error'); }
+  pa.style.cssText=''; pa.innerHTML='';
+  closeModal();
 }
 
-function shareWhatsApp() {
+async function shareWhatsApp() {
   const bill = getActiveBill();
   if (!bill || bill.cart.length === 0) return;
   const { final } = calcBill(bill);
-  const itemList = bill.cart.map(i => `${i.name} x${i.quantity} - ₹${(i.price*i.quantity).toFixed(2)}`).join('\n');
-  const msg = `🛒 *${settings.shopName}*\nBill: ${bill.billNumber}\n${new Date().toLocaleDateString('en-IN')}\n\n${itemList}\n\nTotal: ₹${final.toFixed(2)}\n\n${settings.footer}`;
-  if (bill.customer?.mobile) window.open(`https://wa.me/91${bill.customer.mobile.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
-  else if (navigator.share) navigator.share({ text:msg });
-  else { navigator.clipboard.writeText(msg); toast('Copied to clipboard!', 'success'); }
+  const lines = bill.cart.map(i=>`• ${i.name} x${i.quantity} — ₹${(parseFloat(i.price)*i.quantity).toFixed(2)}`).join('\n');
+  const msg = `🛒 *${settings.shopName}*\n📋 Bill: *${bill.billNumber}*\n📅 ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}\n\n${lines}\n\n💰 *Total: ₹${final.toFixed(2)}*\n${bill.paymentMode?'💳 Payment: '+bill.paymentMode:''}\n${settings.upi?'\n📱 UPI: '+settings.upi:''}\n\n${settings.footer||'Thank you! Visit Again 🙏'}`;
+
+  // Try to share as JPEG first
+  try {
+    const size = getBillSize() || 'thermal';
+    const target = await renderBillWithQR(bill, size);
+    const pa = document.getElementById('printArea');
+    const canvas = await html2canvas(target, {
+      scale:3, backgroundColor:'#ffffff', useCORS:true, allowTaint:true, logging:false
+    });
+    pa.style.cssText=''; pa.innerHTML='';
+
+    canvas.toBlob(async blob => {
+      const file = new File([blob], `${bill.billNumber}.jpg`, { type:'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files:[file] })) {
+        try {
+          await navigator.share({ files:[file], title:`Bill ${bill.billNumber}`, text:msg });
+          return;
+        } catch(e) {}
+      }
+      // Fallback: open WhatsApp with text only
+      if (bill.customer?.mobile) {
+        window.open(`https://wa.me/91${bill.customer.mobile.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
+      } else {
+        navigator.clipboard?.writeText(msg);
+        toast('Bill text copied! Open WhatsApp & paste.', 'info');
+      }
+    }, 'image/jpeg', 1.0);
+  } catch(e) {
+    // Fallback text share
+    if (bill.customer?.mobile) {
+      window.open(`https://wa.me/91${bill.customer.mobile.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
+    } else if (navigator.share) {
+      navigator.share({ title:`Bill ${bill.billNumber}`, text:msg });
+    } else {
+      navigator.clipboard?.writeText(msg);
+      toast('Copied!', 'success');
+    }
+  }
 }
 
 // ======================== CUSTOMER PANEL ========================
@@ -1411,22 +1194,36 @@ function openCustomerPanel() {
   openModal(`
     <div class="modal-handle"></div>
     <h3>👤 Customer Details</h3>
-    <label>Name</label>
-    <input id="custName" value="${bill.customer?.name || ''}" placeholder="Customer name">
-    <label>Mobile</label>
-    <input id="custMobile" value="${bill.customer?.mobile || ''}" placeholder="Mobile number" type="tel">
+    <label>Name</label><input id="custName" value="${bill.customer?.name||''}" placeholder="Customer name">
+    <label>Mobile</label><input id="custMobile" value="${bill.customer?.mobile||''}" placeholder="10-digit number" type="tel">
     <label>Payment Mode</label>
     <select id="custPayMode">
       <option value="Cash" ${bill.paymentMode==='Cash'?'selected':''}>💵 Cash</option>
-      <option value="UPI" ${bill.paymentMode==='UPI'?'selected':''}>📱 UPI</option>
+      <option value="UPI"  ${bill.paymentMode==='UPI'?'selected':''}>📱 UPI</option>
       <option value="Card" ${bill.paymentMode==='Card'?'selected':''}>💳 Card</option>
     </select>
-    <div id="loyaltyInfo" style="margin-top:8px;"></div>
+    <div id="loyaltyInfo"></div>
     <div class="modal-actions">
       <button class="btn-outline" onclick="closeModal()">Cancel</button>
       <button class="btn-accent" onclick="saveCustomer('${bill.id}')">Save</button>
     </div>
   `);
+  document.getElementById('custMobile').addEventListener('blur', async e => {
+    const mob = e.target.value.trim();
+    if (mob.length >= 10) {
+      try {
+        const cust = await apiCall(`/api/customers/lookup/${mob}`);
+        const bal = cust.total_points - cust.used_points;
+        const disc = Math.floor(bal/100)*50;
+        document.getElementById('loyaltyInfo').innerHTML = `
+          <div style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:10px;padding:12px;margin-top:10px;">
+            <div style="font-size:1.5rem;font-weight:800;">${bal} <small>pts</small></div>
+            <div style="font-size:12px;">Loyalty Balance — Redeem for ₹${disc} OFF</div>
+            ${bal>=100?`<button onclick="redeemPoints('${bill.id}','${mob}',${bal})" style="background:#fff;color:#d97706;border:none;padding:6px 12px;border-radius:8px;font-weight:700;margin-top:8px;cursor:pointer;">Redeem ₹${disc} OFF</button>`:''}
+          </div>`;
+      } catch(e) {}
+    }
+  });
 }
 
 function saveCustomer(billId) {
@@ -1435,9 +1232,21 @@ function saveCustomer(billId) {
   bill.customer = { name:document.getElementById('custName').value, mobile:document.getElementById('custMobile').value };
   bill.paymentMode = document.getElementById('custPayMode').value;
   saveState(); renderAll(); closeModal();
+  toast('Customer saved ✅', 'success');
 }
 
-// ======================== DISCOUNT PANEL ========================
+async function redeemPoints(billId, mobile, balance) {
+  const pts = Math.min(balance, 100*Math.floor(balance/100));
+  try {
+    const res = await apiCall(`/api/customers/redeem?mobile=${mobile}&points=${pts}`, { method:'POST' });
+    const bill = billSessions.find(b => b.id === billId);
+    if (bill) { bill.loyaltyDiscount = (bill.loyaltyDiscount||0) + res.discount; bill.loyaltyPoints = pts; }
+    saveState(); renderAll(); closeModal();
+    toast(`₹${res.discount} loyalty discount applied!`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ======================== DISCOUNT ========================
 function openDiscountPanel() {
   const bill = getActiveBill();
   if (!bill) return;
@@ -1450,10 +1259,10 @@ function openDiscountPanel() {
       <option value="percent" ${bill.discountType==='percent'?'selected':''}>Percentage (%)</option>
     </select>
     <label>Value</label>
-    <input id="discValue" type="number" value="${bill.discount || 0}" min="0">
+    <input id="discValue" type="number" value="${bill.discount||0}" min="0">
     <div class="modal-actions">
       <button class="btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn-accent" onclick="saveDiscount('${bill.id}')">Apply</button>
+      <button class="btn-accent" onclick="saveDiscount('${bill.id}')">Apply ✅</button>
     </div>
   `);
 }
@@ -1464,147 +1273,49 @@ function saveDiscount(billId) {
   bill.discountType = document.getElementById('discType').value;
   bill.discount = parseFloat(document.getElementById('discValue').value) || 0;
   saveState(); renderAll(); closeModal();
-  toast('Discount applied', 'success');
+  toast('Discount applied 🏷️', 'success');
 }
 
-// ======================== SETTINGS (with Bill Format + Add Product) ========================
+// ======================== SETTINGS ========================
 function openSettings() {
-  const fmt = settings.billFormat || 'thermal';
   openDrawer(`
     <div class="modal-handle"></div>
     <h3>⚙️ Settings</h3>
-
-    <div class="settings-tabs">
-      <button class="settings-tab active" id="stab-shop" onclick="switchSettingsTab('shop')">🏪 Shop</button>
-      <button class="settings-tab" id="stab-billing" onclick="switchSettingsTab('billing')">📄 Billing</button>
-      <button class="settings-tab" id="stab-products" onclick="switchSettingsTab('products')">📦 Products</button>
-    </div>
-
-    <!-- SHOP SETTINGS -->
-    <div id="spanel-shop">
-      <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
-      <label>Address</label><input id="setAddr" value="${settings.address || ''}">
-      <label>Mobile</label><input id="setMob" value="${settings.mobile || ''}">
-      <label>UPI ID</label><input id="setUpi" value="${settings.upi || ''}">
-      <label>GST Number</label><input id="setGst" value="${settings.gstNumber || ''}">
-      <label>Footer Message</label><input id="setFooter" value="${settings.footer}">
-      <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent || 0}" min="0" max="100">
-      <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Settings</button>
-    </div>
-
-    <!-- BILLING FORMAT SETTINGS -->
-    <div id="spanel-billing" style="display:none;">
-      <label style="margin-bottom:8px;">Bill Size / Format चुनें</label>
-      <div class="format-grid">
-        <div class="format-card ${fmt==='thermal'?'selected':''}" onclick="selectBillFormat('thermal')">
-          <div class="format-icon">🧾</div>
-          <div class="format-name">Thermal 80mm</div>
-          <div class="format-desc">Thermal printer<br>Narrow receipt</div>
-        </div>
-        <div class="format-card ${fmt==='a4'?'selected':''}" onclick="selectBillFormat('a4')">
-          <div class="format-icon">📄</div>
-          <div class="format-name">A4</div>
-          <div class="format-desc">Standard paper<br>Professional bill</div>
-        </div>
-        <div class="format-card ${fmt==='a5'?'selected':''}" onclick="selectBillFormat('a5')">
-          <div class="format-icon">📋</div>
-          <div class="format-name">A5</div>
-          <div class="format-desc">Half A4 size<br>Compact & clean</div>
-        </div>
-      </div>
-      <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;margin-top:12px;font-size:13px;color:#166534;">
-        ✅ Current format: <strong>${fmt.toUpperCase()}</strong><br>
-        <span style="font-size:12px;opacity:.8;">JPEG/PDF export bhi isi format mein hoga</span>
-      </div>
-      <label style="margin-top:12px;">JPEG Export Quality</label>
-      <select id="setJpgQuality">
-        <option value="0.95" ${(settings.jpgQuality||0.95)==0.95?'selected':''}>High (95%)</option>
-        <option value="0.85" ${settings.jpgQuality==0.85?'selected':''}>Medium (85%)</option>
-        <option value="0.70" ${settings.jpgQuality==0.70?'selected':''}>Low (70%)</option>
-      </select>
-      <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveBillingSettings()">💾 Save Billing Settings</button>
-    </div>
-
-    <!-- PRODUCTS PANEL -->
-    <div id="spanel-products" style="display:none;">
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <input id="prodSearchSettings" placeholder="🔍 Search products..." style="flex:1;" oninput="filterProductsSettings(this.value)">
-        <button class="btn-accent btn-sm" onclick="showAddProduct()">+ Add</button>
-      </div>
-      <div id="prodListSettings" class="prod-grid"></div>
-    </div>
-
-    <hr style="margin:16px 0;border-color:var(--border);">
+    <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
+    <label>Address</label><input id="setAddr" value="${settings.address||''}">
+    <label>Mobile</label><input id="setMob" value="${settings.mobile||''}">
+    <label>UPI ID</label><input id="setUpi" value="${settings.upi||''}">
+    <label>GST Number</label><input id="setGst" value="${settings.gstNumber||''}">
+    <label>Footer Message</label><input id="setFooter" value="${settings.footer}">
+    <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent||0}" min="0" max="100">
+    <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Settings</button>
+    <button class="btn-outline" style="width:100%;margin-top:6px;" onclick="closeDrawer()">Cancel</button>
+    <hr style="margin:14px 0;border-color:var(--border);">
+    <button class="btn-outline" style="width:100%;padding:10px;" onclick="closeDrawer();setTimeout(showProducts,100);">📦 Manage Products →</button>
+    <hr style="margin:10px 0;border-color:var(--border);">
     <button class="btn-danger" style="width:100%;padding:10px;" onclick="doLogout()">🚪 Logout</button>
-    <button class="btn-outline" style="width:100%;padding:10px;margin-top:6px;" onclick="closeDrawer()">Cancel</button>
   `);
-  renderProductsInSettings();
 }
-
-function switchSettingsTab(tab) {
-  ['shop','billing','products'].forEach(t => {
-    document.getElementById(`stab-${t}`)?.classList.toggle('active', t === tab);
-    const panel = document.getElementById(`spanel-${t}`);
-    if (panel) panel.style.display = t === tab ? 'block' : 'none';
-  });
-  if (tab === 'products') renderProductsInSettings();
-}
-
-function selectBillFormat(fmt) {
-  settings.billFormat = fmt;
-  localStorage.setItem('bill_format', fmt);
-  document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  toast(`Format: ${fmt.toUpperCase()} selected`, 'success');
-  renderAll(); // Update meta tag in bill
-}
-
-function saveBillingSettings() {
-  settings.billFormat = settings.billFormat || 'thermal';
-  settings.jpgQuality = parseFloat(document.getElementById('setJpgQuality').value) || 0.95;
-  localStorage.setItem('bill_format', settings.billFormat);
-  localStorage.setItem('pos_settings', JSON.stringify(settings));
-  toast('Billing settings saved!', 'success');
-}
-
-function renderProductsInSettings() {
-  const list = document.getElementById('prodListSettings');
-  if (!list) return;
-  const q = document.getElementById('prodSearchSettings')?.value?.toLowerCase() || '';
-  const filtered = q ? products.filter(p => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q))) : products;
-  list.innerHTML = filtered.length === 0
-    ? `<p style="color:var(--text2);font-size:13px;grid-column:span 2;text-align:center;padding:20px;">No products. Click + Add.</p>`
-    : filtered.map(p => `
-      <div class="prod-card">
-        <div class="prod-card-name">${p.name}</div>
-        <div class="prod-card-price">₹${p.price.toFixed(2)}</div>
-        <small style="color:var(--text2);font-size:11px;">${p.barcode || 'No barcode'} | ${p.category}</small>
-        <div style="display:flex;gap:4px;margin-top:4px;">
-          <button class="prod-card-add" style="flex:1;" onclick="addFromSearch(${p.id});closeDrawer();">+ Add to Bill</button>
-          <button class="btn-sm" style="background:var(--danger2);color:var(--danger);border-radius:7px;padding:5px;" onclick="deleteProduct(${p.id})">🗑️</button>
-        </div>
-      </div>`).join('');
-}
-
-function filterProductsSettings(val) { renderProductsInSettings(); }
 
 async function saveSettings() {
   settings = {
-    ...settings,
     shopName: document.getElementById('setShop').value,
-    address: document.getElementById('setAddr').value,
-    mobile: document.getElementById('setMob').value,
-    upi: document.getElementById('setUpi').value,
-    gstNumber: document.getElementById('setGst').value,
-    footer: document.getElementById('setFooter').value,
+    address:  document.getElementById('setAddr').value,
+    mobile:   document.getElementById('setMob').value,
+    upi:      document.getElementById('setUpi').value,
+    gstNumber:document.getElementById('setGst').value,
+    footer:   document.getElementById('setFooter').value,
     taxPercent: parseFloat(document.getElementById('setTax').value) || 0
   };
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   try {
-    await apiCall('/api/settings', { method:'PUT', body:JSON.stringify({ shop_name:settings.shopName, address:settings.address, mobile:settings.mobile, upi_id:settings.upi, gst_number:settings.gstNumber, footer:settings.footer, tax_percent:settings.taxPercent }) });
+    await apiCall('/api/settings', { method:'PUT', body:JSON.stringify({
+      shop_name:settings.shopName, address:settings.address, mobile:settings.mobile,
+      upi_id:settings.upi, gst_number:settings.gstNumber, footer:settings.footer, tax_percent:settings.taxPercent
+    })});
   } catch(e) {}
   closeDrawer();
-  toast('Settings saved!', 'success');
+  toast('Settings saved! ✅', 'success');
 }
 
 // ======================== PRODUCTS ========================
@@ -1613,51 +1324,60 @@ function showProducts() {
     <div class="modal-handle"></div>
     <h3>📦 Products</h3>
     <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <input id="prodSearch" placeholder="🔍 Search..." style="flex:1;" oninput="filterProducts(this.value)">
-      <button class="btn-accent btn-sm" onclick="showAddProduct()">+ Add</button>
+      <input id="prodSearch" placeholder="🔍 Search..." style="flex:1;margin:0;" oninput="renderProductList(this.value)">
+      <button class="btn-accent btn-sm" onclick="showAddProduct()">+ Add New</button>
     </div>
     <div id="prodList" class="prod-grid"></div>
     <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
   `);
-  renderProductList();
+  renderProductList('');
 }
 
 function renderProductList(filter='') {
-  const list = document.getElementById('prodList');
-  if (!list) return;
-  const filtered = filter ? products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) || (p.barcode && p.barcode.includes(filter))) : products;
-  list.innerHTML = filtered.length === 0 ? '<p style="color:var(--text2);font-size:13px;grid-column:span 2;text-align:center;padding:20px;">No products found</p>' :
-    filtered.map(p => `
-      <div class="prod-card">
-        <div class="prod-card-name">${p.name}</div>
-        <div class="prod-card-price">₹${p.price.toFixed(2)}</div>
-        <small style="color:var(--text2);font-size:11px;">${p.barcode || 'No barcode'} | ${p.category}</small>
-        <div style="display:flex;gap:4px;margin-top:4px;">
-          <button class="prod-card-add" style="flex:1;" onclick="addFromSearch(${p.id})">+ Add</button>
-          <button class="btn-sm" style="background:var(--danger2);color:var(--danger);border-radius:7px;padding:5px;" onclick="deleteProduct(${p.id})">🗑️</button>
-        </div>
-      </div>`).join('');
+  const el = document.getElementById('prodList');
+  if (!el) return;
+  const list = filter ? products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) || (p.barcode||'').includes(filter)) : products;
+  if (list.length === 0) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--text2);grid-column:span 2;text-align:center;padding:20px;">No products. Add one!</p>';
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="prod-card">
+      <div class="prod-card-name">${p.name}</div>
+      <div class="prod-card-price">₹${parseFloat(p.price).toFixed(2)}</div>
+      <div class="prod-card-sub">${p.barcode||'No barcode'} | ${p.category||''}</div>
+      <div class="prod-card-btns">
+        <button class="btn-accent" onclick="addFromDrawer(${p.id})">➕ Add</button>
+        <button class="btn-outline" onclick="showEditProduct(${p.id})" style="padding:5px 7px;">✏️</button>
+        <button style="background:var(--danger2);color:var(--danger);border-radius:7px;padding:5px 7px;font-size:12px;border:none;cursor:pointer;" onclick="deleteProduct(${p.id})">🗑️</button>
+      </div>
+    </div>`).join('');
 }
 
-function filterProducts(val) { renderProductList(val); }
+function addFromDrawer(pid) {
+  const p = products.find(x => x.id === pid);
+  if (p) { addToCart(p); toast(`${p.name} added ✅`, 'success'); }
+}
 
 function showAddProduct() {
   openModal(`
     <div class="modal-handle"></div>
-    <h3>➕ Add Product</h3>
-    <label>Product Name *</label><input id="pName" placeholder="e.g. Tata Salt 1kg">
-    <label>Barcode</label><input id="pBarcode" placeholder="Barcode (optional)">
-    <label>Price (₹) *</label><input id="pPrice" type="number" placeholder="0.00" min="0" step="0.01">
-    <label>Category</label>
-    <select id="pCat">
-      <option>Grocery</option><option>Dairy</option><option>Fruits & Veg</option>
-      <option>Snacks</option><option>Beverages</option><option>Personal Care</option><option>Other</option>
-    </select>
-    <label>Tax %</label><input id="pTax" type="number" value="0" min="0" max="100">
-    <label>Stock</label><input id="pStock" type="number" value="0" min="0">
+    <h3>➕ Add New Product</h3>
+    <label>Product Name *</label><input id="pName" placeholder="e.g. Basmati Rice 1kg">
+    <label>Barcode</label><input id="pBarcode" placeholder="Scan or type">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label>Price (₹) *</label><input id="pPrice" type="number" step="0.01" min="0"></div>
+      <div><label>Tax %</label><input id="pTax" type="number" value="${settings.taxPercent||0}" min="0" max="100"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label>Category</label><input id="pCat" placeholder="e.g. Grocery" value="General"></div>
+      <div><label>Unit</label>
+        <select id="pUnit"><option>piece</option><option>kg</option><option>litre</option><option>packet</option><option>box</option></select>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn-accent" onclick="addProduct()">Save</button>
+      <button class="btn-accent" onclick="addProduct()">Save Product</button>
     </div>
   `);
 }
@@ -1666,92 +1386,245 @@ async function addProduct() {
   const name = document.getElementById('pName').value.trim();
   const price = parseFloat(document.getElementById('pPrice').value);
   if (!name || isNaN(price)) { toast('Name & price required', 'error'); return; }
+  const p = {
+    id: Date.now(),
+    name, price,
+    barcode: document.getElementById('pBarcode').value || ('P'+Date.now()),
+    tax: parseFloat(document.getElementById('pTax').value) || 0,
+    category: document.getElementById('pCat').value || 'General',
+    unit: document.getElementById('pUnit').value || 'piece',
+    stock: 0
+  };
   try {
-    const res = await apiCall('/api/products', {
-      method:'POST',
-      body:JSON.stringify({ barcode:document.getElementById('pBarcode').value.trim(), name, price, category:document.getElementById('pCat').value, tax_percent:parseFloat(document.getElementById('pTax').value)||0, stock:parseInt(document.getElementById('pStock').value)||0 })
-    });
-    products.push({ id:res.id, barcode:document.getElementById('pBarcode').value.trim(), name, price, category:document.getElementById('pCat').value, tax_percent:parseFloat(document.getElementById('pTax').value)||0 });
-    localStorage.setItem('pos_products', JSON.stringify(products));
-    closeModal(); toast(`${name} added!`, 'success');
-    renderProductsInSettings();
-  } catch(e) { toast(e.message || 'Error', 'error'); }
+    const res = await apiCall('/api/products', { method:'POST', body:JSON.stringify({
+      name:p.name, barcode:p.barcode, price:p.price, tax_percent:p.tax,
+      category:p.category, unit:p.unit, stock:0
+    })});
+    p.id = res.id || p.id;
+  } catch(e) {}
+  products.push(p);
+  localStorage.setItem('pos_products', JSON.stringify(products));
+  closeModal();
+  toast(`${p.name} saved! ✅`, 'success');
+  if (document.getElementById('prodList')) renderProductList('');
+}
+
+function showEditProduct(pid) {
+  const p = products.find(x => x.id === pid);
+  if (!p) return;
+  openModal(`
+    <div class="modal-handle"></div>
+    <h3>✏️ Edit Product</h3>
+    <label>Name</label><input id="epName" value="${p.name}">
+    <label>Barcode</label><input id="epBarcode" value="${p.barcode||''}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label>Price (₹)</label><input id="epPrice" type="number" value="${p.price}" step="0.01"></div>
+      <div><label>Tax %</label><input id="epTax" type="number" value="${p.tax||0}"></div>
+    </div>
+    <label>Category</label><input id="epCat" value="${p.category||''}">
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-accent" onclick="updateProduct(${pid})">Update ✅</button>
+    </div>
+  `);
+}
+
+async function updateProduct(pid) {
+  const p = products.find(x => x.id === pid);
+  if (!p) return;
+  p.name = document.getElementById('epName').value.trim();
+  p.barcode = document.getElementById('epBarcode').value;
+  p.price = parseFloat(document.getElementById('epPrice').value) || p.price;
+  p.tax = parseFloat(document.getElementById('epTax').value) || 0;
+  p.category = document.getElementById('epCat').value;
+  try {
+    await apiCall(`/api/products/${pid}`, { method:'PUT', body:JSON.stringify({
+      name:p.name, barcode:p.barcode, price:p.price, tax_percent:p.tax, category:p.category
+    })});
+  } catch(e) {}
+  localStorage.setItem('pos_products', JSON.stringify(products));
+  closeModal();
+  toast(`${p.name} updated ✅`, 'success');
+  if (document.getElementById('prodList')) renderProductList('');
 }
 
 async function deleteProduct(pid) {
-  if (!confirm('Delete this product?')) return;
-  try {
-    await apiCall(`/api/products/${pid}`, { method:'DELETE' });
-    products = products.filter(p => p.id !== pid);
-    localStorage.setItem('pos_products', JSON.stringify(products));
-    renderProductList(); renderProductsInSettings();
-    toast('Deleted', 'info');
-  } catch(e) { toast('Error', 'error'); }
+  const p = products.find(x => x.id === pid);
+  if (!p || !confirm(`Delete "${p.name}"?`)) return;
+  try { await apiCall(`/api/products/${pid}`, { method:'DELETE' }); } catch(e) {}
+  products = products.filter(x => x.id !== pid);
+  localStorage.setItem('pos_products', JSON.stringify(products));
+  toast('Product deleted', 'info');
+  renderProductList('');
 }
 
-// ======================== CUSTOMERS VIEW ========================
-async function showCustomers() {
-  openDrawer(`
-    <div class="modal-handle"></div>
-    <h3>👥 Customers & Loyalty</h3>
-    <div id="custListContainer"><p style="color:var(--text2);font-size:13px;">Loading...</p></div>
-    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
-  `);
-  try {
-    const customers = await apiCall('/api/customers');
-    document.getElementById('custListContainer').innerHTML = customers.length === 0
-      ? '<p style="color:var(--text2);font-size:13px;text-align:center;padding:20px;">No customers yet</p>'
-      : customers.map(c => {
-          const balance = c.total_points - c.used_points;
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;">
-            <div style="display:flex;justify-content:space-between;">
-              <div><strong>${c.name}</strong><small style="display:block;color:var(--text2);">${c.mobile}</small></div>
-              <div style="text-align:right;"><span style="background:var(--warn2);color:#92400e;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;">${balance} pts</span><small style="display:block;color:var(--text2);margin-top:2px;">₹${c.total_spend.toFixed(0)} total</small></div>
-            </div>
-          </div>`;
-        }).join('');
-  } catch(e) { document.getElementById('custListContainer').innerHTML = '<p style="color:var(--danger);">Failed to load</p>'; }
+// ======================== HISTORY ========================
+// ======================== EXPORT / IMPORT ALL DATA ========================
+function exportAllData() {
+  const data = {
+    exported_at: new Date().toISOString(),
+    version: '2.0',
+    settings,
+    products,
+    sales_history: JSON.parse(localStorage.getItem('sales_history')||'[]'),
+    bill_sessions: billSessions,
+    bill_counter: billCounter,
+    customers: JSON.parse(localStorage.getItem('pos_customers')||'[]')
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.download = `GroceryPOS_Backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  toast('Data exported! ✅', 'success');
 }
 
-// ======================== SALES HISTORY ========================
+function importAllData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.version || !data.settings) { toast('Invalid backup file!', 'error'); return; }
+      if (!confirm(`Import data from ${new Date(data.exported_at).toLocaleDateString('en-IN')}?\n\nYe current data replace kar dega!`)) return;
+      if (data.settings) { settings = data.settings; localStorage.setItem('pos_settings', JSON.stringify(settings)); }
+      if (data.products) { products = data.products; localStorage.setItem('pos_products', JSON.stringify(products)); }
+      if (data.sales_history) localStorage.setItem('sales_history', JSON.stringify(data.sales_history));
+      if (data.bill_sessions) { billSessions = data.bill_sessions; localStorage.setItem('bill_sessions', JSON.stringify(billSessions)); }
+      if (data.bill_counter) { billCounter = data.bill_counter; localStorage.setItem('billCounter', String(billCounter)); }
+      closeDrawer();
+      renderAll();
+      toast('Data imported successfully! ✅', 'success');
+    } catch(e) { toast('Import failed: ' + e.message, 'error'); }
+  };
+  input.click();
+}
+
+async function deleteInvoice(billId, fromAPI=false) {
+  if (!confirm('Delete this invoice? This cannot be undone!')) return;
+  // Remove from local
+  const hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
+  const updated = hist.filter(b => (b.id||b.bill_number||b.billNumber) !== billId);
+  localStorage.setItem('sales_history', JSON.stringify(updated));
+  // Remove from API
+  if (authToken && fromAPI) {
+    try { await apiCall(`/api/bills/${billId}`, { method:'DELETE' }); } catch(e) {}
+  }
+  toast('Invoice deleted', 'info');
+  showHistory(); // Refresh
+}
+
 async function showHistory() {
+  let hist = [];
+  let fromAPI = false;
+  try {
+    hist = await apiCall('/api/bills/history');
+    fromAPI = true;
+  } catch(e) {
+    hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
+  }
+
+  const now = new Date();
+  const today = now.toLocaleDateString('en-IN');
+  const todayBills = hist.filter(b => new Date(b.completedAt||b.date||b.created_at).toLocaleDateString('en-IN') === today);
+  const todayTotal = todayBills.reduce((s,b) => s + parseFloat(b.final_amount||b.final||0), 0);
+  const weekTotal = hist.filter(b => {
+    const d = new Date(b.completedAt||b.date||b.created_at);
+    return (now-d) < 7*24*60*60*1000;
+  }).reduce((s,b) => s + parseFloat(b.final_amount||b.final||0), 0);
+  const monthTotal = hist.reduce((s,b) => s + parseFloat(b.final_amount||b.final||0), 0);
+
   openDrawer(`
     <div class="modal-handle"></div>
     <h3>📊 Sales History</h3>
-    <div id="histContainer"><p style="color:var(--text2);font-size:13px;">Loading...</p></div>
+
+    <!-- Stats Summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div style="background:var(--accent2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:10px;color:var(--text2);">Today</div>
+        <div style="font-size:1rem;font-weight:800;color:var(--accent);">₹${todayTotal.toFixed(0)}</div>
+        <div style="font-size:10px;color:var(--text2);">${todayBills.length} bills</div>
+      </div>
+      <div style="background:var(--info2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:10px;color:var(--text2);">This Week</div>
+        <div style="font-size:1rem;font-weight:800;color:var(--info);">₹${weekTotal.toFixed(0)}</div>
+      </div>
+      <div style="background:var(--warn2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:10px;color:var(--text2);">All Time</div>
+        <div style="font-size:1rem;font-weight:800;color:var(--warn);">₹${monthTotal.toFixed(0)}</div>
+      </div>
+    </div>
+
+    <!-- Export / Import Buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <button class="btn-outline" style="padding:10px;font-size:12px;" onclick="exportAllData()">📤 Export JSON</button>
+      <button class="btn-outline" style="padding:10px;font-size:12px;" onclick="importAllData()">📥 Import JSON</button>
+    </div>
+
+    <!-- Bill List -->
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">Recent Bills (${hist.length})</div>
+    <div style="max-height:350px;overflow-y:auto;">
+      ${hist.length===0 ? '<p style="text-align:center;color:var(--text2);padding:20px;">No bills yet</p>' :
+        hist.slice(0,100).map(b => {
+          const bId = b.id || b.bill_number || b.billNumber;
+          const bNum = b.bill_number || b.billNumber || 'N/A';
+          const bAmt = parseFloat(b.final_amount||b.final||0).toFixed(2);
+          const bCust = b.customer_name || b.customer?.name || 'Walk-in';
+          const bPay = b.payment_mode || b.paymentMode || 'Cash';
+          const bDate = new Date(b.completedAt||b.date||b.created_at||Date.now()).toLocaleDateString('en-IN');
+          const bTime = new Date(b.completedAt||b.date||b.created_at||Date.now()).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+          return `<div class="list-item" style="margin-bottom:6px;">
+            <div class="list-item-row">
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:13px;">${bNum}</div>
+                <div style="font-size:11px;color:var(--text2);">👤 ${bCust} | 💳 ${bPay}</div>
+                <div style="font-size:11px;color:var(--text2);">📅 ${bDate} ${bTime}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                <div class="list-amount">₹${bAmt}</div>
+                <button onclick="deleteInvoice('${bId}',${fromAPI})" style="background:var(--danger2);color:var(--danger);border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600;">🗑️ Delete</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>
     <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
   `);
-  try {
-    const bills = await apiCall('/api/bills');
-    const today = bills.filter(b => b.completed_at && b.completed_at.startsWith(new Date().toISOString().slice(0,10)));
-    const todayTotal = today.reduce((s,b) => s + b.final_amount, 0);
-    document.getElementById('histContainer').innerHTML = `
-      <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:12px;">
-        <div style="font-size:1.3rem;font-weight:800;color:var(--accent);">₹${todayTotal.toFixed(2)}</div>
-        <div style="font-size:12px;color:var(--text2);">Today's Sales (${today.length} bills)</div>
-      </div>
-      <div class="history-list">
-        ${bills.map(b => `
-          <div class="hist-item">
-            <div class="hist-info">
-              <div class="hist-bill">${b.bill_number}</div>
-              <div class="hist-cust">${b.customer_name || 'Walk-in'} | ${b.payment_mode}</div>
-              <div style="font-size:11px;color:var(--text2);">${b.completed_at ? new Date(b.completed_at).toLocaleString('en-IN') : ''}</div>
-            </div>
-            <div class="hist-amount">₹${b.final_amount.toFixed(2)}</div>
-          </div>`).join('')}
-      </div>`;
-  } catch(e) {
-    const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
-    document.getElementById('histContainer').innerHTML = hist.slice(0,50).map(b => `
-      <div class="hist-item">
-        <div class="hist-info"><div class="hist-bill">${b.billNumber}</div><div class="hist-cust">${b.customer?.name || 'Walk-in'}</div></div>
-        <div class="hist-amount">₹${b.final?.toFixed(2) || 0}</div>
-      </div>`).join('') || '<p style="color:var(--text2);">No history</p>';
-  }
 }
 
-// ======================== MODAL / DRAWER HELPERS ========================
+// ======================== CUSTOMERS ========================
+async function showCustomers() {
+  let custs = [];
+  try { custs = await apiCall('/api/customers'); } catch(e) {}
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <h3>👥 Customers</h3>
+    <div style="max-height:450px;overflow-y:auto;">
+      ${custs.length===0 ? '<p style="text-align:center;color:var(--text2);padding:20px;">No customers yet</p>' :
+        custs.map(c => `
+          <div class="list-item">
+            <div class="list-item-row">
+              <div>
+                <div style="font-weight:700;font-size:13px;">👤 ${c.name||'Unknown'}</div>
+                <div style="font-size:12px;color:var(--text2);">📞 ${c.mobile}</div>
+                <div style="font-size:12px;color:var(--text2);">${c.total_bills||0} bills | ₹${parseFloat(c.total_spent||0).toFixed(0)} spent</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:1rem;font-weight:800;color:var(--warn);">${(c.total_points||0)-(c.used_points||0)} pts</div>
+                <div style="font-size:11px;color:var(--text2);">Loyalty</div>
+              </div>
+            </div>
+          </div>`).join('')}
+    </div>
+    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeDrawer()">Close</button>
+  `);
+}
+
+// ======================== MODAL / DRAWER ========================
 function openModal(html) {
   document.getElementById('modalBox').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
@@ -1761,9 +1634,9 @@ function closeModal() {
   document.getElementById('modalBox').innerHTML = '';
 }
 function openDrawer(html) {
-  const drawer = document.getElementById('drawerBox');
-  drawer.innerHTML = html;
-  drawer.classList.remove('hidden');
+  const d = document.getElementById('drawerBox');
+  d.innerHTML = html;
+  d.classList.remove('hidden');
   document.getElementById('drawerOverlay').classList.add('show');
 }
 function closeDrawer() {
@@ -1771,68 +1644,28 @@ function closeDrawer() {
   document.getElementById('drawerOverlay').classList.remove('show');
 }
 
-// ======================== LANDING PAGE ACTIONS ========================
-let selectedPlanName = '';
-function selectPlan(plan) {
-  selectedPlanName = plan;
-  document.getElementById('planMonthly').classList.toggle('selected', plan === 'monthly');
-  document.getElementById('planYearly').classList.toggle('selected', plan === 'yearly');
-  const amount = plan === 'monthly' ? '₹299' : '₹3,200';
-  const upiAmt = plan === 'monthly' ? '299' : '3200';
-  const upiSection = document.getElementById('upiSection');
-  document.getElementById('planAmountDisplay').textContent = amount;
-  upiSection.style.display = 'block';
-  upiSection.scrollIntoView({ behavior:'smooth' });
-
-  // FIX: UPI QR generation on landing page with proper QR library
+// ======================== LANDING / REGISTER ========================
+function selectPlan(plan, amt) {
+  selectedPlan = { plan, amt };
+  document.getElementById('upiSection').style.display = 'block';
+  document.getElementById('planAmtDisplay').textContent = '₹' + amt;
+  document.getElementById('upiSection').scrollIntoView({ behavior:'smooth' });
+  document.getElementById('regPlanBadge').textContent = (plan==='monthly'?'Monthly':'Yearly') + ' — ₹' + amt;
+  const upiStr = `upi://pay?pa=dkapoore@oksbi&pn=GroceryPOS&am=${amt}&cu=INR`;
   const qrCont = document.getElementById('upiQRContainer');
-  qrCont.innerHTML = '<div style="color:#94a3b8;font-size:13px;">Generating QR...</div>';
-  const upiStr = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${upiAmt}&cu=INR`;
-
-  const tryQR = (attempts=0) => {
-    if (typeof QRCode === 'undefined') {
-      if (attempts < 20) setTimeout(() => tryQR(attempts+1), 200);
-      else qrCont.innerHTML = `<div style="color:#4ade80;font-size:14px;font-weight:700;padding:10px;background:rgba(255,255,255,.1);border-radius:8px;">${UPI_ID}</div>`;
-      return;
-    }
-    qrCont.innerHTML = '';
-    try {
-      new QRCode(qrCont, {
-        text: upiStr,
-        width: 200,
-        height: 200,
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    } catch(e) {
-      qrCont.innerHTML = `<div style="color:#4ade80;font-size:14px;font-weight:700;padding:16px;background:rgba(255,255,255,.1);border-radius:8px;">UPI: ${UPI_ID}<br>${amount}</div>`;
-    }
-  };
-  setTimeout(() => tryQR(), 100);
-}
-
-function proceedToForm() {
-  if (!selectedPlanName) { toast('Please select a plan first', 'error'); return; }
-  document.getElementById('regPlanBadge').textContent = selectedPlanName === 'monthly' ? 'Monthly — ₹299' : 'Yearly — ₹3,200';
-  showScreen('screen-register');
-}
-
-function startFreeTrial() {
-  showScreen('screen-login');
-  setTimeout(() => switchLoginTab('trial'), 100);
-}
-
-function updateFileName(input) {
-  const name = input.files[0]?.name || 'No file selected';
-  document.getElementById('fileName').textContent = name;
+  qrCont.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(qrCont, { text:upiStr, width:160, height:160, correctLevel:QRCode.CorrectLevel.M });
+  }
 }
 
 async function submitRegistration(e) {
   e.preventDefault();
   const btn = document.getElementById('regSubmitBtn');
   const receipt = document.getElementById('reg_receipt').files[0];
-  if (!receipt) { toast('Please upload payment screenshot', 'error'); return; }
+  if (!receipt) { toast('Upload payment screenshot', 'error'); return; }
   const store = document.getElementById('reg_store').value;
-  if (!store) { toast('Please select store type', 'error'); return; }
+  if (!store) { toast('Select store type', 'error'); return; }
   btn.textContent = 'Submitting...'; btn.disabled = true;
   const fd = new FormData();
   fd.append('full_name', document.getElementById('reg_name').value);
@@ -1842,36 +1675,29 @@ async function submitRegistration(e) {
   fd.append('city', document.getElementById('reg_city').value);
   fd.append('store_type', store);
   fd.append('upi_used', document.getElementById('reg_upi').value);
-  fd.append('plan', selectedPlanName || 'monthly');
+  fd.append('plan', selectedPlan?.plan || 'monthly');
   fd.append('receipt', receipt);
   try {
     await apiForm('/api/auth/register', fd);
-    openModal(`
-      <div style="text-align:center;padding:20px;">
-        <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
-        <h2>Registration Submitted!</h2>
-        <p style="color:var(--text2);margin:12px 0;">Admin verify karega aur 24 hours mein login credentials bhejega.</p>
-        <button class="btn-accent" style="width:100%;margin-top:16px;padding:12px;" onclick="closeModal();showScreen('screen-login')">Go to Login</button>
-      </div>
-    `);
+    openModal(`<div style="text-align:center;padding:20px;">
+      <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
+      <h2>Registration Submitted!</h2>
+      <p style="color:var(--text2);margin:12px 0;">Admin will verify & send login to your WhatsApp & Email within <strong>24 hours</strong>.</p>
+      <button class="btn-accent" style="width:100%;padding:12px;margin-top:14px;" onclick="closeModal();showScreen('screen-login')">Go to Login →</button>
+    </div>`);
   } catch(e) {
     toast(e.message || 'Submission failed', 'error');
     btn.textContent = 'Submit Registration →'; btn.disabled = false;
   }
 }
 
-// ======================== KEYBOARD SHORTCUTS ========================
-document.addEventListener('keydown', (e) => {
-  if (e.ctrlKey && e.key === 'n') { e.preventDefault(); if (document.getElementById('screen-app').classList.contains('active')) createNewBill(); }
+// ======================== KEYBOARD ========================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'n') { e.preventDefault(); if(document.getElementById('screen-app').classList.contains('active')) createNewBill(); }
   if (e.key === 'Escape') { closeModal(); closeDrawer(); stopScanner(); }
 });
 
-document.getElementById('darkToggle')?.addEventListener('click', () => {
-  document.body.classList.toggle('dark');
-  localStorage.setItem('darkMode', document.body.classList.contains('dark'));
-});
-
-// ======================== AUTO-LOGIN CHECK ========================
+// ======================== STARTUP ========================
 window.addEventListener('load', async () => {
   if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
   if (loadAuth()) {
