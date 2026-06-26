@@ -126,7 +126,7 @@ button { cursor:pointer; border:none; font-size:14px; font-weight:600; border-ra
 .forgot-link { text-align:center; margin-top:12px; font-size:13px; color:var(--accent); cursor:pointer; }
 
 /* ==================== POS APP ==================== */
-#screen-app { height:100vh; display:none; flex-direction:column; overflow:hidden; }
+#screen-app { position:fixed; inset:0; z-index:1000; display:none; flex-direction:column; overflow:hidden; background:var(--surface); }
 #screen-app.active { display:flex; }
 .app-wrap { width:100%; max-width:680px; margin:0 auto; display:flex; flex-direction:column; height:100vh; background:var(--surface); box-shadow:var(--shadow-lg); overflow:hidden; }
 
@@ -1270,49 +1270,21 @@ function printBill(billId) {
   const bill = billSessions.find(b => b.id === billId) || getActiveBill();
   if (!bill || bill.cart.length === 0) { toast('Cart empty', 'error'); return; }
   
-  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
-  const isFreeBill = trialStatus.plan === 'free';
-  const date = new Date().toLocaleDateString('en-IN');
-  
   const pa = document.getElementById('printArea');
-  pa.innerHTML = `
-    <div style="padding:20px;font-family:Arial;background:white;max-width:400px;margin:0 auto;">
-      ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:8px;margin-bottom:12px;font-size:12px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL VERSION — Upgrade for Professional Bills</div>' : ''}
-      <h2 style="text-align:center;">${settings.shopName}</h2>
-      <p style="text-align:center;font-size:12px;">${settings.address}</p>
-      <p style="text-align:center;font-size:12px;">${settings.mobile}${settings.gstNumber ? ' | GST: '+settings.gstNumber : ''}</p>
-      <hr style="margin:8px 0;">
-      <p style="font-size:12px;">Bill: <b>${bill.billNumber}</b> | Date: ${date}</p>
-      ${bill.customer?.name ? `<p style="font-size:12px;">Customer: ${bill.customer.name} ${bill.customer.mobile||''}</p>` : ''}
-      <hr style="margin:8px 0;">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <tr style="background:#f3f4f6;"><th style="padding:4px;text-align:left;">Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Total</th></tr>
-        ${bill.cart.map(i => `<tr><td style="padding:4px;">${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
-      </table>
-      <hr style="margin:8px 0;">
-      <p style="font-size:12px;text-align:right;">Subtotal: ₹${subtotal.toFixed(2)}</p>
-      ${tax > 0 ? `<p style="font-size:12px;text-align:right;">Tax: ₹${tax.toFixed(2)}</p>` : ''}
-      ${disc > 0 ? `<p style="font-size:12px;text-align:right;">Discount: -₹${disc.toFixed(2)}</p>` : ''}
-      <h3 style="text-align:right;font-size:1.1rem;">Total: ₹${final.toFixed(2)}</h3>
-      <p style="font-size:11px;text-align:right;">Payment: ${bill.paymentMode}</p>
-      <div id="qrCodePrint" style="text-align:center;margin:12px 0;"></div>
-      <p style="text-align:center;font-size:11px;">${settings.footer}</p>
-    </div>`;
+  pa.innerHTML = generateBillHTML(bill, getBillSize());
   pa.style.display = 'block';
   
   setTimeout(() => {
-    if (settings.upi) {
-      const qrDiv = document.getElementById('qrCodePrint');
-      if (qrDiv && typeof QRCode !== 'undefined') {
-        const upiStr = `upi://pay?pa=${settings.upi}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
-        new QRCode(qrDiv, { text: upiStr, width: 80, height: 80 });
-      }
+    const qrDiv = document.getElementById('billQRCode');
+    if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+      const upiStr = `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${calcBill(bill).final.toFixed(2)}&cu=INR`;
+      new QRCode(qrDiv, { text: upiStr, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
     }
     setTimeout(() => {
       window.print();
       setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 500);
-    }, 300);
-  }, 200);
+    }, 400);
+  }, 250);
 }
 
 function openExportPanel() {
@@ -1322,86 +1294,195 @@ function openExportPanel() {
   openModal(`
     <div class="modal-handle"></div>
     <h3>📤 Export Bill</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+    <label style="margin-top:8px;">Bill Size / Format</label>
+    <select id="billSizeSelect" style="margin-bottom:12px;">
+      <option value="thermal">🧾 Thermal (58mm)</option>
+      <option value="a4">📄 A4</option>
+      <option value="a5">📋 A5</option>
+    </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
       <button class="btn-outline" style="padding:14px;" onclick="printBill();closeModal();">🖨️ Print</button>
       <button class="btn-outline" style="padding:14px;" onclick="downloadPDF();closeModal();">📄 PDF</button>
-      <button class="btn-outline" style="padding:14px;" onclick="downloadJPG();closeModal();">🖼️ JPG</button>
+      <button class="btn-outline" style="padding:14px;" onclick="downloadJPG();closeModal();">🖼️ JPG / JPEG</button>
       <button class="btn-outline" style="padding:14px;" onclick="shareWhatsApp();closeModal();">💬 WhatsApp</button>
     </div>
     <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="closeModal()">Cancel</button>
   `);
 }
 
+// ======================== BILL HTML GENERATOR ========================
+function getBillSize() {
+  const sel = document.getElementById('billSizeSelect');
+  return sel ? sel.value : 'thermal';
+}
+
+function generateBillHTML(bill, size) {
+  size = size || getBillSize();
+  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+  const isFreeBill = trialStatus.plan === 'free';
+  const date = new Date().toLocaleDateString('en-IN');
+  const time = new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+
+  const sizeStyles = {
+    thermal: 'width:300px; font-size:11px;',
+    a5:      'width:520px; font-size:13px;',
+    a4:      'width:720px; font-size:14px;'
+  };
+  const tableFont = { thermal:'10px', a5:'12px', a4:'13px' };
+  const w = sizeStyles[size] || sizeStyles.thermal;
+  const tf = tableFont[size] || tableFont.thermal;
+
+  const upiStr = settings.upi
+    ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`
+    : '';
+
+  return `
+  <div id="billPrintContent" style="
+    ${w}
+    padding:16px; font-family:Arial,sans-serif;
+    background:#ffffff; color:#000000;
+    margin:0 auto;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  ">
+    ${isFreeBill ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:10px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>` : ''}
+    
+    <div style="text-align:center;margin-bottom:10px;">
+      <div style="font-size:${size==='thermal'?'15px':'20px'};font-weight:900;color:#000000;">${settings.shopName}</div>
+      ${settings.address ? `<div style="font-size:${tf};color:#000000;margin-top:2px;">${settings.address}</div>` : ''}
+      ${settings.mobile ? `<div style="font-size:${tf};color:#000000;">📞 ${settings.mobile}</div>` : ''}
+      ${settings.gstNumber ? `<div style="font-size:${tf};color:#000000;">GST: ${settings.gstNumber}</div>` : ''}
+    </div>
+    
+    <hr style="border:1px dashed #000000;margin:6px 0;">
+    
+    <div style="display:flex;justify-content:space-between;font-size:${tf};color:#000000;">
+      <span><b>Bill #${bill.billNumber}</b></span>
+      <span>${date} ${time}</span>
+    </div>
+    ${bill.customer?.name ? `<div style="font-size:${tf};color:#000000;margin-top:3px;">👤 ${bill.customer.name} ${bill.customer.mobile ? '| '+bill.customer.mobile : ''}</div>` : ''}
+    ${bill.paymentMode ? `<div style="font-size:${tf};color:#000000;">💳 ${bill.paymentMode}</div>` : ''}
+    
+    <hr style="border:1px dashed #000000;margin:6px 0;">
+    
+    <table style="width:100%;border-collapse:collapse;font-size:${tf};color:#000000;">
+      <thead>
+        <tr style="background:#eeeeee;">
+          <th style="padding:4px 3px;text-align:left;color:#000000;border-bottom:1px solid #000000;">Item</th>
+          <th style="padding:4px 3px;text-align:center;color:#000000;border-bottom:1px solid #000000;">Qty</th>
+          <th style="padding:4px 3px;text-align:right;color:#000000;border-bottom:1px solid #000000;">Rate</th>
+          <th style="padding:4px 3px;text-align:right;color:#000000;border-bottom:1px solid #000000;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bill.cart.map(i => `
+          <tr>
+            <td style="padding:3px;color:#000000;border-bottom:1px solid #dddddd;">${i.name}</td>
+            <td style="padding:3px;text-align:center;color:#000000;border-bottom:1px solid #dddddd;">${i.quantity}</td>
+            <td style="padding:3px;text-align:right;color:#000000;border-bottom:1px solid #dddddd;">₹${parseFloat(i.price).toFixed(2)}</td>
+            <td style="padding:3px;text-align:right;color:#000000;border-bottom:1px solid #dddddd;">₹${(parseFloat(i.price)*i.quantity).toFixed(2)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    
+    <hr style="border:1px dashed #000000;margin:6px 0;">
+    
+    <div style="font-size:${tf};color:#000000;">
+      <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>₹${(subtotal + (disc||0) + (loyaltyDisc||0)).toFixed(2)}</span></div>
+      ${tax > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Tax:</span><span>₹${parseFloat(tax).toFixed(2)}</span></div>` : ''}
+      ${disc > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#cc0000;">-₹${parseFloat(disc).toFixed(2)}</span></div>` : ''}
+      ${loyaltyDisc > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Loyalty Disc:</span><span style="color:#cc0000;">-₹${parseFloat(loyaltyDisc).toFixed(2)}</span></div>` : ''}
+    </div>
+    
+    <div style="display:flex;justify-content:space-between;font-size:${size==='thermal'?'14px':'18px'};font-weight:900;color:#000000;border-top:2px solid #000000;padding-top:6px;margin-top:4px;">
+      <span>TOTAL:</span><span>₹${parseFloat(final).toFixed(2)}</span>
+    </div>
+    
+    ${upiStr ? `
+    <div style="text-align:center;margin:12px 0;">
+      <div style="font-size:${tf};color:#000000;margin-bottom:6px;font-weight:bold;">📱 Pay via UPI</div>
+      <div id="billQRCode" style="display:inline-block;background:#ffffff;padding:4px;border:1px solid #cccccc;border-radius:4px;"></div>
+      <div style="font-size:${tf};color:#000000;margin-top:4px;font-weight:bold;">${settings.upi}</div>
+    </div>
+    ` : ''}
+    
+    <hr style="border:1px dashed #000000;margin:8px 0;">
+    <div style="text-align:center;font-size:${tf};color:#000000;font-style:italic;">${settings.footer || 'Thank you! Visit Again 🙏'}</div>
+  </div>`;
+}
+
 async function downloadPDF() {
   const bill = getActiveBill();
   if (!bill || bill.cart.length === 0) return;
-  const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
-  const isFreeBill = trialStatus.plan === 'free';
+  const { final } = calcBill(bill);
+  const size = getBillSize();
   const pa = document.getElementById('printArea');
-  
-  pa.innerHTML = `<div style="padding:20px;font-family:Arial;background:white;">
-    ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:8px;margin-bottom:12px;font-size:11px;font-weight:bold;color:#dc2626;">FREE TRIAL VERSION — Upgrade for Professional Bills</div>' : ''}
-    <h2>${settings.shopName}</h2>
-    <p style="font-size:12px;">${settings.address} | ${settings.mobile}</p>
-    <p style="font-size:12px;">Bill: ${bill.billNumber} | ${new Date().toLocaleDateString('en-IN')}</p>
-    ${bill.customer?.name ? `<p style="font-size:12px;">Customer: ${bill.customer.name}</p>` : ''}
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">
-      <tr style="background:#f3f4f6;"><th style="padding:4px;text-align:left;">Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Total</th></tr>
-      ${bill.cart.map(i => `<tr><td style="padding:3px;">${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:right;">₹${i.price.toFixed(2)}</td><td style="text-align:right;">₹${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}
-    </table>
-    <p style="text-align:right;">Subtotal: ₹${subtotal.toFixed(2)}</p>
-    ${disc > 0 ? `<p style="text-align:right;">Discount: -₹${disc.toFixed(2)}</p>` : ''}
-    <h3 style="text-align:right;">Total: ₹${final.toFixed(2)}</h3>
-    <div id="qrCodePrint" style="text-align:center;"></div>
-    <p style="text-align:center;font-size:11px;">${settings.footer}</p>
-  </div>`;
-  pa.style.display = 'block';
-  
-  setTimeout(async () => {
-    if (settings.upi) {
-      const qrDiv = document.getElementById('qrCodePrint');
-      if (qrDiv) new QRCode(qrDiv, { text:`upi://pay?pa=${settings.upi}&am=${final.toFixed(2)}&cu=INR`, width:80, height:80 });
-    }
-    setTimeout(async () => {
-      try {
-        await html2pdf().set({ margin:5, filename:`${bill.billNumber}.pdf`, image:{type:'jpeg',quality:.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4'} }).from(pa).save();
-        toast('PDF downloaded!', 'success');
-      } catch(e) { toast('PDF error', 'error'); }
-      pa.style.display = 'none'; pa.innerHTML = '';
-    }, 400);
-  }, 200);
+
+  pa.innerHTML = generateBillHTML(bill, size);
+  pa.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;background:#ffffff;';
+
+  await new Promise(r => setTimeout(r, 250));
+
+  const qrDiv = document.getElementById('billQRCode');
+  if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+    const upiStr = `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
+    new QRCode(qrDiv, { text: upiStr, width:100, height:100, correctLevel: QRCode.CorrectLevel.M });
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  const pdfFmt = size === 'a4' ? 'a4' : size === 'a5' ? 'a5' : [80, 220];
+  try {
+    await html2pdf().set({
+      margin: size === 'thermal' ? 2 : 5,
+      filename: `${bill.billNumber}_${size}.pdf`,
+      image: { type:'jpeg', quality:1.0 },
+      html2canvas: { scale:3, backgroundColor:'#ffffff', useCORS:true, logging:false },
+      jsPDF: { unit:'mm', format:pdfFmt, orientation:'portrait' }
+    }).from(document.getElementById('billPrintContent')).save();
+    toast('PDF downloaded! ✅', 'success');
+  } catch(e) { toast('PDF error', 'error'); }
+  pa.style.cssText = ''; pa.innerHTML = '';
 }
 
 async function downloadJPG() {
   const bill = getActiveBill();
   if (!bill || bill.cart.length === 0) return;
-  const { subtotal, tax, disc, final } = calcBill(bill);
+  const { final } = calcBill(bill);
+  const size = getBillSize();
   const pa = document.getElementById('printArea');
-  const isFreeBill = trialStatus.plan === 'free';
-  
-  pa.innerHTML = `<div style="padding:20px;font-family:Arial;background:white;width:400px;">
-    ${isFreeBill ? '<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:11px;font-weight:bold;color:#dc2626;">FREE TRIAL VERSION</div>' : ''}
-    <h2>${settings.shopName}</h2>
-    <p>${settings.address}</p><p>Bill: ${bill.billNumber}</p>
-    ${bill.cart.map(i => `<p>${i.name} x${i.quantity} - ₹${(i.price*i.quantity).toFixed(2)}</p>`).join('')}
-    <hr><h3>Total: ₹${final.toFixed(2)}</h3>
-    <p>${settings.footer}</p>
-  </div>`;
-  pa.style.display = 'block';
-  pa.style.position = 'absolute';
-  pa.style.left = '-9999px';
-  
-  setTimeout(async () => {
-    try {
-      const canvas = await html2canvas(pa, { scale:2, backgroundColor:'#ffffff' });
-      const a = document.createElement('a');
-      a.download = `${bill.billNumber}.jpg`;
-      a.href = canvas.toDataURL('image/jpeg', .95);
-      a.click();
-      toast('JPG downloaded!', 'success');
-    } catch(e) { toast('JPG error', 'error'); }
-    pa.style.display = 'none'; pa.style.position = ''; pa.innerHTML = '';
-  }, 300);
+
+  pa.innerHTML = generateBillHTML(bill, size);
+  pa.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;background:#ffffff;';
+
+  await new Promise(r => setTimeout(r, 250));
+
+  // QR generate and wait
+  const qrDiv = document.getElementById('billQRCode');
+  if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+    const upiStr = `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`;
+    new QRCode(qrDiv, { text: upiStr, width:100, height:100, correctLevel: QRCode.CorrectLevel.M });
+    await new Promise(r => setTimeout(r, 600)); // QR render wait
+  }
+
+  try {
+    const target = document.getElementById('billPrintContent');
+    const canvas = await html2canvas(target, {
+      scale: 3,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      imageTimeout: 0,
+      removeContainer: false
+    });
+    const a = document.createElement('a');
+    a.download = `${bill.billNumber}_${size}.jpg`;
+    a.href = canvas.toDataURL('image/jpeg', 1.0);
+    a.click();
+    toast('JPEG downloaded! ✅', 'success');
+  } catch(e) { toast('JPG error: '+e.message, 'error'); }
+  pa.style.cssText = ''; pa.innerHTML = '';
 }
 
 function shareWhatsApp() {
