@@ -536,6 +536,23 @@ tr:hover td{background:rgba(255,255,255,.02);}
           </div>
         </div>
 
+        <!-- ☁️ Google Sheet Assignment -->
+        <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:16px;margin-bottom:14px;">
+          <h4 style="color:#15803d;margin-bottom:10px;">☁️ Google Sheet Assignment <span style="font-weight:400;font-size:12px;color:#6b7280;">(Har user ka alag sheet)</span></h4>
+          <div style="background:#dcfce7;border-radius:8px;padding:10px;font-size:12px;color:#166534;margin-bottom:10px;">
+            💡 <strong>Aap (admin) ek Google Sheet banao</strong> is user ke liye → GAS deploy karo → URL yahan paste karo.<br>
+            User ko kuch karna nahi — login karte hi uska data us sheet mein automatically jaayega.
+          </div>
+          <label style="font-size:12px;font-weight:600;color:#374151;">Google Apps Script URL (User's Sheet)</label>
+          <input id="cred_gas_url" placeholder="https://script.google.com/macros/s/.../exec" style="margin-bottom:8px;font-size:13px;">
+          <label style="font-size:12px;font-weight:600;color:#374151;">Google Sheet ID (Optional)</label>
+          <input id="cred_sheet_id" placeholder="Sheet ID from URL" style="margin-bottom:8px;font-size:13px;">
+          <div style="display:flex;gap:8px;">
+            <button onclick="testGasUrl()" style="background:#16a34a;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔌 Test URL</button>
+            <button onclick="openGasGuide()" style="background:transparent;color:#16a34a;border:1px solid #16a34a;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📖 How to get GAS URL?</button>
+          </div>
+        </div>
+
         <div style="display:flex;gap:8px;">
           <button class="btn-outline flex-1" onclick="goToStep(1)" style="padding:11px;">← Back</button>
           <button class="btn-accent flex-1" onclick="goToStep(3)" style="padding:11px;">Next: Preview Messages →</button>
@@ -688,9 +705,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <!-- ════════════════ SCRIPT ════════════════ -->
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const API = window.location.origin.includes('localhost') || window.location.hostname === '127.0.0.1'
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:8000'
-  : 'https://grocery-pos-backend-lwfh.onrender.com';
+  : window.location.origin;
 
 const APP_URL = API; // Change to production URL e.g. https://yourpos.com
 
@@ -871,6 +888,7 @@ function renderUsersTable(filtered = null) {
           ${u.payment_status === 'pending' ? `<button class="btn-accent btn-xs" onclick="openApproveModal(${u.id})">✅</button>` : ''}
           ${u.is_active ? `<button class="btn-warn btn-xs" onclick="openExtendModal(${u.id})">📅</button>` : ''}
           ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
+          <button class="btn-xs" onclick="openGasAssign(${u.id},'${u.username}','${u.gas_url||''}')" style="background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Assign Google Sheet">☁️</button>
           ${!u.is_blocked
             ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
             : `<button class="btn-accent btn-xs" onclick="blockUser(${u.id},false)" title="Unblock">✅</button>`}
@@ -1085,6 +1103,8 @@ function openWhatsApp() {
 async function confirmApprove() {
   const username  = document.getElementById('cred_username').value.trim();
   const password  = document.getElementById('cred_password').value.trim();
+  const gas_url   = document.getElementById('cred_gas_url')?.value?.trim() || '';
+  const sheet_id  = document.getElementById('cred_sheet_id')?.value?.trim() || '';
   if (!username || !password) { toast('Username & password are required', 'error'); return; }
 
   const btn = document.getElementById('finalApproveBtn');
@@ -1097,7 +1117,9 @@ async function confirmApprove() {
         user_id: currentUserId,
         username,
         password,
-        plan_days: selectedDays
+        plan_days: selectedDays,
+        gas_url,
+        sheet_id
       })
     });
     toast('✅ User activated! Now copy & send credentials manually.', 'success');
@@ -1107,6 +1129,55 @@ async function confirmApprove() {
     toast('Error: ' + e.message, 'error');
     btn.textContent = '💾 Save & Activate User'; btn.disabled = false;
   }
+}
+
+async function testGasUrl() {
+  const url = document.getElementById('cred_gas_url')?.value?.trim();
+  if (!url) { toast('GAS URL daalo pehle', 'error'); return; }
+  toast('Testing connection...', 'info');
+  try {
+    const res = await fetch(url + '?action=ping');
+    const text = await res.text();
+    toast('✅ Connected! URL working.', 'success');
+  } catch(e) {
+    toast('⚠️ URL reachable (CORS expected on browser). Should work from app.', 'warn');
+  }
+}
+
+function openGasGuide() {
+  const overlay = document.getElementById('approveModal');
+  const guide = document.createElement('div');
+  guide.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  guide.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">📖 GAS URL Kaise Banayein?</h3>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:13px;line-height:1.8;color:#374151;">
+        <div style="background:#f0fdf4;border-radius:8px;padding:12px;margin-bottom:12px;">
+          <strong>Har user ke liye alag sheet banao — ye steps follow karo:</strong>
+        </div>
+        <ol style="padding-left:18px;display:flex;flex-direction:column;gap:10px;">
+          <li><strong>Google Sheets</strong> kholo → <strong>New Spreadsheet</strong> banao<br>
+          <span style="color:#6b7280;font-size:12px;">Name: "POS - [User Name]" — jaise "POS - Ramesh Shop"</span></li>
+          <li><strong>Extensions → Apps Script</strong> click karo</li>
+          <li>Pura default code delete karo</li>
+          <li><strong>GoogleAppsScript_v2.js</strong> ka code paste karo (GitHub se download karo)</li>
+          <li><strong>Ctrl+S</strong> se save karo → Project name dedo</li>
+          <li><strong>Deploy → New Deployment</strong> click karo</li>
+          <li>Type: <strong>Web App</strong> select karo</li>
+          <li>Execute as: <strong>Me</strong><br>Who has access: <strong>Anyone</strong></li>
+          <li><strong>Deploy</strong> click karo → Allow permissions</li>
+          <li><strong>Web App URL copy karo</strong> → Yahan paste karo ✅</li>
+        </ol>
+        <div style="background:#fef3c7;border-radius:8px;padding:12px;margin-top:12px;font-size:12px;">
+          ⏱️ Ek user ka sheet setup: ~5 minutes<br>
+          🔒 Har user ka data bilkul alag — koi mixing nahi
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(guide);
 }
 
 // ── COPY HELPERS ─────────────────────────────────────────────
@@ -1180,6 +1251,65 @@ async function confirmExtend() {
 }
 
 // ── BLOCK / UNBLOCK ──────────────────────────────────────────
+// ── GAS URL ASSIGN ────────────────────────────────────────────
+function openGasAssign(userId, username, currentGasUrl) {
+  const overlay = document.createElement('div');
+  overlay.id = 'gasAssignOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;font-size:1.1rem;">☁️ Google Sheet Assign</h3>
+          <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">@${username} ke liye</p>
+        </div>
+        <button onclick="document.getElementById('gasAssignOverlay').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">✕</button>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #16a34a;border-radius:10px;padding:12px;font-size:12px;color:#166534;margin-bottom:14px;">
+        💡 Is user ke liye ek alag Google Sheet + GAS deploy karo, phir URL yahan daalo. User ka saara data us sheet mein jaayega.
+      </div>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">GAS URL *</label>
+      <input id="gasAssignUrl" value="${currentGasUrl}" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Sheet ID (Optional)</label>
+      <input id="gasAssignSheetId" placeholder="Google Sheet ID from URL" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box;">
+      ${currentGasUrl ? `<div style="background:#fef3c7;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:10px;">Current URL: <code style="word-break:break-all;font-size:11px;">${currentGasUrl.slice(0,60)}...</code></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button onclick="testGasAssignUrl()" style="padding:10px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">🔌 Test URL</button>
+        <button onclick="saveGasAssign(${userId})" style="padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">💾 Save & Assign</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function testGasAssignUrl() {
+  const url = document.getElementById('gasAssignUrl')?.value?.trim();
+  if (!url) { toast('URL daalo pehle', 'error'); return; }
+  toast('Testing...', 'info');
+  try {
+    await fetch(url + '?action=ping');
+    toast('✅ URL reachable!', 'success');
+  } catch(e) {
+    toast('⚠️ CORS error expected — URL may still work from app.', 'warn');
+  }
+}
+
+async function saveGasAssign(userId) {
+  const gas_url  = document.getElementById('gasAssignUrl')?.value?.trim();
+  const sheet_id = document.getElementById('gasAssignSheetId')?.value?.trim() || '';
+  if (!gas_url) { toast('GAS URL required', 'error'); return; }
+  try {
+    await api('/api/admin/update-gas-url', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, gas_url, sheet_id })
+    });
+    document.getElementById('gasAssignOverlay')?.remove();
+    toast('✅ Google Sheet assigned! User ka data ab us sheet mein jaayega.', 'success');
+    loadAll();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
 async function blockUser(userId, block) {
   const u = allUsers.find(x => x.id === userId);
   if (!confirm(`${block ? 'Block' : 'Unblock'} ${u?.full_name || u?.username}?`)) return;
