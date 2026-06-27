@@ -198,6 +198,8 @@ button:active{transform:scale(.97);}
 .scanner-torch{position:absolute;top:20px;left:20px;z-index:10;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);color:#fff;width:48px;height:48px;border-radius:50%;font-size:20px;cursor:pointer;backdrop-filter:blur(4px);}
 .scanner-mode{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:600;backdrop-filter:blur(4px);}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#syncStatusDot.syncing{animation:syncPulse .8s infinite;}
+@keyframes syncPulse{0%,100%{transform:scale(1);background:var(--accent);}50%{transform:scale(1.5);background:var(--warn);}}
 
 /* Products Grid */
 .prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:350px;overflow-y:auto;margin:8px 0;}
@@ -359,6 +361,13 @@ button:active{transform:scale(.97);}
     </div>
     <div class="header-right">
       <button class="icon-btn" onclick="toggleDark()" id="darkBtn" title="Dark Mode">🌙</button>
+      <div style="position:relative;display:inline-flex;">
+        <button class="icon-btn" onclick="showNotifications()" title="Notifications">🔔</button>
+        <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;width:16px;height:16px;border-radius:50%;align-items:center;justify-content:center;"></span>
+      </div>
+      <div style="position:relative;display:inline-flex;" title="Sync status">
+        <div id="syncStatusDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin:auto 2px;transition:.3s;"></div>
+      </div>
       <button class="icon-btn" onclick="showHistory()" title="History">📊</button>
       <button class="icon-btn" onclick="showCustomers()" title="Customers">👥</button>
       <button class="icon-btn" onclick="showProducts()" title="Products">📦</button>
@@ -541,6 +550,11 @@ async function doLogin() {
   try {
     const data = await apiCall('/api/auth/login', { method:'POST', body:JSON.stringify({username,password}) });
     saveAuth(data.token, data.user);
+    // Auto-load assigned Google Sheet
+    if (data.user?.gas_url) {
+      cloudConfig = { ...cloudConfig, gasUrl: data.user.gas_url, sheetId: data.user.sheet_id||'', enabled:true };
+      localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig));
+    }
     await initApp();
   } catch(e) { toast(e.message || 'Login failed', 'error'); }
 }
@@ -598,6 +612,12 @@ async function initApp() {
   updateSubBadge();
   checkTrialLock();
   setupUSBScanner();
+  // Cloud sync startup
+  if (cloudConfig.gasUrl) {
+    startAutoSync();
+    if (isOnline) setTimeout(autoSyncNow, 2000);
+  }
+  checkDailyBackup();
   renderAll();
 }
 
@@ -1119,6 +1139,8 @@ async function finalizeBill(billId, save=true) {
       const hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
       hist.unshift({...bill, subtotal, tax, disc, final, completedAt:new Date().toISOString()});
       localStorage.setItem('sales_history', JSON.stringify(hist.slice(0,200)));
+      // Cloud sync invoice
+      syncInvoiceToSheet(bill);
     } catch(e) {
       if (e.message === 'FREE_TRIAL_EXPIRED') {
         trialStatus.is_locked = true; checkTrialLock(); updateSubBadge();
@@ -1457,24 +1479,315 @@ function saveDiscount(billId) {
 }
 
 // ======================== SETTINGS ========================
-function openSettings() {
+// ======================== CLOUD CONFIG (Per-shop Google Sheet) ========================
+let cloudConfig = JSON.parse(localStorage.getItem('pos_cloud_config') || '{}');
+// cloudConfig = { gasUrl, sheetId, syncInterval, lastSync, enabled }
+
+let syncTimer = null;
+let pendingInvoices = JSON.parse(localStorage.getItem('pos_pending_invoices') || '[]');
+let isOnline = navigator.onLine;
+let notifHistory = JSON.parse(localStorage.getItem('pos_notifs') || '[]');
+
+// Online/Offline detection
+window.addEventListener('online',  () => { isOnline = true;  pushNotif('🌐 Internet connected — syncing...', 'success'); autoSyncNow(); });
+window.addEventListener('offline', () => { isOnline = false; pushNotif('📵 Offline mode active — billing continues locally', 'warn'); });
+
+// ======================== NOTIFICATION SYSTEM ========================
+function pushNotif(msg, type='info') {
+  const n = { msg, type, time: new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) };
+  notifHistory.unshift(n);
+  if (notifHistory.length > 50) notifHistory = notifHistory.slice(0,50);
+  localStorage.setItem('pos_notifs', JSON.stringify(notifHistory));
+  toast(msg, type);
+  // Update bell badge
+  const badge = document.getElementById('notifBadge');
+  if (badge) { badge.style.display = 'flex'; badge.textContent = Math.min(notifHistory.length, 9); }
+}
+
+function showNotifications() {
   openDrawer(`
     <div class="modal-handle"></div>
-    <h3>⚙️ Settings</h3>
-    <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
-    <label>Address</label><input id="setAddr" value="${settings.address||''}">
-    <label>Mobile</label><input id="setMob" value="${settings.mobile||''}">
-    <label>UPI ID</label><input id="setUpi" value="${settings.upi||''}">
-    <label>GST Number</label><input id="setGst" value="${settings.gstNumber||''}">
-    <label>Footer Message</label><input id="setFooter" value="${settings.footer}">
-    <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent||0}" min="0" max="100">
-    <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Settings</button>
-    <button class="btn-outline" style="width:100%;margin-top:6px;" onclick="closeDrawer()">Cancel</button>
+    <h3>🔔 Notifications</h3>
+    <div style="max-height:450px;overflow-y:auto;">
+      ${notifHistory.length === 0
+        ? '<p style="text-align:center;color:var(--text2);padding:20px;">No notifications</p>'
+        : notifHistory.map(n => `
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-bottom:1px solid var(--border);">
+            <div style="flex:1;">
+              <div style="font-size:13px;">${n.msg}</div>
+              <div style="font-size:11px;color:var(--text2);">${n.time}</div>
+            </div>
+          </div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+      <button class="btn-outline" onclick="notifHistory=[];localStorage.removeItem('pos_notifs');closeDrawer();">🗑️ Clear All</button>
+      <button class="btn-outline" onclick="closeDrawer()">Close</button>
+    </div>
+  `);
+  // Clear badge
+  const badge = document.getElementById('notifBadge');
+  if (badge) badge.style.display = 'none';
+  notifHistory = [];
+  localStorage.setItem('pos_notifs', JSON.stringify(notifHistory));
+}
+
+// ======================== GOOGLE APPS SCRIPT API ========================
+async function gasRequest(action, payload={}) {
+  if (!cloudConfig.gasUrl) throw new Error('Google Apps Script URL not configured');
+  const url = cloudConfig.gasUrl;
+  const body = JSON.stringify({ action, ...payload });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' }, // GAS requires this to avoid CORS preflight
+    body
+  });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch(e) { return { success: true, raw: text }; }
+}
+
+// ======================== PRODUCT SYNC FROM GOOGLE SHEET ========================
+async function syncProductsFromSheet() {
+  if (!cloudConfig.gasUrl || !isOnline) return false;
+  try {
+    document.getElementById('syncStatusDot')?.classList.add('syncing');
+    const data = await gasRequest('get_products');
+    if (!data || !data.products) return false;
+
+    const sheetProducts = data.products.map(p => ({
+      id: p.Product_ID || p.product_id || ('P'+Date.now()),
+      barcode: p.Product_ID || p.product_id || '',
+      name: p.Product_Name || p.name || 'Unknown',
+      price: parseFloat(p.Price || p.price || 0),
+      tax: parseFloat(p.Tax || p.tax || 0),
+      stock: parseInt(p.Stock || p.stock || 0),
+      category: p.Category || p.category || 'General',
+      unit: p.Unit || p.unit || 'piece',
+      sku: p.SKU || p.sku || ''
+    }));
+
+    // Detect changes
+    const changes = [];
+    sheetProducts.forEach(sp => {
+      const local = products.find(lp => lp.barcode === sp.barcode || lp.id === sp.id);
+      if (!local) { changes.push(`➕ ${sp.name}`); }
+      else if (local.price !== sp.price) { changes.push(`💰 ${sp.name}: ₹${local.price} → ₹${sp.price}`); }
+      else if (local.stock !== sp.stock) { changes.push(`📦 ${sp.name} stock: ${local.stock} → ${sp.stock}`); }
+    });
+
+    products = sheetProducts;
+    localStorage.setItem('pos_products', JSON.stringify(products));
+    cloudConfig.lastSync = new Date().toISOString();
+    localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig));
+
+    if (changes.length > 0) {
+      pushNotif(`✅ ${changes.length} product(s) updated from cloud`, 'success');
+    }
+    document.getElementById('syncStatusDot')?.classList.remove('syncing');
+    document.getElementById('lastSyncTime') && (document.getElementById('lastSyncTime').textContent = 'Last sync: ' + new Date().toLocaleTimeString('en-IN'));
+    return true;
+  } catch(e) {
+    document.getElementById('syncStatusDot')?.classList.remove('syncing');
+    pushNotif('⚠️ Sync failed: ' + e.message, 'error');
+    return false;
+  }
+}
+
+// ======================== INVOICE SYNC TO GOOGLE SHEET ========================
+async function syncInvoiceToSheet(bill) {
+  if (!cloudConfig.gasUrl || !isOnline) {
+    // Store pending
+    pendingInvoices.push({ ...bill, pendingAt: new Date().toISOString() });
+    localStorage.setItem('pos_pending_invoices', JSON.stringify(pendingInvoices));
+    return false;
+  }
+  try {
+    const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+    await gasRequest('save_invoice', {
+      invoice_number: bill.billNumber,
+      customer_name: bill.customer?.name || '',
+      customer_mobile: bill.customer?.mobile || '',
+      items: JSON.stringify(bill.cart),
+      subtotal, tax_total: tax, discount: disc,
+      final_amount: final,
+      payment_mode: bill.paymentMode || 'Cash',
+      date: new Date().toISOString(),
+      shop: settings.shopName
+    });
+    return true;
+  } catch(e) {
+    pendingInvoices.push({ ...bill, pendingAt: new Date().toISOString() });
+    localStorage.setItem('pos_pending_invoices', JSON.stringify(pendingInvoices));
+    return false;
+  }
+}
+
+// Flush pending invoices when back online
+async function flushPendingInvoices() {
+  if (!isOnline || !cloudConfig.gasUrl || pendingInvoices.length === 0) return;
+  let synced = 0;
+  const failed = [];
+  for (const bill of pendingInvoices) {
+    try {
+      const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+      await gasRequest('save_invoice', {
+        invoice_number: bill.billNumber,
+        customer_name: bill.customer?.name || '',
+        customer_mobile: bill.customer?.mobile || '',
+        items: JSON.stringify(bill.cart),
+        subtotal, tax_total: tax, discount: disc,
+        final_amount: final,
+        payment_mode: bill.paymentMode || 'Cash',
+        date: bill.pendingAt || new Date().toISOString(),
+        shop: settings.shopName
+      });
+      synced++;
+    } catch(e) { failed.push(bill); }
+  }
+  pendingInvoices = failed;
+  localStorage.setItem('pos_pending_invoices', JSON.stringify(pendingInvoices));
+  if (synced > 0) pushNotif(`☁️ ${synced} pending invoice(s) synced to cloud`, 'success');
+}
+
+// ======================== AUTO SYNC TIMER ========================
+function startAutoSync() {
+  if (syncTimer) clearInterval(syncTimer);
+  const interval = (cloudConfig.syncInterval || 5) * 60 * 1000;
+  syncTimer = setInterval(autoSyncNow, interval);
+}
+
+async function autoSyncNow() {
+  if (!cloudConfig.gasUrl || !isOnline) return;
+  await syncProductsFromSheet();
+  await flushPendingInvoices();
+}
+
+// ======================== DAILY BACKUP ========================
+function checkDailyBackup() {
+  const lastBackup = localStorage.getItem('pos_last_backup');
+  const today = new Date().toDateString();
+  if (lastBackup !== today) {
+    runDailyBackup();
+    localStorage.setItem('pos_last_backup', today);
+  }
+}
+
+function runDailyBackup() {
+  const dateStr = new Date().toISOString().slice(0,10);
+  // Products backup
+  const pBlob = new Blob([JSON.stringify(products, null,2)], { type:'application/json' });
+  const pa = document.createElement('a'); pa.download = `products_backup_${dateStr}.json`; pa.href = URL.createObjectURL(pBlob); pa.click();
+  // Invoice backup
+  const hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
+  const iBlob = new Blob([JSON.stringify(hist, null,2)], { type:'application/json' });
+  const ia = document.createElement('a'); ia.download = `invoice_backup_${dateStr}.json`; ia.href = URL.createObjectURL(iBlob);
+  setTimeout(() => { ia.click(); pushNotif(`📦 Daily backup created: ${dateStr}`, 'info'); }, 800);
+}
+
+// ======================== SETTINGS (Full) ========================
+function openSettings() {
+  const cfg = cloudConfig;
+  const lastSync = cfg.lastSync ? new Date(cfg.lastSync).toLocaleString('en-IN') : 'Never';
+  const pending = pendingInvoices.length;
+  const syncStatus = isOnline ? '🌐 Online' : '📵 Offline';
+  openDrawer(`
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h3 style="margin:0;">⚙️ Settings</h3>
+      <span style="font-size:12px;padding:4px 10px;border-radius:10px;background:${isOnline?'var(--accent2)':'var(--warn2)'};color:${isOnline?'var(--accent)':'#92400e'};">${syncStatus}</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:14px;">Last sync: ${lastSync}${pending>0?` | ⏳ ${pending} pending`:''}
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface);border-radius:10px;padding:4px;margin-bottom:14px;">
+      <button id="stab1" onclick="switchSettingsTab(1)" style="padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;">🏪 Shop</button>
+      <button id="stab2" onclick="switchSettingsTab(2)" style="padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;">☁️ Cloud</button>
+    </div>
+
+    <!-- Tab 1: Shop Settings -->
+    <div id="settingsTab1">
+      <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
+      <label>Address</label><input id="setAddr" value="${settings.address||''}">
+      <label>Mobile</label><input id="setMob" value="${settings.mobile||''}">
+      <label>UPI ID</label><input id="setUpi" value="${settings.upi||''}">
+      <label>GST Number</label><input id="setGst" value="${settings.gstNumber||''}">
+      <label>Footer Message</label><input id="setFooter" value="${settings.footer||'Thank you! 🙏'}">
+      <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent||0}" min="0" max="100">
+      <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Shop Settings</button>
+    </div>
+
+    <!-- Tab 2: Cloud Settings -->
+    <div id="settingsTab2" style="display:none;">
+      <div style="background:var(--info2);border:1px solid var(--info);border-radius:10px;padding:10px;font-size:12px;color:#1e3a5f;margin-bottom:12px;">
+        💡 Har shop ka apna alag Google Sheet hoga. Apna Google Apps Script URL yahan daalo.
+      </div>
+      <label>Google Apps Script URL *</label>
+      <input id="cfgGasUrl" value="${cfg.gasUrl||''}" placeholder="https://script.google.com/macros/s/.../exec">
+      <label>Google Sheet ID (optional)</label>
+      <input id="cfgSheetId" value="${cfg.sheetId||''}" placeholder="Sheet ID from URL">
+      <label>Auto Sync Interval (minutes)</label>
+      <input id="cfgSyncInterval" type="number" value="${cfg.syncInterval||5}" min="1" max="60">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <button class="btn-outline" onclick="testCloudConnection()">🔌 Test Connection</button>
+        <button class="btn-accent" onclick="saveCloudConfig()">💾 Save Cloud Config</button>
+      </div>
+      <hr style="margin:14px 0;border-color:var(--border);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📥 Import Data</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-outline" style="font-size:12px;padding:10px;" onclick="importProductsFromSheet()">☁️ From Google Sheet</button>
+        <button class="btn-outline" style="font-size:12px;padding:10px;" onclick="importProductsJSON()">📂 From JSON File</button>
+      </div>
+      <hr style="margin:14px 0;border-color:var(--border);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📤 Backup</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-outline" style="font-size:12px;padding:10px;" onclick="exportAllData()">📤 Export JSON</button>
+        <button class="btn-outline" style="font-size:12px;padding:10px;" onclick="runDailyBackup()">📦 Manual Backup</button>
+      </div>
+      <hr style="margin:14px 0;border-color:var(--border);">
+      <button class="btn-outline" style="width:100%;padding:10px;" onclick="autoSyncNow().then(()=>toast('Sync done!','success'))">🔄 Sync Now</button>
+      ${pending>0?`<button class="btn-warn" style="width:100%;padding:10px;margin-top:6px;" onclick="flushPendingInvoices().then(()=>toast('Done!','success'))">☁️ Upload ${pending} Pending Invoice(s)</button>`:''}
+    </div>
+
     <hr style="margin:14px 0;border-color:var(--border);">
     <button class="btn-outline" style="width:100%;padding:10px;" onclick="closeDrawer();setTimeout(showProducts,100);">📦 Manage Products →</button>
-    <hr style="margin:10px 0;border-color:var(--border);">
-    <button class="btn-danger" style="width:100%;padding:10px;" onclick="doLogout()">🚪 Logout</button>
+    <button class="btn-danger" style="width:100%;padding:10px;margin-top:6px;" onclick="doLogout()">🚪 Logout</button>
   `);
+}
+
+function switchSettingsTab(n) {
+  document.getElementById('settingsTab1').style.display = n===1?'block':'none';
+  document.getElementById('settingsTab2').style.display = n===2?'block':'none';
+  document.getElementById('stab1').style.cssText = n===1?'padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;':'padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;';
+  document.getElementById('stab2').style.cssText = n===2?'padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;':'padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;';
+}
+
+async function testCloudConnection() {
+  const url = document.getElementById('cfgGasUrl')?.value?.trim();
+  if (!url) { toast('GAS URL daalo pehle', 'error'); return; }
+  toast('Testing...', 'info');
+  try {
+    const res = await fetch(url + '?action=ping');
+    const text = await res.text();
+    toast('✅ Connected! ' + text.slice(0,30), 'success');
+  } catch(e) {
+    // CORS error means URL is reachable but needs POST
+    toast('⚠️ URL reachable (CORS expected). Save & try sync.', 'warn');
+  }
+}
+
+function saveCloudConfig() {
+  const url = document.getElementById('cfgGasUrl')?.value?.trim();
+  cloudConfig = {
+    gasUrl: url,
+    sheetId: document.getElementById('cfgSheetId')?.value?.trim() || '',
+    syncInterval: parseInt(document.getElementById('cfgSyncInterval')?.value) || 5,
+    enabled: !!url,
+    lastSync: cloudConfig.lastSync || null
+  };
+  localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig));
+  startAutoSync();
+  toast('Cloud config saved! ✅', 'success');
+  if (url && isOnline) { autoSyncNow(); }
 }
 
 async function saveSettings() {
@@ -1496,6 +1809,55 @@ async function saveSettings() {
   } catch(e) {}
   closeDrawer();
   toast('Settings saved! ✅', 'success');
+}
+
+// ======================== IMPORT PRODUCTS FROM SHEET ========================
+async function importProductsFromSheet() {
+  const url = cloudConfig.gasUrl || document.getElementById('cfgGasUrl')?.value?.trim();
+  if (!url) { toast('GAS URL configure karo pehle (Cloud tab)', 'error'); return; }
+  toast('Google Sheet se products la raha hoon...', 'info');
+  const ok = await syncProductsFromSheet();
+  if (ok) {
+    toast(`✅ ${products.length} products imported from Google Sheet!`, 'success');
+    pushNotif(`📥 ${products.length} products imported from Google Sheet`, 'success');
+    closeDrawer();
+    setTimeout(showProducts, 300);
+  }
+}
+
+// ======================== IMPORT PRODUCTS FROM JSON FILE ========================
+function importProductsJSON() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      let prods = Array.isArray(data) ? data : (data.products || []);
+      if (prods.length === 0) { toast('File mein products nahi hain', 'error'); return; }
+      // Normalize fields
+      prods = prods.map((p,i) => ({
+        id: p.product_id || p.id || p.Product_ID || ('P'+i),
+        barcode: p.product_id || p.barcode || p.Product_ID || ('P'+i),
+        name: p.name || p.Product_Name || p.product_name || 'Unknown',
+        price: parseFloat(p.price || p.Price || 0),
+        tax: parseFloat(p.tax || p.Tax || 0),
+        stock: parseInt(p.stock || p.Stock || 0),
+        category: p.category || p.Category || 'General',
+        unit: p.unit || p.Unit || 'piece',
+        sku: p.sku || p.SKU || ''
+      }));
+      if (!confirm(`${prods.length} products import karein? Current products replace ho jayenge.`)) return;
+      products = prods;
+      localStorage.setItem('pos_products', JSON.stringify(products));
+      toast(`✅ ${products.length} products imported!`, 'success');
+      pushNotif(`📥 ${products.length} products imported from JSON file`, 'success');
+      closeDrawer();
+      setTimeout(showProducts, 300);
+    } catch(e) { toast('Import failed: ' + e.message, 'error'); }
+  };
+  input.click();
 }
 
 // ======================== PRODUCTS ========================
@@ -1885,6 +2247,17 @@ window.addEventListener('load', async () => {
       const me = await apiCall('/api/auth/me');
       currentUser = { ...currentUser, ...me };
       localStorage.setItem('pos_user', JSON.stringify(currentUser));
+      // Auto-load user's assigned Google Sheet (admin ne assign kiya)
+      if (me.gas_url && me.gas_url.trim()) {
+        cloudConfig = {
+          ...cloudConfig,
+          gasUrl: me.gas_url,
+          sheetId: me.sheet_id || '',
+          enabled: true,
+          syncInterval: cloudConfig.syncInterval || 5
+        };
+        localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig));
+      }
       await initApp();
     } catch(e) {
       localStorage.removeItem('pos_token');
