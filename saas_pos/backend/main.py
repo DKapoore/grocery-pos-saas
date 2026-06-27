@@ -82,7 +82,9 @@ def init_db():
         subscription_start TEXT,
         subscription_expiry TEXT,
         created_at TEXT DEFAULT (datetime('now')),
-        approved_at TEXT
+        approved_at TEXT,
+        gas_url TEXT DEFAULT '',
+        sheet_id TEXT DEFAULT ''
     )""")
     
     # Admin sessions
@@ -162,6 +164,24 @@ def init_db():
     conn.close()
 
 init_db()
+
+# DB Migration — add new columns to existing databases
+def migrate_db():
+    conn = get_db()
+    c = conn.cursor()
+    migrations = [
+        "ALTER TABLE users ADD COLUMN gas_url TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN sheet_id TEXT DEFAULT ''",
+    ]
+    for sql in migrations:
+        try:
+            c.execute(sql)
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+    conn.close()
+
+migrate_db()
 
 # ======================== JWT HELPERS ========================
 def create_token(data: dict, expires_delta: timedelta = None):
@@ -273,6 +293,8 @@ class AdminApprove(BaseModel):
     username: str
     password: str
     plan_days: int  # 30 or 365
+    gas_url: str = ""  # User ka apna Google Apps Script URL
+    sheet_id: str = ""  # Optional Sheet ID
 
 class AdminBlock(BaseModel):
     user_id: int
@@ -459,7 +481,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "is_active": current_user["is_active"],
         "trial_bills_used": current_user["trial_bills_used"],
         "subscription_expiry": current_user["subscription_expiry"],
-        "payment_status": current_user["payment_status"]
+        "payment_status": current_user["payment_status"],
+        "gas_url": current_user["gas_url"] if "gas_url" in current_user.keys() else "",
+        "sheet_id": current_user["sheet_id"] if "sheet_id" in current_user.keys() else ""
     }
 
 # ======================== PRODUCTS ========================
@@ -683,10 +707,11 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
     
     conn.execute("""UPDATE users SET 
         username=?, password_hash=?, is_active=1, payment_status='approved',
-        subscription_start=?, subscription_expiry=?, approved_at=?, plan=?
+        subscription_start=?, subscription_expiry=?, approved_at=?, plan=?,
+        gas_url=?, sheet_id=?
         WHERE id=?""",
         (req.username, hash_password(password), start.isoformat(), expiry.isoformat(),
-         start.isoformat(), plan, req.user_id))
+         start.isoformat(), plan, req.gas_url or '', req.sheet_id or '', req.user_id))
     conn.commit()
     
     # Send credentials
@@ -739,6 +764,24 @@ async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
     conn.commit()
     conn.close()
     return {"success": True}
+
+class UpdateGasUrl(BaseModel):
+    user_id: int
+    gas_url: str
+    sheet_id: str = ""
+
+@app.post("/api/admin/update-gas-url")
+async def admin_update_gas_url(req: UpdateGasUrl, admin = Depends(get_admin)):
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    conn.execute("UPDATE users SET gas_url=?, sheet_id=? WHERE id=?",
+                 (req.gas_url, req.sheet_id, req.user_id))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"GAS URL updated for user {user['username']}"}
 
 @app.post("/api/admin/extend")
 async def admin_extend(req: ExtendSubscription, admin = Depends(get_admin)):
