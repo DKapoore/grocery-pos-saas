@@ -435,7 +435,9 @@ async def login(req: LoginRequest):
             "is_active": user["is_active"],
             "trial_bills_used": user["trial_bills_used"],
             "subscription_expiry": user["subscription_expiry"],
-            "payment_status": user["payment_status"]
+            "payment_status": user["payment_status"],
+            "gas_url": user["gas_url"] if "gas_url" in user.keys() else "",
+            "sheet_id": user["sheet_id"] if "sheet_id" in user.keys() else ""
         }
     }
 
@@ -576,6 +578,31 @@ async def get_bills(current_user: dict = Depends(get_current_user)):
                        (current_user["id"],)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+@app.get("/api/bills/history")
+async def get_bills_history(current_user: dict = Depends(get_current_user)):
+    """Alias for get_bills — used by frontend showHistory()"""
+    conn = get_db()
+    rows = conn.execute("""SELECT id, bill_number, customer_name, customer_mobile, 
+                           final_amount, payment_mode, status, completed_at as completedAt,
+                           created_at as date
+                           FROM bills WHERE user_id=? ORDER BY completed_at DESC LIMIT 200""",
+                       (current_user["id"],)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.delete("/api/bills/{bill_id}")
+async def delete_bill(bill_id: int, current_user: dict = Depends(get_current_user)):
+    conn = get_db()
+    bill = conn.execute("SELECT id FROM bills WHERE id=? AND user_id=?",
+                        (bill_id, current_user["id"])).fetchone()
+    if not bill:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Bill not found")
+    conn.execute("DELETE FROM bills WHERE id=? AND user_id=?", (bill_id, current_user["id"]))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Bill deleted"}
 
 @app.get("/api/bills/trial-status")
 async def trial_status(current_user: dict = Depends(get_current_user)):
