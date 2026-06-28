@@ -2050,14 +2050,14 @@ async function deleteInvoice(billId, fromAPI=false) {
   if (!confirm('Delete this invoice? This cannot be undone!')) return;
   // Remove from local
   const hist = JSON.parse(localStorage.getItem('sales_history')||'[]');
-  const updated = hist.filter(b => (b.id||b.bill_number||b.billNumber) !== billId);
+  const updated = hist.filter(b => b.id !== billId && b.bill_number !== billId && b.billNumber !== billId);
   localStorage.setItem('sales_history', JSON.stringify(updated));
   // Remove from API
-  if (authToken && fromAPI) {
+  if (authToken && fromAPI && typeof billId === 'number') {
     try { await apiCall(`/api/bills/${billId}`, { method:'DELETE' }); } catch(e) {}
   }
   toast('Invoice deleted', 'info');
-  showHistory(); // Refresh
+  showHistory();
 }
 
 async function showHistory() {
@@ -2112,13 +2112,14 @@ async function showHistory() {
     <div style="max-height:350px;overflow-y:auto;">
       ${hist.length===0 ? '<p style="text-align:center;color:var(--text2);padding:20px;">No bills yet</p>' :
         hist.slice(0,100).map(b => {
-          const bId = b.id || b.bill_number || b.billNumber;
+          const bId = b.id;
           const bNum = b.bill_number || b.billNumber || 'N/A';
           const bAmt = parseFloat(b.final_amount||b.final||0).toFixed(2);
           const bCust = b.customer_name || b.customer?.name || 'Walk-in';
           const bPay = b.payment_mode || b.paymentMode || 'Cash';
-          const bDate = new Date(b.completedAt||b.date||b.created_at||Date.now()).toLocaleDateString('en-IN');
-          const bTime = new Date(b.completedAt||b.date||b.created_at||Date.now()).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+          const dateStr = b.completedAt || b.completed_at || b.date || b.created_at || '';
+          const bDate = dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '-';
+          const bTime = dateStr ? new Date(dateStr).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
           return `<div class="list-item" style="margin-bottom:6px;">
             <div class="list-item-row">
               <div style="flex:1;">
@@ -2128,7 +2129,7 @@ async function showHistory() {
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
                 <div class="list-amount">₹${bAmt}</div>
-                <button onclick="deleteInvoice('${bId}',${fromAPI})" style="background:var(--danger2);color:var(--danger);border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600;">🗑️ Delete</button>
+                <button onclick="deleteInvoice(${bId},${fromAPI})" style="background:var(--danger2);color:var(--danger);border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600;">🗑️ Delete</button>
               </div>
             </div>
           </div>`;
