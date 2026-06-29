@@ -1,271 +1,166 @@
-# GroceryPOS SaaS — Complete Setup Guide
+# 🛒 Grocery POS SaaS — Setup & Google Sheet Integration Guide
 
-## 📁 Project Structure
+## 🚀 Quick Start
 
-```
-saas_pos/
-├── backend/
-│   ├── main.py           ← FastAPI backend (all API routes)
-│   └── requirements.txt  ← Python dependencies
-├── frontend/
-│   └── app.html          ← Landing + Login + POS App (single file)
-├── admin/
-│   └── admin.html        ← Admin panel (single file)
-├── uploads/              ← Payment receipts stored here (auto-created)
-└── README.md
-```
+### Frontend (GitHub Pages)
+1. Upload `saas_pos/frontend/app.html` to your GitHub repo
+2. Enable GitHub Pages → source: root or `docs/` folder
+3. Your app URL: `https://yourusername.github.io/repo-name/saas_pos/frontend/app.html`
 
----
+### Backend (Render Deployment)
+1. Push repo to GitHub
+2. Go to [render.com](https://render.com) → New Web Service
+3. Connect your GitHub repo
+4. **Root Directory:** `saas_pos/backend`
+5. **Build Command:** `pip install -r requirements.txt`
+6. **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+7. Add **Persistent Disk** (CRITICAL for data survival):
+   - Render dashboard → your service → Disks
+   - Mount Path: `/var/data`
+   - Size: 1 GB (free tier)
+8. Set Environment Variables:
+   ```
+   SECRET_KEY=your_random_secret_here
+   ADMIN_USER=admin
+   ADMIN_PASS=YourStrongPassword123
+   RENDER_DATA_DIR=/var/data
+   APP_URL=https://yourusername.github.io/repo-name/saas_pos/frontend/app.html
+   ```
 
-## 🚀 Step 1: Install Python Dependencies
-
-```bash
-cd saas_pos/backend
-pip install -r requirements.txt
-```
-
----
-
-## 🔧 Step 2: Configure Environment Variables
-
-Create a `.env` file in `backend/` folder (or set system env vars):
-
-```env
-# REQUIRED — Change in production!
-SECRET_KEY=your_super_secret_key_here_change_this
-
-# Admin credentials
-ADMIN_USER=admin
-ADMIN_PASS=YourAdminPassword@123
-
-# Your app URL (used in credential emails)
-APP_URL=https://yourpos.com
-
-# Email (Gmail SMTP recommended)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=yourmail@gmail.com
-SMTP_PASS=your_gmail_app_password
-
-# WhatsApp API (optional — Wati / Twilio)
-WA_API_URL=
-
-# Google Apps Script Webhook (optional)
-GAS_WEBHOOK_URL=https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
-```
+> ⚠️ **Without Persistent Disk**, SQLite data is lost on every Render restart/deploy.
+> With the disk, all subscriber data, bills, and products are preserved.
 
 ---
 
-## ▶️ Step 3: Start Backend Server
+## ☁️ Google Sheet Integration Setup
 
-```bash
-cd saas_pos/backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+Each shop owner gets their **own Google Sheet** connected to their POS app.
+
+### Step 1 — Create Google Sheet
+
+1. Go to [sheets.google.com](https://sheets.google.com) → New Sheet
+2. Name it: `MyShop POS Data`
+3. Create these tabs (sheets):
+   - `Products` — columns: `Name, Price, Category, Barcode, Tax%, Stock`
+   - `Sales` — auto-filled by app
+   - `Customers` — auto-filled by app
+
+### Step 2 — Add Google Apps Script
+
+1. In your Sheet: **Extensions → Apps Script**
+2. Delete existing code
+3. Paste the entire code from `saas_pos/GoogleAppsScript.js`
+4. Save (Ctrl+S), name project: `POS Integration`
+
+### Step 3 — Deploy as Web App
+
+1. Click **Deploy → New Deployment**
+2. Select type: **Web App**
+3. Set:
+   - **Execute as:** Me (your Google account)
+   - **Who has access:** Anyone
+4. Click **Deploy**
+5. **Copy the Web App URL** — it looks like:
+   ```
+   https://script.google.com/macros/s/AKfycbXXXXXXXX/exec
+   ```
+
+### Step 4 — Connect to POS App
+
+1. Open POS app → Settings (⚙️) → Cloud tab
+2. Paste your Web App URL in **Google Apps Script URL**
+3. Click **Test Connection** — should show ✅
+4. Click **Save Cloud Config**
+
+### Step 5 — Sync Products from Google Sheet
+
+**Sheet format (Products tab):**
 ```
-
-For production with auto-restart:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-API will be available at: `http://localhost:8000`
-
----
-
-## 🌐 Step 4: Serve Frontend Files
-
-**Option A — Simple (for testing):**
-Open `frontend/app.html` directly in browser.
-Change API URL in the HTML file:
-```javascript
-const API = 'http://your-server-ip:8000';
-```
-
-**Option B — FastAPI serves frontend (recommended):**
-Place `app.html` and `admin.html` in the backend folder.
-The backend already has routes:
-- `/` → Landing + POS App
-- `/admin` → Admin Panel
-
-**Option C — Nginx (production):**
-```nginx
-server {
-    listen 80;
-    server_name yourpos.com;
-
-    location /api {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location / {
-        root /var/www/pos;
-        try_files $uri $uri/ /app.html;
-    }
-}
+Name          | Price | Category  | Barcode       | Tax% | Stock
+Basmati Rice  | 120   | Grocery   | 8901234567890 | 5    | 50
+Tata Salt     | 25    | Grocery   | 8901234567891 | 0    | 100
 ```
 
----
+In app: Settings → Cloud → **☁️ Google Sheet** button → products will import.
 
-## 🔐 Admin Panel Access
-
-Open: `http://yourserver/admin/admin.html`
-
-Default credentials:
-- Username: `admin`
-- Password: `Admin@POS2024` (change in env var `ADMIN_PASS`)
+> Products tab se prices live update hote hain automatically every 5 minutes.
 
 ---
 
-## ✉️ Gmail SMTP Setup
+## 📱 Google Apps Script — What It Does
 
-1. Enable 2-Factor Auth on Gmail
-2. Go to Google Account → Security → App Passwords
-3. Generate App Password for "Mail"
-4. Use that 16-digit password in `SMTP_PASS`
+The `GoogleAppsScript.js` handles these actions via HTTP:
 
----
-
-## 📊 Google Sheets Integration
-
-1. Open Google Sheets → Extensions → Apps Script
-2. Paste the code from Admin Panel → Google Sheets tab
-3. Click Deploy → New Deployment → Web App
-4. Set "Who has access" → Anyone
-5. Copy the Web App URL
-6. Set `GAS_WEBHOOK_URL` in your `.env` file
+| Action | Description |
+|--------|-------------|
+| `ping` | Connection test |
+| `getProducts` | Returns product list for sync |
+| `saveSale` | Saves bill to Sales tab |
+| `getAnalytics` | Returns daily/weekly stats |
+| `syncCustomers` | Customer loyalty data |
 
 ---
 
-## 📱 PWA Installation
+## 🖨️ Thermal Printer Setup
 
-Users can install as app on mobile:
-- Open in Chrome browser
-- Tap "Add to Home Screen"
-- Works like a native app
+The app auto-detects **58mm thermal** paper size. Browser print settings:
 
----
+1. Select **Thermal (58mm)** in Print dialog
+2. Browser will auto-set page size to `58mm × auto`
+3. Margins: 2mm auto-set
+4. For **80mm** printers: change CSS `@page { size: 80mm auto; }` in app.html
 
-## 🔄 USB Barcode Scanner
-
-No configuration needed:
-- Plug USB scanner into PC/Laptop
-- Open the POS app
-- Scan any barcode — it auto-detects
+For best results:
+- Chrome browser → Print → **Destination: Your thermal printer**
+- Disable "headers and footers"
+- Paper size: Custom → 58×210mm
 
 ---
 
-## 📷 Mobile Camera Scanner
+## 📊 Sales Charts
 
-- Click the camera icon in POS
-- Allow camera permission
-- Point at barcode
+In **Sales History (📊)**, 3 chart tabs are available:
+- **📈 Daily Sales** — last 7 days bar chart
+- **🏆 Product Wise** — top 10 products by revenue
+- **📦 Stock Balance** — low stock products highlighted in red
 
 ---
 
-## 💾 Database
+## 🔐 Admin Panel
 
-SQLite is used by default (file: `pos_saas.db`).
+URL: `https://your-render-url.onrender.com/admin`  
+Default: `admin` / `Admin@POS2024`
 
-For PostgreSQL (production):
-```bash
-pip install psycopg2-binary
+Change via Render environment variables:
 ```
-Change in `main.py`:
-```python
-# Replace sqlite3 with asyncpg or psycopg2
-DATABASE_URL = "postgresql://user:pass@localhost/posdb"
+ADMIN_USER=youradmin
+ADMIN_PASS=StrongPassword123
 ```
 
 ---
 
-## 🆓 Free Trial Logic
+## 📦 CSV Product Import
 
-- New users get 3 free bills
-- Trial lock is enforced **server-side** (cannot be bypassed)
-- Free bills show "FREE TRIAL VERSION" watermark
-- After 3 bills: billing is locked, upgrade page shown
+1. Products → Add New → **📥 Sample CSV Format** to download template
+2. Fill in your products
+3. Click **📂 Upload CSV** to bulk import
 
----
-
-## 🔑 Subscription Flow
-
-1. User visits landing page → selects plan
-2. Pays via UPI QR → screenshots payment
-3. Fills registration form → uploads screenshot
-4. Admin sees request in panel → verifies payment
-5. Admin clicks Approve → sets username/password/expiry
-6. System auto-sends credentials via Email + WhatsApp
-7. User logs in → full access until expiry
+CSV columns: `Name, Price, Category, Barcode, Tax%, Stock`
 
 ---
 
-## 🌍 Production Deployment (Ubuntu VPS)
+## 🔧 Environment Variables Reference
 
-```bash
-# 1. Install Python & Nginx
-sudo apt update && sudo apt install python3-pip nginx -y
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SECRET_KEY` | JWT secret | random string |
+| `ADMIN_USER` | Admin login username | `admin` |
+| `ADMIN_PASS` | Admin login password | `Admin@POS2024` |
+| `RENDER_DATA_DIR` | Persistent disk path | `/var/data` |
+| `APP_URL` | Frontend URL for emails | `https://...` |
+| `SMTP_HOST` | Email server | `smtp.gmail.com` |
+| `SMTP_PORT` | Email port | `587` |
+| `SMTP_USER` | Email address | `you@gmail.com` |
+| `SMTP_PASS` | App password | Gmail App Password |
+| `GAS_WEBHOOK_URL` | Admin-level GAS URL | `https://script.google.com/...` |
 
-# 2. Clone/upload your files
-mkdir /var/www/pos && cd /var/www/pos
-
-# 3. Install deps
-pip3 install -r backend/requirements.txt
-
-# 4. Create systemd service
-sudo nano /etc/systemd/system/pos.service
-```
-
-```ini
-[Unit]
-Description=GroceryPOS API
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/var/www/pos/backend
-ExecStart=/usr/local/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --workers 2
-Restart=always
-Environment="SECRET_KEY=your_key"
-Environment="ADMIN_PASS=YourPass"
-Environment="SMTP_USER=yourmail@gmail.com"
-Environment="SMTP_PASS=yourapppass"
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# 5. Start & enable
-sudo systemctl enable pos
-sudo systemctl start pos
-
-# 6. Setup Nginx (see config above)
-sudo certbot --nginx -d yourpos.com  # SSL certificate
-```
-
----
-
-## 📞 Support API Endpoints (Quick Reference)
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/auth/login` | POST | User login |
-| `/api/auth/register` | POST | New registration |
-| `/api/auth/free-trial` | POST | Start free trial |
-| `/api/auth/me` | GET | Get current user |
-| `/api/products` | GET/POST | Products CRUD |
-| `/api/bills` | GET/POST | Bills |
-| `/api/bills/trial-status` | GET | Trial info |
-| `/api/customers` | GET | Customer list |
-| `/api/customers/lookup/{mobile}` | GET | Find customer |
-| `/api/customers/redeem` | POST | Redeem points |
-| `/api/settings` | GET/PUT | Shop settings |
-| `/api/bills/whatsapp` | POST | WA message link |
-| `/api/admin/login` | POST | Admin login |
-| `/api/admin/users` | GET | All users |
-| `/api/admin/approve` | POST | Approve user |
-| `/api/admin/block` | POST | Block/unblock |
-| `/api/admin/extend` | POST | Extend subscription |
-| `/api/admin/stats` | GET | Dashboard stats |
