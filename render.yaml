@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: grocery-pos-backend
+    runtime: python
+    rootDir: saas_pos/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS
+        value: Admin@POS2024
+      - key: RENDER_DATA_DIR
+        value: /var/data
+      # Optional — fill in Render dashboard:
+      # - key: SMTP_HOST
+      # - key: SMTP_PORT
+      # - key: SMTP_USER
+      # - key: SMTP_PASS
+      # - key: GAS_WEBHOOK_URL
+      # - key: APP_URL
+    disk:
+      name: pos-data
+      mountPath: /var/data
+      sizeGB: 1          # Persistent disk — subscriber data survives restarts/deploys
