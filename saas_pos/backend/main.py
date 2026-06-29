@@ -3,7 +3,7 @@ Grocery POS SaaS Backend - FastAPI
 Run: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, status
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -20,8 +20,18 @@ import urllib.request, urllib.parse
 SECRET_KEY = os.getenv("SECRET_KEY", "pos_saas_secret_2024_change_in_prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
-DB_PATH = "pos_saas.db"
-UPLOAD_DIR = "../uploads"
+
+# ── Render Persistent Disk ──────────────────────────────────────────────────
+# Render free/paid services lose ephemeral filesystem on restart.
+# Mount a Persistent Disk at /var/data in Render dashboard → it survives deploys.
+# Local dev falls back to current directory automatically.
+_DATA_DIR = os.getenv("RENDER_DATA_DIR", "/var/data")
+if not os.path.isdir(_DATA_DIR):
+    _DATA_DIR = os.path.dirname(os.path.abspath(__file__))  # local fallback
+DB_PATH = os.path.join(_DATA_DIR, "pos_saas.db")
+UPLOAD_DIR = os.path.join(_DATA_DIR, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+print(f"[DB] Using path: {DB_PATH}")
 ADMIN_USERNAME = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASS", "Admin@POS2024")
 
@@ -48,7 +58,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 security = HTTPBearer(auto_error=False)
 
 # ======================== DATABASE ========================
@@ -84,9 +93,26 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         approved_at TEXT,
         gas_url TEXT DEFAULT '',
-        sheet_id TEXT DEFAULT ''
+        sheet_id TEXT DEFAULT '',
+        max_devices INTEGER DEFAULT 1,
+        allowed_ips TEXT DEFAULT ''
     )""")
     
+    # User Sessions — device tracking
+    c.execute("""CREATE TABLE IF NOT EXISTS user_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        device_label TEXT DEFAULT '',
+        ip_address TEXT DEFAULT '',
+        user_agent TEXT DEFAULT '',
+        last_seen TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (datetime('now')),
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""")
+
     # Admin sessions
     c.execute("""CREATE TABLE IF NOT EXISTS admin_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,6 +198,8 @@ def migrate_db():
     migrations = [
         "ALTER TABLE users ADD COLUMN gas_url TEXT DEFAULT ''",
         "ALTER TABLE users ADD COLUMN sheet_id TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1",
+        "ALTER TABLE users ADD COLUMN allowed_ips TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
@@ -209,24 +237,47 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     payload = decode_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE id=?", (payload.get("user_id"),)).fetchone()
-    conn.close()
-    
+
     if not user:
+        conn.close()
         raise HTTPException(status_code=401, detail="User not found")
     if user["is_blocked"]:
+        conn.close()
         raise HTTPException(status_code=403, detail="Account blocked")
     if not user["is_active"] and user["plan"] != "free":
+        conn.close()
         raise HTTPException(status_code=403, detail="Account not active")
-    
+
     # Check subscription expiry
     if user["subscription_expiry"] and user["plan"] != "free":
         expiry = datetime.fromisoformat(user["subscription_expiry"])
         if datetime.utcnow() > expiry:
+            conn.close()
             raise HTTPException(status_code=403, detail="Subscription expired")
-    
+
+    # Session validity check — if admin force-logged-out this token
+    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+    session = conn.execute(
+        "SELECT id FROM user_sessions WHERE token_hash=? AND is_active=1",
+        (token_hash,)
+    ).fetchone()
+
+    has_any_session = conn.execute(
+        "SELECT COUNT(*) as c FROM user_sessions WHERE user_id=?", (user["id"],)
+    ).fetchone()["c"]
+
+    if user["plan"] != "free" and has_any_session > 0 and not session:
+        conn.close()
+        raise HTTPException(status_code=401, detail="Session expired or logged out remotely. Please login again.")
+
+    if session:
+        conn.execute("UPDATE user_sessions SET last_seen=datetime(\'now\') WHERE id=?", (session["id"],))
+        conn.commit()
+
+    conn.close()
     return dict(user)
 
 def get_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -251,6 +302,8 @@ class PaymentRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+    device_id: Optional[str] = ""
+    device_label: Optional[str] = ""
 
 class ProductCreate(BaseModel):
     barcode: Optional[str] = ""
@@ -303,6 +356,17 @@ class AdminBlock(BaseModel):
 class ExtendSubscription(BaseModel):
     user_id: int
     days: int
+
+class UpdateDeviceLimit(BaseModel):
+    user_id: int
+    max_devices: int
+    allowed_ips: Optional[str] = ""
+
+class ForceLogoutSession(BaseModel):
+    session_id: int
+
+class ForceLogoutUser(BaseModel):
+    user_id: int
 
 # ======================== UTILS ========================
 def send_email(to_email: str, subject: str, body: str):
@@ -402,29 +466,87 @@ async def register(
     return {"success": True, "message": "Registration submitted. Admin will verify and send login credentials within 24 hours."}
 
 @app.post("/api/auth/login")
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE username=?", (req.username,)).fetchone()
-    conn.close()
-    
+
     if not user:
+        conn.close()
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Check active status
+
     if not user["is_active"]:
+        conn.close()
         raise HTTPException(status_code=403, detail="Account not activated yet. Please wait for admin approval.")
-    
-    # Check free trial user (no password set yet, skip hash check)
+
     if user["plan"] == "free" and not user["password_hash"]:
         pass
     elif not user["password_hash"] or hash_password(req.password) != user["password_hash"]:
+        conn.close()
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     if user["is_blocked"]:
+        conn.close()
         raise HTTPException(status_code=403, detail="Account blocked. Contact support.")
-    
+
+    # ── IP Whitelist Check ──────────────────────────────────────────────────
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host or "").split(",")[0].strip()
+    allowed_ips_raw = user["allowed_ips"] if "allowed_ips" in user.keys() else ""
+    if allowed_ips_raw and allowed_ips_raw.strip():
+        allowed_list = [ip.strip() for ip in allowed_ips_raw.split(",") if ip.strip()]
+        if allowed_list and client_ip not in allowed_list:
+            conn.close()
+            raise HTTPException(status_code=403, detail=f"Access denied from IP {client_ip}. Contact admin.")
+
+    # ── Device Session Limit Check ──────────────────────────────────────────
+    max_devices = user["max_devices"] if "max_devices" in user.keys() else 1
+    device_id = (req.device_id or "").strip()
+    device_label = (req.device_label or "unknown device").strip()
+    user_agent = request.headers.get("User-Agent", "")[:200]
+
+    if device_id and user["plan"] != "free":
+        # Count distinct active devices (excluding this device_id if already registered)
+        active_sessions = conn.execute(
+            """SELECT DISTINCT device_id FROM user_sessions
+               WHERE user_id=? AND is_active=1 AND device_id != ?""",
+            (user["id"], device_id)
+        ).fetchall()
+        active_device_count = len(active_sessions)
+
+        # Check if this device already has a session
+        existing = conn.execute(
+            "SELECT id FROM user_sessions WHERE user_id=? AND device_id=? AND is_active=1",
+            (user["id"], device_id)
+        ).fetchone()
+
+        if not existing and active_device_count >= max_devices:
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Device limit reached ({max_devices} device{'s' if max_devices>1 else ''} allowed). "
+                       f"Please logout from another device or contact admin."
+            )
+
+    # ── Create Token ────────────────────────────────────────────────────────
     token = create_token({"user_id": user["id"], "username": user["username"]})
-    
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    if device_id and user["plan"] != "free":
+        # Deactivate old sessions for this device (re-login on same device)
+        conn.execute(
+            "UPDATE user_sessions SET is_active=0 WHERE user_id=? AND device_id=?",
+            (user["id"], device_id)
+        )
+        # Register new session
+        conn.execute(
+            """INSERT INTO user_sessions
+               (user_id, token_hash, device_id, device_label, ip_address, user_agent, last_seen, created_at, is_active)
+               VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'),1)""",
+            (user["id"], token_hash, device_id, device_label, client_ip, user_agent)
+        )
+        conn.commit()
+
+    conn.close()
+
     return {
         "token": token,
         "user": {
@@ -437,7 +559,8 @@ async def login(req: LoginRequest):
             "subscription_expiry": user["subscription_expiry"],
             "payment_status": user["payment_status"],
             "gas_url": user["gas_url"] if "gas_url" in user.keys() else "",
-            "sheet_id": user["sheet_id"] if "sheet_id" in user.keys() else ""
+            "sheet_id": user["sheet_id"] if "sheet_id" in user.keys() else "",
+            "max_devices": max_devices,
         }
     }
 
@@ -714,7 +837,8 @@ async def admin_get_users(admin = Depends(get_admin)):
     rows = conn.execute("""SELECT id, username, full_name, email, whatsapp, city, store_type,
                            plan, plan_amount, upi_used, receipt_path, payment_status, 
                            is_active, is_blocked, trial_bills_used, subscription_start,
-                           subscription_expiry, created_at, approved_at
+                           subscription_expiry, created_at, approved_at,
+                           max_devices, allowed_ips
                            FROM users ORDER BY created_at DESC""").fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -852,6 +976,67 @@ async def admin_stats(admin = Depends(get_admin)):
     blocked = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_blocked=1").fetchone()["c"]
     conn.close()
     return {"total": total, "active": active, "pending_verification": pending, "blocked": blocked}
+
+@app.post("/api/admin/update-device-limit")
+async def admin_update_device_limit(req: UpdateDeviceLimit, admin = Depends(get_admin)):
+    """Set max devices and IP whitelist per user"""
+    conn = get_db()
+    user = conn.execute("SELECT id FROM users WHERE id=?", (req.user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    # Clamp between 1 and 50
+    max_d = max(1, min(50, req.max_devices))
+    conn.execute(
+        "UPDATE users SET max_devices=?, allowed_ips=? WHERE id=?",
+        (max_d, req.allowed_ips.strip(), req.user_id)
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True, "max_devices": max_d}
+
+@app.get("/api/admin/sessions/{user_id}")
+async def admin_get_sessions(user_id: int, admin = Depends(get_admin)):
+    """Get all active sessions for a user"""
+    conn = get_db()
+    sessions = conn.execute(
+        """SELECT id, device_id, device_label, ip_address, user_agent,
+                  last_seen, created_at, is_active
+           FROM user_sessions WHERE user_id=? ORDER BY last_seen DESC""",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(s) for s in sessions]
+
+@app.post("/api/admin/sessions/revoke")
+async def admin_revoke_session(req: ForceLogoutSession, admin = Depends(get_admin)):
+    """Force logout a specific session"""
+    conn = get_db()
+    conn.execute("UPDATE user_sessions SET is_active=0 WHERE id=?", (req.session_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"Session {req.session_id} revoked"}
+
+@app.post("/api/admin/sessions/revoke-all")
+async def admin_revoke_all_sessions(req: ForceLogoutUser, admin = Depends(get_admin)):
+    """Force logout ALL sessions for a user"""
+    conn = get_db()
+    conn.execute("UPDATE user_sessions SET is_active=0 WHERE user_id=?", (req.user_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"All sessions revoked for user {req.user_id}"}
+
+@app.post("/api/auth/logout")
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """User self-logout — deactivate their session token"""
+    if not credentials:
+        return {"success": True}
+    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+    conn = get_db()
+    conn.execute("UPDATE user_sessions SET is_active=0 WHERE token_hash=?", (token_hash,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
 
 # ======================== SERVE FRONTEND ========================
 @app.get("/")
