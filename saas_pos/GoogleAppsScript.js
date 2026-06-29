@@ -31,6 +31,9 @@ function doPost(e) {
       handleApproved(data);
     } else if (action === "new_bill") {
       handleNewBill(data);
+    } else if (action === "saveSale") {
+      handleSaveSale(data);
+    }
     }
 
     return ContentService
@@ -42,15 +45,6 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-}
-
-// ============================================================
-// GET request ke liye (testing ke liye)
-// ============================================================
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: "GroceryPOS Google Apps Script is Running ✅" }))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ============================================================
@@ -239,3 +233,134 @@ function testScript() {
 
   Logger.log("✅ Test completed! Check your Google Sheet.");
 }
+
+// ============================================================
+// FRONTEND SYNC ACTIONS — App se aane wale requests
+// ============================================================
+
+// GET requests handle karo (ping, getProducts)
+function doGet(e) {
+  const action = e.parameter.action || 'ping';
+
+  if (action === 'ping') {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ok', message: 'GroceryPOS Google Apps Script ✅' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'getProducts') {
+    return getProductsFromSheet();
+  }
+
+  if (action === 'getAnalytics') {
+    return getAnalyticsFromSheet();
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'ok' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── GET Products from Products sheet ──
+function getProductsFromSheet() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Products');
+    if (!sheet) {
+      return ContentService.createTextOutput(JSON.stringify({ products: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) {
+      return ContentService.createTextOutput(JSON.stringify({ products: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const headers = rows[0].map(h => String(h).trim().toLowerCase());
+    const nameIdx = headers.findIndex(h => h.includes('name'));
+    const priceIdx = headers.findIndex(h => h.includes('price'));
+    const catIdx = headers.findIndex(h => h.includes('cat'));
+    const bcIdx = headers.findIndex(h => h.includes('barcode') || h.includes('code'));
+    const taxIdx = headers.findIndex(h => h.includes('tax'));
+    const stockIdx = headers.findIndex(h => h.includes('stock') || h.includes('qty'));
+
+    const products = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const name = r[nameIdx] ? String(r[nameIdx]).trim() : '';
+      const price = parseFloat(r[priceIdx]) || 0;
+      if (!name || price <= 0) continue;
+      products.push({
+        name,
+        price,
+        category: catIdx >= 0 ? (r[catIdx] || 'General') : 'General',
+        barcode: bcIdx >= 0 ? String(r[bcIdx] || '') : '',
+        tax: taxIdx >= 0 ? parseFloat(r[taxIdx]) || 0 : 0,
+        stock: stockIdx >= 0 ? parseInt(r[stockIdx]) || 0 : 0,
+      });
+    }
+    return ContentService.createTextOutput(JSON.stringify({ products }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ products: [], error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ── POST: saveSale — invoice Sheet mein save karo ──
+function handleSaveSale(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Sales');
+  if (!sheet) {
+    sheet = ss.insertSheet('Sales');
+    sheet.appendRow(['Date', 'Bill No', 'Customer', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment Mode', 'Username']);
+    sheet.getRange(1, 1, 1, 10).setBackground('#2196F3').setFontColor('white').setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  const cart = data.cart || [];
+  const itemsSummary = cart.map(i => `${i.name}×${i.quantity}`).join(', ');
+  sheet.appendRow([
+    formatDateTime(data.date || new Date().toISOString()),
+    data.bill_number || '',
+    data.customer_name || 'Walk-in',
+    itemsSummary,
+    parseFloat(data.subtotal || 0).toFixed(2),
+    parseFloat(data.tax_total || 0).toFixed(2),
+    parseFloat(data.discount || 0).toFixed(2),
+    parseFloat(data.final_amount || 0).toFixed(2),
+    data.payment_mode || 'Cash',
+    data.username || '',
+  ]);
+  sheet.autoResizeColumns(1, 10);
+}
+
+// ── Analytics ──
+function getAnalyticsFromSheet() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Sales');
+    if (!sheet || sheet.getLastRow() < 2) {
+      return ContentService.createTextOutput(JSON.stringify({ today: 0, week: 0, month: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const rows = sheet.getDataRange().getValues();
+    const now = new Date();
+    let today = 0, week = 0, month = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const dateStr = rows[i][0];
+      const total = parseFloat(rows[i][7]) || 0;
+      const d = new Date(dateStr);
+      if (isNaN(d)) continue;
+      const diff = (now - d) / (1000 * 60 * 60 * 24);
+      if (diff < 1) today += total;
+      if (diff < 7) week += total;
+      month += total;
+    }
+    return ContentService.createTextOutput(JSON.stringify({ today, week, month }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(e) {
+    return ContentService.createTextOutput(JSON.stringify({ error: e.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// saveSale and syncCustomers are handled in doPost above via action === "saveSale"
