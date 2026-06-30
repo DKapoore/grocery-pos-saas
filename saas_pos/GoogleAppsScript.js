@@ -34,7 +34,6 @@ function doPost(e) {
     } else if (action === "saveSale") {
       handleSaveSale(data);
     }
-    }
 
     return ContentService
       .createTextOutput(JSON.stringify({ success: true }))
