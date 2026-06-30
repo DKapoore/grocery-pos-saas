@@ -1614,6 +1614,7 @@
 }
 @media (max-width:600px) {
   #screen-landing .landing-wrap { padding: 0 16px !important; }
+  .download-qr-btn.has-qr { display: block !important; }
 }
 
 /* ════════════════════════════════════════════
@@ -3124,7 +3125,7 @@
         <p class="sub" id="pricingSub">Unlimited billing after activation</p>
         <div class="pricing-grid">
           <!-- Monthly — user multiplier -->
-          <div class="price-card" id="monthlyCard">
+          <div class="price-card" id="monthlyCard" onclick="selectPlanUsers()">
             <div class="price-amount" id="monthlyAmtDisplay">₹299 <span>/ month</span></div>
             <div style="color:var(--text2);margin-top:4px;">Monthly Plan</div>
             <!-- User count selector -->
@@ -3160,6 +3161,7 @@
         <h3 id="upiHeading">💳 Pay via UPI</h3>
         <p style="color:var(--text2);font-size:14px;" id="upiSub">Scan QR or use UPI ID</p>
         <div id="upiQRContainer" style="display:flex;justify-content:center;margin:16px 0;"></div>
+        <button class="btn-outline download-qr-btn" style="width:100%;max-width:280px;margin:0 auto 4px;padding:10px;font-size:13px;display:none;" onclick="downloadPlanQr()" id="downloadQrBtn">⬇️ Download QR (Pay Later / Share)</button>
         <div class="upi-id-display">dkapoore@oksbi</div>
         <p style="color:var(--text2);font-size:13px;margin-top:8px;">Amount: <strong id="planAmtDisplay" style="color:var(--accent);"></strong></p>
         <button class="btn-accent" style="padding:14px 32px;margin-top:12px;font-size:1rem;" onclick="showScreen('screen-register')">✅ Payment Done — Fill Form</button>
@@ -3504,9 +3506,10 @@
 
     // Hero slider
     let heroIndex = 0;
+    let heroAutoInterval = null;
     const heroSlides = document.querySelectorAll('#heroSlider .slide');
     if (heroSlides.length) {
-      setInterval(() => {
+      heroAutoInterval = setInterval(() => {
         heroSlides.forEach(s => s.classList.remove('active'));
         heroIndex = (heroIndex + 1) % heroSlides.length;
         heroSlides[heroIndex].classList.add('active');
@@ -3576,6 +3579,40 @@
     let billSessions = [];
     let activeBillId = null;
     let billCounter = parseInt(localStorage.getItem('billCounter') || '1');
+
+    // ── Hero mockup carousel: load admin-managed 9:16 demo images ──────────
+    // If the admin has uploaded image URLs (via Admin Panel), replace the
+    // decorative hardcoded slides with real screenshots. If none are set,
+    // the existing decorative slides remain as a fallback so the hero never
+    // looks broken/empty.
+    async function loadHeroImages() {
+      try {
+        const res = await fetch(`${API}/api/hero-images`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const images = (data.images || []).filter(Boolean);
+        if (!images.length) return; // keep decorative fallback slides
+
+        const slider = document.getElementById('heroSlider');
+        if (!slider) return;
+        slider.innerHTML = images.map((url, i) =>
+          `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="GroceryPOS demo screenshot ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" style="width:100%;height:100%;object-fit:cover;"></div>`
+        ).join('');
+
+        // Reset the rotation to use the new slide set
+        const newSlides = slider.querySelectorAll('.slide');
+        heroIndex = 0;
+        if (heroAutoInterval) clearInterval(heroAutoInterval);
+        if (newSlides.length > 1) {
+          heroAutoInterval = setInterval(() => {
+            newSlides.forEach(s => s.classList.remove('active'));
+            heroIndex = (heroIndex + 1) % newSlides.length;
+            newSlides[heroIndex].classList.add('active');
+          }, 3000);
+        }
+      } catch (e) { /* network issue — keep decorative fallback */ }
+    }
+    loadHeroImages();
     let trialStatus = { plan: 'free', trial_bills_used: 0, is_locked: false };
     let selectedPlan = null;
     let cloudConfig = JSON.parse(localStorage.getItem('pos_cloud_config') || '{}');
@@ -3688,7 +3725,6 @@
       localStorage.removeItem('pos_user');
       localStorage.removeItem('pos_device_id');
       location.reload();
-    }
     }
 
     async function doFreeTrial() {
@@ -4700,7 +4736,48 @@
         pushNotif(`📦 Daily backup created: ${dateStr}`, 'info'); }, 800);
     }
 
-    function openSettings() {
+    // ── Settings Tab Lock ────────────────────────────────────────
+    // Only an admin-generated password (set via Admin Panel) can unlock this.
+    // If no lock has been set for this account, settings open directly.
+    async function openSettings() {
+      try {
+        const status = await apiCall('/api/settings/lock-status');
+        if (!status.locked) { openSettingsInner(); return; }
+      } catch (e) {
+        // If offline / API unreachable, fall back to opening directly rather than
+        // blocking the shop owner from their own settings.
+        openSettingsInner();
+        return;
+      }
+      openModal(`
+        <div style="text-align:center;padding:10px 4px;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">🔒</div>
+          <h3 style="margin:0 0 6px;">Settings Locked</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:16px;">Is account ke Settings tab ke liye password set kiya gaya hai. Sirf shop owner ke paas ye password hota hai.</p>
+          <input type="password" id="settingsLockPwd" placeholder="Settings password" style="width:100%;text-align:center;font-size:16px;letter-spacing:1px;" onkeydown="if(event.key==='Enter')unlockSettings()">
+          <div id="settingsLockError" style="color:var(--danger,#dc2626);font-size:12px;margin-top:6px;min-height:16px;"></div>
+          <button class="btn-accent" style="width:100%;margin-top:10px;padding:12px;" onclick="unlockSettings()">🔓 Unlock</button>
+          <button class="btn-outline" style="width:100%;margin-top:8px;padding:10px;" onclick="closeModal()">Cancel</button>
+          <p style="font-size:11px;color:var(--text2);margin-top:14px;">Password bhool gaye? Apne admin/shop owner se contact karein — wahi naya password generate kar sakte hain.</p>
+        </div>
+      `);
+      setTimeout(() => document.getElementById('settingsLockPwd')?.focus(), 100);
+    }
+
+    async function unlockSettings() {
+      const pwd = document.getElementById('settingsLockPwd').value;
+      const errEl = document.getElementById('settingsLockError');
+      if (!pwd) { errEl.textContent = 'Password daalein'; return; }
+      try {
+        await apiCall('/api/settings/verify-password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+        closeModal();
+        openSettingsInner();
+      } catch (e) {
+        errEl.textContent = 'Galat password. Dobara try karein.';
+      }
+    }
+
+    function openSettingsInner() {
       const cfg = cloudConfig;
       const lastSync = cfg.lastSync ? new Date(cfg.lastSync).toLocaleString('en-IN') : 'Never';
       const pending = pendingInvoices.length;
@@ -5357,6 +5434,7 @@
       document.getElementById('drawerOverlay').classList.remove('show'); }
 
     let _userCount = 1;
+    let _qrRenderToken = 0;
 
     function changeUserCount(delta) {
       _userCount = Math.max(1, Math.min(20, _userCount + delta));
@@ -5365,39 +5443,165 @@
       document.getElementById('userCountText').textContent = _userCount;
       document.getElementById('monthlyTotalText').textContent = '₹' + total;
       document.getElementById('monthlyAmtDisplay').innerHTML = '₹' + total + ' <span>/ month</span>';
+      // If the monthly plan's UPI/QR section is already open, keep the QR amount in sync live
+      if (selectedPlan && selectedPlan.plan === 'monthly' && document.getElementById('upiSection').style.display !== 'none') {
+        selectPlanUsers();
+      }
     }
 
     function selectPlanUsers() {
       const total = 299 * _userCount;
-      selectPlan('monthly', total);
-      // Override badge with user count info (after selectPlan sets it)
-      setTimeout(() => {
-        const badge = document.getElementById('regPlanBadge');
-        if (badge) badge.textContent = `Monthly (${_userCount} user${_userCount > 1 ? 's' : ''}) — ₹${total}`;
-      }, 10);
+      selectPlan('monthly', total, true);
     }
 
-    function selectPlan(plan, amt) {
-      selectedPlan = { plan, amt };
+    function selectPlan(plan, amt, fromUserPicker = false) {
+      selectedPlan = { plan, amt, userCount: plan === 'monthly' ? _userCount : 1 };
       document.getElementById('upiSection').style.display = 'block';
       document.getElementById('planAmtDisplay').textContent = '₹' + amt;
       document.getElementById('upiSection').scrollIntoView({ behavior: 'smooth' });
-      document.getElementById('regPlanBadge').textContent = (plan === 'monthly' ? 'Monthly' : 'Yearly') + ' — ₹' + amt;
-      // Regenerate QR — clear first, then render after brief delay to avoid lib conflict
+      const badge = document.getElementById('regPlanBadge');
+      if (plan === 'monthly') {
+        badge.textContent = `Monthly (${_userCount} user${_userCount > 1 ? 's' : ''}) — ₹${amt}`;
+      } else {
+        badge.textContent = 'Yearly — ₹' + amt;
+      }
+      renderUpiQr(amt);
+    }
+
+    // Single source of truth for rendering the UPI QR — always wipes the container
+    // synchronously right before drawing, and uses a render token so an old, slow
+    // setTimeout from a previous call can never draw into the container after a
+    // newer call has already started (this was the cause of the duplicate QR).
+    function renderUpiQr(amt) {
       const qrCont = document.getElementById('upiQRContainer');
+      const myToken = ++_qrRenderToken;
       qrCont.innerHTML = '';
       const upiStr = `upi://pay?pa=dkapoore@oksbi&pn=GroceryPOS&am=${amt}&cu=INR`;
+      _lastUpiQrString = upiStr;
+      _lastUpiQrAmt = amt;
       setTimeout(() => {
+        if (myToken !== _qrRenderToken) return; // a newer render call superseded this one
+        qrCont.innerHTML = ''; // clear again right before drawing, in case anything slipped in
         if (typeof QRCode !== 'undefined') {
           new QRCode(qrCont, { text: upiStr, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
         } else {
-          // Fallback: Google Charts QR API
           const img = document.createElement('img');
           img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(upiStr)}&size=160x160`;
           img.width = 160; img.height = 160; img.style.borderRadius = '8px';
           qrCont.appendChild(img);
         }
+        const dlBtn = document.getElementById('downloadQrBtn');
+        if (dlBtn) dlBtn.classList.add('has-qr');
       }, 80);
+    }
+
+    let _lastUpiQrString = '';
+    let _lastUpiQrAmt = 0;
+
+    // Build and download a self-contained QR image with full plan/payment info
+    // printed underneath — so the user can pay from the same phone or share it.
+    async function downloadPlanQr() {
+      if (!selectedPlan) { toast('Pehle plan select karo', 'error'); return; }
+      const amt = selectedPlan.amt;
+      const planLabel = selectedPlan.plan === 'monthly'
+        ? `Monthly Plan — ${selectedPlan.userCount || 1} user${(selectedPlan.userCount||1) > 1 ? 's' : ''}`
+        : 'Yearly Plan';
+      const upiStr = `upi://pay?pa=dkapoore@oksbi&pn=GroceryPOS&am=${amt}&cu=INR`;
+
+      // Render QR to an offscreen canvas via the qrserver image API (reliable, no lib quirks for export)
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(upiStr)}&size=400x400`;
+
+      const canvas = document.createElement('canvas');
+      const W = 480, H = 760;
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      // background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, W - 2, H - 2);
+
+      // header
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🛒 GroceryPOS Payment', W / 2, 50);
+
+      ctx.fillStyle = '#16a34a';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(planLabel, W / 2, 84);
+
+      // QR image
+      const qrImg = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = qrImgUrl;
+      }).catch(() => null);
+
+      const qrSize = 320;
+      const qrX = (W - qrSize) / 2;
+      const qrY = 110;
+      if (qrImg) {
+        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+      } else {
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('QR not available offline', W / 2, qrY + qrSize / 2);
+      }
+
+      let y = qrY + qrSize + 40;
+      ctx.textAlign = 'left';
+      const leftX = 40;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText(`Amount: ₹${amt}`, leftX, y); y += 30;
+
+      ctx.font = '15px sans-serif';
+      ctx.fillStyle = '#374151';
+      ctx.fillText(`Pay to (UPI ID): dkapoore@oksbi`, leftX, y); y += 24;
+      ctx.fillText(`Plan: ${planLabel}`, leftX, y); y += 24;
+      ctx.fillText(`App: GPay · PhonePe · Paytm · BHIM`, leftX, y); y += 34;
+
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(W - leftX, y); ctx.stroke();
+      y += 28;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('Payment ke baad ka process:', leftX, y); y += 26;
+
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#374151';
+      const steps = [
+        '1. QR scan karke payment complete karein',
+        '2. Payment screenshot save kar lein',
+        '3. "✅ Payment Done — Fill Form" button par',
+        '    click karke registration form bharein',
+        '4. Screenshot upload karein form mein',
+        '5. Admin 24 ghante mein login details',
+        '    WhatsApp & Email par bhej dega'
+      ];
+      steps.forEach(line => { ctx.fillText(line, leftX, y); y += 22; });
+
+      y += 10;
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('GroceryPOS · Smart Billing Software', W / 2, H - 20);
+
+      // trigger download
+      const link = document.createElement('a');
+      link.download = `GroceryPOS_${selectedPlan.plan}_QR.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast('QR downloaded ✅', 'success');
     }
 
     async function submitRegistration(e) {
