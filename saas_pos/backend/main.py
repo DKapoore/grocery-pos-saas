@@ -183,9 +183,16 @@ def init_db():
         gst_number TEXT DEFAULT '',
         footer TEXT DEFAULT 'Thank you for shopping!',
         tax_percent REAL DEFAULT 0,
+        settings_password_hash TEXT DEFAULT '',
         FOREIGN KEY(user_id) REFERENCES users(id)
     )""")
-    
+
+    # App-wide config (admin managed) — e.g. landing page hero carousel images
+    c.execute("""CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT DEFAULT ''
+    )""")
+
     conn.commit()
     conn.close()
 
@@ -200,6 +207,7 @@ def migrate_db():
         "ALTER TABLE users ADD COLUMN sheet_id TEXT DEFAULT ''",
         "ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1",
         "ALTER TABLE users ADD COLUMN allowed_ips TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN settings_password_hash TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
@@ -367,6 +375,15 @@ class ForceLogoutSession(BaseModel):
 
 class ForceLogoutUser(BaseModel):
     user_id: int
+
+class SettingsPasswordVerify(BaseModel):
+    password: str
+
+class AdminGenSettingsPassword(BaseModel):
+    user_id: int
+
+class HeroImagesUpdate(BaseModel):
+    images: List[str]  # list of image URLs, 9:16 ratio recommended
 
 # ======================== UTILS ========================
 def send_email(to_email: str, subject: str, body: str):
@@ -714,6 +731,15 @@ async def get_bills_history(current_user: dict = Depends(get_current_user)):
     conn.close()
     return [dict(r) for r in rows]
 
+@app.get("/api/bills/trial-status")
+async def trial_status(current_user: dict = Depends(get_current_user)):
+    return {
+        "plan": current_user["plan"],
+        "trial_bills_used": current_user["trial_bills_used"],
+        "trial_remaining": max(0, 3 - current_user["trial_bills_used"]) if current_user["plan"] == "free" else 999,
+        "is_locked": current_user["plan"] == "free" and current_user["trial_bills_used"] >= 3
+    }
+
 @app.delete("/api/bills/{bill_id}")
 async def delete_bill(bill_id: int, current_user: dict = Depends(get_current_user)):
     conn = get_db()
@@ -726,15 +752,6 @@ async def delete_bill(bill_id: int, current_user: dict = Depends(get_current_use
     conn.commit()
     conn.close()
     return {"success": True, "message": "Bill deleted"}
-
-@app.get("/api/bills/trial-status")
-async def trial_status(current_user: dict = Depends(get_current_user)):
-    return {
-        "plan": current_user["plan"],
-        "trial_bills_used": current_user["trial_bills_used"],
-        "trial_remaining": max(0, 3 - current_user["trial_bills_used"]) if current_user["plan"] == "free" else 999,
-        "is_locked": current_user["plan"] == "free" and current_user["trial_bills_used"] >= 3
-    }
 
 # ======================== CUSTOMERS ========================
 @app.get("/api/customers")
@@ -784,18 +801,50 @@ async def get_settings(current_user: dict = Depends(get_current_user)):
         conn.commit()
         row = conn.execute("SELECT * FROM user_settings WHERE user_id=?", (current_user["id"],)).fetchone()
     conn.close()
-    return dict(row)
+    data = dict(row)
+    # Never expose the hash itself — only whether a lock is set
+    data["settings_locked"] = bool(data.get("settings_password_hash"))
+    data.pop("settings_password_hash", None)
+    return data
 
 @app.put("/api/settings")
 async def update_settings(s: SettingsUpdate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
+    # Preserve existing settings_password_hash — this column is admin-managed only,
+    # never touched by the regular shop-settings save.
+    existing = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
+                             (current_user["id"],)).fetchone()
+    pw_hash = existing["settings_password_hash"] if existing else ""
     conn.execute("""INSERT OR REPLACE INTO user_settings 
-        (user_id, shop_name, address, mobile, upi_id, gst_number, footer, tax_percent)
-        VALUES (?,?,?,?,?,?,?,?)""",
-        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number, s.footer, s.tax_percent))
+        (user_id, shop_name, address, mobile, upi_id, gst_number, footer, tax_percent, settings_password_hash)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number, s.footer, s.tax_percent, pw_hash))
     conn.commit()
     conn.close()
     return {"success": True}
+
+@app.post("/api/settings/verify-password")
+async def verify_settings_password(req: SettingsPasswordVerify, current_user: dict = Depends(get_current_user)):
+    """Unlock the settings tab — checks the per-user settings lock password (set only by admin)."""
+    conn = get_db()
+    row = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
+                        (current_user["id"],)).fetchone()
+    conn.close()
+    stored_hash = row["settings_password_hash"] if row else ""
+    if not stored_hash:
+        # No lock set — settings are open to anyone logged into this account
+        return {"success": True, "locked": False}
+    if hash_password(req.password) != stored_hash:
+        raise HTTPException(status_code=401, detail="Galat password")
+    return {"success": True, "locked": True}
+
+@app.get("/api/settings/lock-status")
+async def settings_lock_status(current_user: dict = Depends(get_current_user)):
+    conn = get_db()
+    row = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
+                        (current_user["id"],)).fetchone()
+    conn.close()
+    return {"locked": bool(row and row["settings_password_hash"])}
 
 # ======================== WHATSAPP BILL ========================
 @app.post("/api/bills/whatsapp")
@@ -908,7 +957,80 @@ Keep this safe! 🙏"""
     
     return {"success": True, "generated_password": password, "message": f"User approved. Credentials sent to {user['email']} and WhatsApp {user['whatsapp']}"}
 
-@app.post("/api/admin/block")
+@app.post("/api/admin/generate-settings-password")
+async def admin_generate_settings_password(req: AdminGenSettingsPassword, admin = Depends(get_admin)):
+    """Admin generates (or regenerates) the per-user Settings-tab lock password.
+    Only the shop owner (admin) can set/reset this — the user cannot change it themselves."""
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_password = generate_password()
+    conn.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (req.user_id,))
+    conn.execute("UPDATE user_settings SET settings_password_hash=? WHERE user_id=?",
+                 (hash_password(new_password), req.user_id))
+    conn.commit()
+    conn.close()
+
+    shop_name = user["full_name"] or user["username"]
+
+    wa_message = f"""🔒 *Settings Lock Password*
+
+Hello {shop_name}! 👋
+
+Aapke GroceryPOS *Settings* tab ke liye ek surakshit password set kiya gaya hai. Ye password sirf aapke liye hai — store ke staff ko Settings tab access karne ke liye ye password chahiye hoga.
+
+🔹 *Username:* {user['username']}
+🔹 *Settings Password:* {new_password}
+
+⚠️ Is password ko surakshit rakhein. Agar bhool jaayein, to admin se naya password generate karwa sakte hain.
+
+🙏 Team GroceryPOS"""
+
+    email_message = f"""Hello {shop_name},
+
+A Settings-tab lock password has been generated for your GroceryPOS account. Staff members will need this password to access the Settings tab (shop details, UPI, etc).
+
+Username          : {user['username']}
+Settings Password : {new_password}
+
+Please keep this password safe. If forgotten, contact admin to generate a new one.
+
+Thank you,
+Team GroceryPOS"""
+
+    return {
+        "success": True,
+        "password": new_password,
+        "username": user["username"],
+        "whatsapp_message": wa_message,
+        "email_message": email_message,
+        "whatsapp_number": user["whatsapp"],
+        "email": user["email"]
+    }
+
+# ======================== HERO CAROUSEL IMAGES (Admin managed) ========================
+@app.get("/api/hero-images")
+async def get_hero_images():
+    """Public — used by the landing page mobile mockup carousel."""
+    conn = get_db()
+    row = conn.execute("SELECT value FROM app_config WHERE key='hero_images'").fetchone()
+    conn.close()
+    images = json.loads(row["value"]) if row and row["value"] else []
+    return {"images": images}
+
+@app.put("/api/admin/hero-images")
+async def update_hero_images(req: HeroImagesUpdate, admin = Depends(get_admin)):
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('hero_images', ?)",
+                 (json.dumps(req.images),))
+    conn.commit()
+    conn.close()
+    return {"success": True, "images": req.images}
+
+
 async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
     conn = get_db()
     conn.execute("UPDATE users SET is_blocked=? WHERE id=?", (1 if req.block else 0, req.user_id))
@@ -957,7 +1079,14 @@ async def admin_extend(req: ExtendSubscription, admin = Depends(get_admin)):
     return {"success": True, "new_expiry": new_expiry.isoformat()}
 
 @app.get("/api/admin/receipt/{user_id}")
-async def get_receipt(user_id: int, admin = Depends(get_admin)):
+async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    # Support both Bearer header (API calls) and ?token= query param (img src / download link)
+    raw_token = token or (credentials.credentials if credentials else None)
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Admin not authenticated")
+    payload = decode_token(raw_token)
+    if not payload or payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access only")
     conn = get_db()
     user = conn.execute("SELECT receipt_path FROM users WHERE id=?", (user_id,)).fetchone()
     conn.close()
