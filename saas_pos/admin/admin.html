@@ -318,6 +318,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <div class="nav-item" data-page="sheets" onclick="showPage('sheets',this)">
         <span class="nav-icon">📋</span> Google Sheets
       </div>
+      <div class="nav-item" data-page="landing" onclick="showPage('landing',this)">
+        <span class="nav-icon">🖼️</span> Landing Page
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -456,6 +459,31 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <button class="btn-accent" onclick="exportToCSV()" style="padding:10px 20px;">
             📥 Download All Users CSV
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LANDING PAGE — HERO CAROUSEL IMAGES ── -->
+    <div class="page" id="page-landing">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🖼️ Landing Page — Hero Mockup Carousel</div>
+          <div class="page-sub">Mobile mockup frame par demo ke liye carousel images manage karein</div>
+        </div>
+      </div>
+      <div style="max-width:640px;">
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:8px;">📱 Carousel Images</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:14px;">
+            Image URLs add karein jo landing page ke phone mockup mein carousel ki tarah ghoomenge.
+            <strong>9:16 ratio</strong> recommended hai (jaise 1080×1920px). Agar koi image nahi di gayi,
+            to default decorative slides dikhengi.
+          </p>
+          <div id="heroImageList"></div>
+          <button class="btn-outline" style="width:100%;margin-top:10px;padding:10px;" onclick="addHeroImageField()">➕ Add Image URL</button>
+          <div class="section-divider"><span>Save</span></div>
+          <button class="btn-accent" style="padding:12px 24px;" onclick="saveHeroImages()">💾 Save Carousel Images</button>
+          <span id="heroImagesStatus" style="margin-left:12px;font-size:12px;color:var(--text2);"></span>
         </div>
       </div>
     </div>
@@ -728,6 +756,41 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- ── SETTINGS LOCK PASSWORD MODAL ── -->
+<div class="modal-overlay" id="settingsPwdModal" onclick="closeSettingsPwdModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>🔒 Settings Tab Lock Password</h3>
+      <button class="modal-close" onclick="closeSettingsPwdModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+        Ye password user ke <strong>Settings tab</strong> ko lock karta hai — sirf yahi (admin) password generate ya reset kar sakta hai.
+        User khud ye password change nahi kar sakta. Agar user bhool jaaye, naya password yahin se generate karein.
+      </p>
+      <button class="btn-accent" style="width:100%;padding:11px;" onclick="generateSettingsPwd()" id="genSettingsPwdBtn">🔄 Generate New Settings Password</button>
+
+      <div id="settingsPwdResult" class="hidden" style="margin-top:16px;">
+        <div style="background:#0f2a1e;border:1px solid #16a34a;border-radius:10px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:12px;color:#94a3b8;">New Password</div>
+          <div style="font-size:18px;font-weight:800;color:#4ade80;letter-spacing:1px;" id="settingsPwdValue"></div>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;">📱 WhatsApp Message</label>
+        <textarea id="settingsPwdWaMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn-copy btn-sm" onclick="copyTextarea('settingsPwdWaMsg')">📋 Copy</button>
+          <button class="btn-copy btn-sm" id="settingsPwdWaDirectBtn" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">📲 Send on WhatsApp</button>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;margin-top:14px;display:block;">📧 Email Message</label>
+        <textarea id="settingsPwdEmailMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <button class="btn-copy btn-sm" style="margin-top:6px;" onclick="copyTextarea('settingsPwdEmailMsg')">📋 Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── RECEIPT MODAL ── -->
 <div class="modal-overlay" id="receiptModal" onclick="closeReceiptModal()">
   <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px;text-align:center;">
@@ -802,12 +865,59 @@ async function api(endpoint, options={}) {
   return data;
 }
 
+// ── LANDING PAGE HERO CAROUSEL ──────────────────────────────
+async function loadHeroImagesAdmin() {
+  try {
+    const res = await fetch(`${API}/api/hero-images`);
+    const data = await res.json();
+    const images = (data.images && data.images.length) ? data.images : [''];
+    const list = document.getElementById('heroImageList');
+    list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i)).join('');
+  } catch (e) {
+    document.getElementById('heroImageList').innerHTML = heroImageFieldHtml('', 0);
+  }
+}
+
+function heroImageFieldHtml(url, i) {
+  const safeUrl = (url || '').replace(/"/g, '&quot;');
+  return `
+    <div class="hero-img-row" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;">
+        <input type="text" class="hero-img-input" value="${safeUrl}" placeholder="https://example.com/demo-screenshot.jpg (9:16 ratio)" style="width:100%;">
+        ${url ? `<img src="${safeUrl}" style="width:50px;height:89px;object-fit:cover;border-radius:6px;margin-top:6px;border:1px solid var(--border);" onerror="this.style.display='none'">` : ''}
+      </div>
+      <button class="btn-outline" style="padding:8px 12px;flex-shrink:0;" onclick="this.closest('.hero-img-row').remove()">🗑️</button>
+    </div>`;
+}
+
+function addHeroImageField() {
+  const list = document.getElementById('heroImageList');
+  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length));
+}
+
+async function saveHeroImages() {
+  const inputs = document.querySelectorAll('#heroImageList .hero-img-input');
+  const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  const statusEl = document.getElementById('heroImagesStatus');
+  statusEl.textContent = 'Saving...';
+  try {
+    await api('/api/admin/hero-images', { method: 'PUT', body: JSON.stringify({ images }) });
+    statusEl.textContent = `✅ Saved ${images.length} image(s)`;
+    toast('Hero carousel images saved!', 'success');
+    loadHeroImagesAdmin();
+  } catch (e) {
+    statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
 // ── NAVIGATION ───────────────────────────────────────────────
 function showPage(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
+  if (name === 'landing') loadHeroImagesAdmin();
 }
 
 // ── LOAD DATA ────────────────────────────────────────────────
@@ -932,6 +1042,7 @@ function renderUsersTable(filtered = null) {
           ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
           <button class="btn-xs" onclick="openGasAssign(${u.id},'${u.username}','${u.gas_url||''}')" style="background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Assign Google Sheet">☁️</button>
           <button class="btn-xs" onclick="openDeviceModal(${u.id},'${u.username}',${u.max_devices||1},'${u.allowed_ips||''}')" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Device Limit & Sessions">📱</button>
+          <button class="btn-xs" onclick="openSettingsPwdModal(${u.id})" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Settings Tab Lock Password">🔒</button>
           ${!u.is_blocked
             ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
             : `<button class="btn-accent btn-xs" onclick="blockUser(${u.id},false)" title="Unblock">✅</button>`}
@@ -1379,6 +1490,44 @@ async function openDeviceModal(userId, username, maxDevices, allowedIps) {
 function closeDeviceModal() {
   document.getElementById('deviceModal').classList.remove('show');
   _deviceModalUserId = null;
+}
+
+// ── SETTINGS TAB LOCK PASSWORD ───────────────────────────────────────────────
+let _settingsPwdUserId = null;
+
+function openSettingsPwdModal(userId) {
+  _settingsPwdUserId = userId;
+  document.getElementById('settingsPwdResult').classList.add('hidden');
+  document.getElementById('settingsPwdModal').classList.add('show');
+}
+
+function closeSettingsPwdModal() {
+  document.getElementById('settingsPwdModal').classList.remove('show');
+  _settingsPwdUserId = null;
+}
+
+async function generateSettingsPwd() {
+  if (!_settingsPwdUserId) return;
+  const btn = document.getElementById('genSettingsPwdBtn');
+  btn.textContent = '⏳ Generating...'; btn.disabled = true;
+  try {
+    const res = await api('/api/admin/generate-settings-password', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: _settingsPwdUserId })
+    });
+    document.getElementById('settingsPwdValue').textContent = res.password;
+    document.getElementById('settingsPwdWaMsg').value = res.whatsapp_message;
+    document.getElementById('settingsPwdEmailMsg').value = res.email_message;
+    const mobile = (res.whatsapp_number || '').replace(/\D/g, '');
+    const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(res.whatsapp_message)}`;
+    document.getElementById('settingsPwdWaDirectBtn').onclick = () => window.open(waLink, '_blank');
+    document.getElementById('settingsPwdResult').classList.remove('hidden');
+    toast('Settings password generated!', 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🔄 Generate New Settings Password'; btn.disabled = false;
+  }
 }
 
 async function loadSessions(userId) {
