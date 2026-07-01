@@ -3303,6 +3303,7 @@
         <div class="bill-meta" id="billMeta"></div>
         <div class="sum-row"><span>Subtotal</span><span id="sumSubtotal">₹0.00</span></div>
         <div class="sum-row" id="sumTaxRow" style="display:none;"><span>Tax</span><span id="sumTax">₹0.00</span></div>
+        <div class="sum-row" id="sumAddChargeRow" style="display:none;"><span id="sumAddChargeLabel">Additional Charge</span><span id="sumAddCharge">₹0.00</span></div>
         <div class="sum-row" id="sumDiscRow" style="display:none;"><span>Discount</span><span id="sumDisc" style="color:var(--danger);">-₹0.00</span></div>
         <div class="sum-total"><span>TOTAL</span><span id="sumTotal">₹0.00</span></div>
       </div>
@@ -3315,6 +3316,7 @@
           <button class="btn-outline btn-mini" onclick="holdCurrentBill()"><span class="mi">⏸️</span><span>Hold</span></button>
           <button class="btn-outline btn-mini" onclick="openCustomerPanel()"><span class="mi">👤</span><span>Customer</span></button>
           <button class="btn-outline btn-mini" onclick="openDiscountPanel()"><span class="mi">🏷️</span><span>Discount</span></button>
+          <button class="btn-outline btn-mini" onclick="openAddChargePanel()"><span class="mi">➕</span><span>Add Charge</span></button>
           <button class="btn-outline btn-mini" onclick="openExportPanel()"><span class="mi">📤</span><span>Export</span></button>
           <button class="btn-outline btn-mini" onclick="printBillDirect()"><span class="mi">🖨️</span><span>Print</span></button>
         </div>
@@ -3711,9 +3713,6 @@
           device_label: getDeviceLabel()
         })});
         saveAuth(data.token, data.user);
-        if (data.user?.gas_url) { cloudConfig = { ...cloudConfig, gasUrl: data.user.gas_url, sheetId: data.user
-            .sheet_id || '', enabled: true };
-          localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig)); }
         await initApp();
       } catch (e) { toast(e.message || 'Login failed', 'error'); }
     }
@@ -3755,7 +3754,14 @@
         ]);
         settings = { shopName: settData.shop_name || 'My Shop', upi: settData.upi_id || '', address: settData
             .address || '', mobile: settData.mobile || '', footer: settData.footer || 'Thank you! 🙏',
-          taxPercent: settData.tax_percent || 0, gstNumber: settData.gst_number || '' };
+          taxPercent: settData.tax_percent || 0, gstNumber: settData.gst_number || '',
+          enableAmountWords: settData.enable_amount_words || 0 };
+        // Per-shop optional Google Sheet sync config now lives in /api/settings
+        // (user_settings table), not in the login response.
+        if (settData.gas_url) {
+          cloudConfig = { ...cloudConfig, gasUrl: settData.gas_url, sheetId: settData.sheet_id || '', enabled: true };
+          localStorage.setItem('pos_cloud_config', JSON.stringify(cloudConfig));
+        }
         products = prodData;
         trialStatus = tsData;
       } catch (e) {
@@ -3809,8 +3815,9 @@
     function createNewBill() {
       localStorage.setItem('billCounter', String(billCounter));
       const bill = { id: newBillId(), billNumber: newBillNumber(), status: 'active', cart: [], customer: { name: '',
-          mobile: '' }, paymentMode: 'Cash', discount: 0, discountType: 'flat', loyaltyDiscount: 0, notes: '',
-        createdAt: new Date().toISOString() };
+          mobile: '' }, paymentMode: 'Cash', discount: 0, discountType: 'flat', loyaltyDiscount: 0,
+        additionalCharge: 0, additionalChargeType: 'flat', additionalChargeLabel: '',
+        notes: '', createdAt: new Date().toISOString() };
       billSessions.push(bill);
       activeBillId = bill.id;
       saveState();
@@ -3864,8 +3871,13 @@
       let disc = bill.discountType === 'percent' ? subtotal * ((bill.discount || 0) / 100) : (bill.discount || 0);
       disc = Math.min(disc, subtotal);
       const loyaltyDisc = bill.loyaltyDiscount || 0;
-      const final = Math.max(0, subtotal + tax - disc - loyaltyDisc);
-      return { subtotal, tax, disc, loyaltyDisc, final };
+      // Additional charges — e.g. Service Charge for hotels/restaurants, Packing Charge,
+      // Delivery Charge etc. Can be a flat ₹ amount or a % of the subtotal.
+      const addCharge = bill.additionalChargeType === 'percent'
+        ? subtotal * ((bill.additionalCharge || 0) / 100)
+        : (bill.additionalCharge || 0);
+      const final = Math.max(0, subtotal + tax + addCharge - disc - loyaltyDisc);
+      return { subtotal, tax, disc, loyaltyDisc, addCharge, final };
     }
 
     function saveState() {
@@ -3919,10 +3931,13 @@
           <button class="item-del" onclick="removeItem('${bill.id}',${idx})">✕</button>
         </div>
       `).join('');
-      const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+      const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
       document.getElementById('sumSubtotal').textContent = '₹' + subtotal.toFixed(2);
       document.getElementById('sumTaxRow').style.display = tax > 0 ? 'flex' : 'none';
       document.getElementById('sumTax').textContent = '₹' + tax.toFixed(2);
+      document.getElementById('sumAddChargeRow').style.display = addCharge > 0 ? 'flex' : 'none';
+      document.getElementById('sumAddChargeLabel').textContent = bill.additionalChargeLabel || 'Additional Charge';
+      document.getElementById('sumAddCharge').textContent = '₹' + addCharge.toFixed(2);
       document.getElementById('sumDiscRow').style.display = disc > 0 ? 'flex' : 'none';
       document.getElementById('sumDisc').textContent = '-₹' + disc.toFixed(2);
       document.getElementById('sumTotal').textContent = '₹' + final.toFixed(2);
@@ -3930,6 +3945,7 @@
       if (bill.customer?.name) meta.push(`👤 ${bill.customer.name}`);
       if (bill.paymentMode) meta.push(`💳 ${bill.paymentMode}`);
       if (bill.discount > 0) meta.push(`🏷️ Disc: ${bill.discountType==='percent'?bill.discount+'%':'₹'+bill.discount}`);
+      if (bill.additionalCharge > 0) meta.push(`➕ ${bill.additionalChargeLabel||'Charge'}: ${bill.additionalChargeType==='percent'?bill.additionalCharge+'%':'₹'+bill.additionalCharge}`);
       if (bill.status === 'hold') meta.push('⏸️ ON HOLD');
       document.getElementById('billMeta').innerHTML = meta.map(m => `<span class="meta-tag">${m}</span>`).join('');
     }
@@ -4167,7 +4183,7 @@
       if (!bill || bill.cart.length === 0) { toast('Cart is empty!', 'error'); return; }
       if (trialStatus.is_locked) { toast('Upgrade to complete more bills', 'error');
         showScreen('screen-landing'); return; }
-      const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+      const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
       openModal(`
         <div class="modal-handle"></div>
         <h3>✅ Complete Bill</h3>
@@ -4194,15 +4210,17 @@
       if (!bill) return;
       const pmMode = document.getElementById('pmMode')?.value || 'Cash';
       bill.paymentMode = pmMode;
-      const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+      const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
       if (save && authToken) {
         try {
           await apiCall('/api/bills', {
             method: 'POST',
             body: JSON.stringify({ bill_number: bill.billNumber, cart_json: JSON.stringify(bill.cart),
               customer_name: bill.customer?.name || '', customer_mobile: bill.customer?.mobile || '',
-              payment_mode: pmMode, subtotal, tax_total: tax, discount: disc, discount_type: bill
-                .discountType, final_amount: final, notes: bill.notes || '',
+              payment_mode: pmMode, subtotal, tax_total: tax, discount: disc, discount_type: bill.discountType,
+              additional_charge: addCharge, additional_charge_type: bill.additionalChargeType || 'flat',
+              additional_charge_label: bill.additionalChargeLabel || '',
+              final_amount: final, notes: bill.notes || '',
               loyalty_points_used: bill.loyaltyPoints || 0 })
           });
           if (trialStatus.plan === 'free') { trialStatus.trial_bills_used += 1;
@@ -4240,8 +4258,38 @@
 
     function getBillSize() { return document.getElementById('billSizeSelect')?.value || 'thermal'; }
 
+    // ── Amount in Words (Indian format: Rupees + Paise) ──────────────────
+    function numberToWords(amount) {
+      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+      function convertHundreds(n) {
+        if (n === 0) return '';
+        if (n < 20) return ones[n];
+        if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+        return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertHundreds(n % 100) : '');
+      }
+
+      function convertToWords(n) {
+        if (n === 0) return 'Zero';
+        let result = '';
+        if (n >= 10000000) { result += convertHundreds(Math.floor(n / 10000000)) + ' Crore '; n %= 10000000; }
+        if (n >= 100000)   { result += convertHundreds(Math.floor(n / 100000))   + ' Lakh ';  n %= 100000;  }
+        if (n >= 1000)     { result += convertHundreds(Math.floor(n / 1000))     + ' Thousand '; n %= 1000;  }
+        if (n > 0)         { result += convertHundreds(n); }
+        return result.trim();
+      }
+
+      const rupees = Math.floor(amount);
+      const paise  = Math.round((amount - rupees) * 100);
+      let words = 'Rupees ' + convertToWords(rupees);
+      if (paise > 0) words += ' and ' + convertToWords(paise) + ' Paise';
+      return words + ' Only';
+    }
+
     function generateBillHTML(bill, size = 'thermal') {
-      const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+      const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
       const isFree = trialStatus.plan === 'free';
       const date = new Date().toLocaleDateString('en-IN');
       const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -4251,6 +4299,8 @@
         f = fonts[size] || fonts.thermal;
       const titleSize = size === 'thermal' ? '15px' : '20px';
       const totSize = size === 'thermal' ? '14px' : '18px';
+      const addChargeLabel = bill.additionalChargeLabel || 'Additional Charge';
+      const showAmtWords = settings.enableAmountWords;
       const upiStr = settings.upi ?
         `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR` :
         '';
@@ -4291,10 +4341,12 @@
           ${tax>0?`<div style="display:flex;justify-content:space-between;"><span>Tax:</span><span>₹${tax.toFixed(2)}</span></div>`:''}
           ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
           ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
+          ${addCharge>0?`<div style="display:flex;justify-content:space-between;"><span>${addChargeLabel}:</span><span>+₹${addCharge.toFixed(2)}</span></div>`:''}
         </div>
         <div style="display:flex;justify-content:space-between;font-size:${totSize};font-weight:900;color:#000;border-top:2px solid #000;padding-top:6px;margin-top:4px;">
           <span>TOTAL:</span><span>₹${final.toFixed(2)}</span>
         </div>
+        ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(final)}</div>`:''}
         ${upiStr?`
         <div style="text-align:center;margin:14px 0;">
           <div style="font-size:${f};font-weight:bold;color:#000;margin-bottom:6px;">📱 Scan to Pay via UPI</div>
@@ -4439,11 +4491,15 @@
     async function shareWhatsApp() {
       const bill = getActiveBill();
       if (!bill || bill.cart.length === 0) return;
-      const { final } = calcBill(bill);
+      const { final, addCharge, disc } = calcBill(bill);
       const lines = bill.cart.map(i =>
         `• ${i.name} x${i.quantity} — ₹${(parseFloat(i.price)*i.quantity).toFixed(2)}`).join('\n');
+      const extraLines = [
+        disc > 0 ? `🏷️ Discount: -₹${disc.toFixed(2)}` : '',
+        addCharge > 0 ? `➕ ${bill.additionalChargeLabel||'Additional Charge'}: +₹${addCharge.toFixed(2)}` : ''
+      ].filter(Boolean).join('\n');
       const msg =
-        `🛒 *${settings.shopName}*\n📋 Bill: *${bill.billNumber}*\n📅 ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}\n\n${lines}\n\n💰 *Total: ₹${final.toFixed(2)}*\n${bill.paymentMode?'💳 Payment: '+bill.paymentMode:''}\n${settings.upi?'\n📱 UPI: '+settings.upi:''}\n\n${settings.footer||'Thank you! Visit Again 🙏'}`;
+        `🛒 *${settings.shopName}*\n📋 Bill: *${bill.billNumber}*\n📅 ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}\n\n${lines}${extraLines?'\n\n'+extraLines:''}\n\n💰 *Total: ₹${final.toFixed(2)}*\n${bill.paymentMode?'💳 Payment: '+bill.paymentMode:''}\n${settings.upi?'\n📱 UPI: '+settings.upi:''}\n\n${settings.footer||'Thank you! Visit Again 🙏'}`;
       try {
         const size = getBillSize() || 'thermal';
         const target = await renderBillWithQR(bill, size);
@@ -4571,6 +4627,57 @@
       toast('Discount applied 🏷️', 'success');
     }
 
+    // ── Additional Charges ──────────────────────────────────────────────
+    // Useful for hotels/restaurants: Service Charge, Packing Charge, Delivery
+    // Charge etc. Works just like Discount — flat ₹ or % of subtotal — but
+    // ADDS to the total instead of subtracting.
+    function openAddChargePanel() {
+      const bill = getActiveBill();
+      if (!bill) return;
+      openModal(`
+        <div class="modal-handle"></div>
+        <h3>➕ Additional Charge</h3>
+        <p style="font-size:12px;color:var(--text2);margin:-4px 0 12px;">Hotels/restaurants ke liye useful — Service Charge, Packing, Delivery waghera.</p>
+        <label>Label (receipt par ye naam dikhega)</label>
+        <input id="addChargeLabel" type="text" value="${bill.additionalChargeLabel || 'Service Charge'}" placeholder="e.g. Service Charge, Packing Charge">
+        <label>Type</label>
+        <select id="addChargeType">
+          <option value="flat" ${bill.additionalChargeType==='flat'||!bill.additionalChargeType?'selected':''}>Flat Amount (₹)</option>
+          <option value="percent" ${bill.additionalChargeType==='percent'?'selected':''}>Percentage (%)</option>
+        </select>
+        <label>Value</label>
+        <input id="addChargeValue" type="number" value="${bill.additionalCharge||0}" min="0">
+        <div class="modal-actions">
+          <button class="btn-outline" onclick="removeAddCharge('${bill.id}')">Remove</button>
+          <button class="btn-accent" onclick="saveAddCharge('${bill.id}')">Apply ✅</button>
+        </div>
+      `);
+    }
+
+    function saveAddCharge(billId) {
+      const bill = billSessions.find(b => b.id === billId);
+      if (!bill) return;
+      bill.additionalChargeLabel = document.getElementById('addChargeLabel').value.trim() || 'Additional Charge';
+      bill.additionalChargeType = document.getElementById('addChargeType').value;
+      bill.additionalCharge = parseFloat(document.getElementById('addChargeValue').value) || 0;
+      saveState();
+      renderAll();
+      closeModal();
+      toast('Additional charge applied ➕', 'success');
+    }
+
+    function removeAddCharge(billId) {
+      const bill = billSessions.find(b => b.id === billId);
+      if (!bill) return;
+      bill.additionalCharge = 0;
+      bill.additionalChargeType = 'flat';
+      bill.additionalChargeLabel = '';
+      saveState();
+      renderAll();
+      closeModal();
+      toast('Additional charge removed', 'success');
+    }
+
     function pushNotif(msg, type = 'info') {
       const n = { msg, type, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) };
       notifHistory.unshift(n);
@@ -4658,7 +4765,7 @@
         return false;
       }
       try {
-        const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+        const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
         await gasRequest('save_invoice', {
           invoice_number: bill.billNumber,
           customer_name: bill.customer?.name || '',
@@ -4667,6 +4774,8 @@
           subtotal,
           tax_total: tax,
           discount: disc,
+          additional_charge: addCharge,
+          additional_charge_label: bill.additionalChargeLabel || '',
           final_amount: final,
           payment_mode: bill.paymentMode || 'Cash',
           date: new Date().toISOString(),
@@ -4686,7 +4795,7 @@
       const failed = [];
       for (const bill of pendingInvoices) {
         try {
-          const { subtotal, tax, disc, loyaltyDisc, final } = calcBill(bill);
+          const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
           await gasRequest('save_invoice', {
             invoice_number: bill.billNumber,
             customer_name: bill.customer?.name || '',
@@ -4695,6 +4804,8 @@
             subtotal,
             tax_total: tax,
             discount: disc,
+            additional_charge: addCharge,
+            additional_charge_label: bill.additionalChargeLabel || '',
             final_amount: final,
             payment_mode: bill.paymentMode || 'Cash',
             date: bill.pendingAt || new Date().toISOString(),
@@ -4802,6 +4913,16 @@
           <label>GST Number</label><input id="setGst" value="${settings.gstNumber||''}">
           <label>Footer Message</label><input id="setFooter" value="${settings.footer||'Thank you! 🙏'}">
           <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent||0}" min="0" max="100">
+          <div style="background:var(--accent2,#f0fdf4);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px;">
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px;">🖨️ Receipt Options</div>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:normal;">
+              <input type="checkbox" id="setAmountWords" ${settings.enableAmountWords?'checked':''} style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
+              <div>
+                <div style="font-weight:600;">Amount in Words</div>
+                <div style="font-size:11px;color:var(--text2);">Receipt par total amount words mein print hoga<br>e.g. "Rupees Two Thousand Five Hundred Only"</div>
+              </div>
+            </label>
+          </div>
           <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Shop Settings</button>
         </div>
         <div id="settingsTab2" style="display:none;">
@@ -4884,17 +5005,19 @@
     }
 
     async function saveSettings() {
+      const enableAmtWords = document.getElementById('setAmountWords')?.checked ? 1 : 0;
       settings = { shopName: document.getElementById('setShop').value, address: document.getElementById('setAddr')
           .value, mobile: document.getElementById('setMob').value, upi: document.getElementById('setUpi').value,
         gstNumber: document.getElementById('setGst').value, footer: document.getElementById('setFooter').value,
-        taxPercent: parseFloat(document.getElementById('setTax').value) || 0 };
+        taxPercent: parseFloat(document.getElementById('setTax').value) || 0,
+        enableAmountWords: enableAmtWords };
       localStorage.setItem('pos_settings', JSON.stringify(settings));
       try {
         await apiCall('/api/settings', {
           method: 'PUT',
           body: JSON.stringify({ shop_name: settings.shopName, address: settings.address, mobile: settings
               .mobile, upi_id: settings.upi, gst_number: settings.gstNumber, footer: settings.footer,
-            tax_percent: settings.taxPercent })
+            tax_percent: settings.taxPercent, enable_amount_words: enableAmtWords })
         });
       } catch (e) {}
       closeDrawer();
@@ -5502,106 +5625,250 @@
     // printed underneath — so the user can pay from the same phone or share it.
     async function downloadPlanQr() {
       if (!selectedPlan) { toast('Pehle plan select karo', 'error'); return; }
-      const amt = selectedPlan.amt;
-      const planLabel = selectedPlan.plan === 'monthly'
-        ? `Monthly Plan — ${selectedPlan.userCount || 1} user${(selectedPlan.userCount||1) > 1 ? 's' : ''}`
-        : 'Yearly Plan';
-      const upiStr = `upi://pay?pa=dkapoore@oksbi&pn=GroceryPOS&am=${amt}&cu=INR`;
 
-      // Render QR to an offscreen canvas via the qrserver image API (reliable, no lib quirks for export)
-      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(upiStr)}&size=400x400`;
+      const lang = currentLang || 'en';
+      const amt  = selectedPlan.amt;
+      const uc   = selectedPlan.userCount || 1;
+
+      // ── Language strings ───────────────────────────────────────────────
+      const L = {
+        en: {
+          appName:    'GroceryPOS — Smart Billing Software',
+          payTitle:   'UPI Payment QR',
+          plan:       selectedPlan.plan === 'monthly'
+                        ? `Monthly Plan · ${uc} User${uc > 1 ? 's' : ''}`
+                        : 'Yearly Plan',
+          amtLabel:   'Amount',
+          payTo:      'Pay to (UPI ID)',
+          scanWith:   'Scan with GPay · PhonePe · Paytm · BHIM',
+          stepsTitle: 'Steps after payment:',
+          steps: [
+            '1. Scan the QR above and complete the payment.',
+            '2. Take a screenshot of the payment confirmation.',
+            '3. Tap "✅ Payment Done — Fill Form" button on the',
+            '   website and fill the registration form.',
+            '4. Upload the payment screenshot in the form.',
+            '5. Admin will send login details within 24 hours',
+            '   via WhatsApp & Email.'
+          ],
+          footer: 'Keep this image safe until account is activated.'
+        },
+        hi: {
+          appName:    'GroceryPOS — स्मार्ट बिलिंग सॉफ्टवेयर',
+          payTitle:   'UPI पेमेंट QR',
+          plan:       selectedPlan.plan === 'monthly'
+                        ? `मासिक प्लान · ${uc} यूज़र${uc > 1 ? '' : ''}`
+                        : 'वार्षिक प्लान',
+          amtLabel:   'राशि',
+          payTo:      'UPI ID पर भेजें',
+          scanWith:   'GPay · PhonePe · Paytm · BHIM से स्कैन करें',
+          stepsTitle: 'पेमेंट के बाद के स्टेप्स:',
+          steps: [
+            '1. ऊपर दिए QR को स्कैन करके पेमेंट करें।',
+            '2. पेमेंट कन्फर्मेशन का स्क्रीनशॉट लें।',
+            '3. वेबसाइट पर "✅ Payment Done — Fill Form"',
+            '   बटन दबाएं और रजिस्ट्रेशन फॉर्म भरें।',
+            '4. फॉर्म में पेमेंट स्क्रीनशॉट अपलोड करें।',
+            '5. Admin 24 घंटे के अंदर आपके WhatsApp',
+            '   और Email पर लॉगिन डिटेल्स भेजेगा।'
+          ],
+          footer: 'अकाउंट एक्टिव होने तक यह इमेज सुरक्षित रखें।'
+        },
+        mr: {
+          appName:    'GroceryPOS — स्मार्ट बिलिंग सॉफ्टवेअर',
+          payTitle:   'UPI पेमेंट QR',
+          plan:       selectedPlan.plan === 'monthly'
+                        ? `मासिक प्लान · ${uc} युझर${uc > 1 ? 's' : ''}`
+                        : 'वार्षिक प्लान',
+          amtLabel:   'रक्कम',
+          payTo:      'UPI ID वर पाठवा',
+          scanWith:   'GPay · PhonePe · Paytm · BHIM ने स्कॅन करा',
+          stepsTitle: 'पेमेंटनंतरचे स्टेप्स:',
+          steps: [
+            '1. वरील QR स्कॅन करून पेमेंट पूर्ण करा।',
+            '2. पेमेंट कन्फर्मेशनचा स्क्रीनशॉट घ्या।',
+            '3. वेबसाइटवर "✅ Payment Done — Fill Form"',
+            '   बटण दाबा आणि नोंदणी फॉर्म भरा।',
+            '4. फॉर्ममध्ये पेमेंट स्क्रीनशॉट अपलोड करा।',
+            '5. Admin 24 तासांत तुमच्या WhatsApp',
+            '   आणि Email वर लॉगिन माहिती पाठवेल।'
+          ],
+          footer: 'खाते सक्रिय होईपर्यंत हे चित्र सुरक्षित ठेवा।'
+        }
+      };
+      const t = L[lang] || L.en;
+
+      // ── Canvas layout constants ────────────────────────────────────────
+      const W       = 520;          // canvas width (px)
+      const PAD     = 32;           // horizontal padding
+      const INNER   = W - PAD * 2;  // drawable width
+      const QR_SZ   = 260;          // QR image size — compact but scannable
+      const LINE_H  = 26;           // step line height
+      const HEADER_H = 120;         // space for title + plan badge
+      const QR_TOP  = HEADER_H + 12;
+      const INFO_TOP = QR_TOP + QR_SZ + 20;   // amount/upi info starts here
+      const INFO_LINES = 3;                   // amtLabel, payTo, scanWith
+      const INFO_BLOCK = INFO_LINES * 24 + 10;
+      const DIV_H   = 1 + 16;                 // divider + spacing
+      const STEPS_TITLE_H = 30;
+      const STEPS_H = t.steps.length * LINE_H;
+      const FOOTER_H = 40;
+      const BOTTOM_PAD = 24;
+      // Total height — calculated so nothing is ever cut
+      const H = INFO_TOP + INFO_BLOCK + DIV_H + STEPS_TITLE_H + STEPS_H + FOOTER_H + BOTTOM_PAD;
 
       const canvas = document.createElement('canvas');
-      const W = 480, H = 760;
-      canvas.width = W; canvas.height = H;
+      canvas.width  = W;
+      canvas.height = H;
       const ctx = canvas.getContext('2d');
 
-      // background
+      // ── Background ────────────────────────────────────────────────────
+      // Gradient from dark navy (top) to white (bottom)
+      const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H + 30);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#1e3a5f');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, HEADER_H + 30);
+
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = '#e5e7eb';
-      ctx.lineWidth = 2;
+      ctx.fillRect(0, HEADER_H + 30, W, H - HEADER_H - 30);
+
+      // subtle border
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.5;
       ctx.strokeRect(1, 1, W - 2, H - 2);
 
-      // header
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 26px sans-serif';
+      // ── Header (on dark bg) ───────────────────────────────────────────
       ctx.textAlign = 'center';
-      ctx.fillText('🛒 GroceryPOS Payment', W / 2, 50);
 
-      ctx.fillStyle = '#16a34a';
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(t.appName, W / 2, 26);
+
+      ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 22px sans-serif';
-      ctx.fillText(planLabel, W / 2, 84);
+      ctx.fillText(t.payTitle, W / 2, 56);
 
-      // QR image
-      const qrImg = await new Promise((resolve, reject) => {
+      // plan badge
+      const badgeW = INNER;
+      const badgeX = PAD;
+      const badgeY = 68;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      _roundRect(ctx, badgeX, badgeY, badgeW, 32, 8);
+      ctx.fill();
+      ctx.fillStyle = '#4ade80';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(t.plan, W / 2, badgeY + 21);
+
+      // ── QR image (centered) ───────────────────────────────────────────
+      const upiStr   = `upi://pay?pa=dkapoore@oksbi&pn=GroceryPOS&am=${amt}&cu=INR`;
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(upiStr)}&size=520x520&margin=1`;
+
+      toast('QR generate ho raha hai...', 'info');
+
+      const qrImg = await new Promise(resolve => {
         const im = new Image();
         im.crossOrigin = 'anonymous';
-        im.onload = () => resolve(im);
-        im.onerror = reject;
+        im.onload  = () => resolve(im);
+        im.onerror = ()  => resolve(null);
         im.src = qrImgUrl;
-      }).catch(() => null);
+      });
 
-      const qrSize = 320;
-      const qrX = (W - qrSize) / 2;
-      const qrY = 110;
+      const qrX = (W - QR_SZ) / 2;
+      // White card behind QR for clean look
+      ctx.fillStyle = '#ffffff';
+      _roundRect(ctx, qrX - 8, QR_TOP - 8, QR_SZ + 16, QR_SZ + 16, 10);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
       if (qrImg) {
-        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+        ctx.drawImage(qrImg, qrX, QR_TOP, QR_SZ, QR_SZ);
       } else {
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.strokeRect(qrX, qrY, qrSize, qrSize);
-        ctx.fillStyle = '#64748b';
-        ctx.font = '14px sans-serif';
-        ctx.fillText('QR not available offline', W / 2, qrY + qrSize / 2);
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(qrX, QR_TOP, QR_SZ, QR_SZ);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('QR offline mein available nahi', W / 2, QR_TOP + QR_SZ / 2);
       }
 
-      let y = qrY + qrSize + 40;
-      ctx.textAlign = 'left';
-      const leftX = 40;
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 20px sans-serif';
-      ctx.fillText(`Amount: ₹${amt}`, leftX, y); y += 30;
-
-      ctx.font = '15px sans-serif';
-      ctx.fillStyle = '#374151';
-      ctx.fillText(`Pay to (UPI ID): dkapoore@oksbi`, leftX, y); y += 24;
-      ctx.fillText(`Plan: ${planLabel}`, leftX, y); y += 24;
-      ctx.fillText(`App: GPay · PhonePe · Paytm · BHIM`, leftX, y); y += 34;
-
-      ctx.strokeStyle = '#e5e7eb';
-      ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(W - leftX, y); ctx.stroke();
-      y += 28;
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillText('Payment ke baad ka process:', leftX, y); y += 26;
-
-      ctx.font = '14px sans-serif';
-      ctx.fillStyle = '#374151';
-      const steps = [
-        '1. QR scan karke payment complete karein',
-        '2. Payment screenshot save kar lein',
-        '3. "✅ Payment Done — Fill Form" button par',
-        '    click karke registration form bharein',
-        '4. Screenshot upload karein form mein',
-        '5. Admin 24 ghante mein login details',
-        '    WhatsApp & Email par bhej dega'
-      ];
-      steps.forEach(line => { ctx.fillText(line, leftX, y); y += 22; });
-
-      y += 10;
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '12px sans-serif';
+      // ── Info block (amount, UPI, apps) ────────────────────────────────
+      let y = INFO_TOP;
       ctx.textAlign = 'center';
-      ctx.fillText('GroceryPOS · Smart Billing Software', W / 2, H - 20);
 
-      // trigger download
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.fillText(`${t.amtLabel}: ₹${amt}`, W / 2, y); y += 32;
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(`${t.payTo}: dkapoore@oksbi`, W / 2, y); y += 26;
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(t.scanWith, W / 2, y); y += 18;
+
+      // ── Divider ───────────────────────────────────────────────────────
+      y += 14;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y);
+      ctx.lineTo(W - PAD, y);
+      ctx.stroke();
+      y += 18;
+
+      // ── Steps title ───────────────────────────────────────────────────
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(t.stepsTitle, PAD, y); y += STEPS_TITLE_H - 4;
+
+      // ── Steps list ────────────────────────────────────────────────────
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#374151';
+      t.steps.forEach(line => {
+        ctx.fillText(line, PAD + 4, y);
+        y += LINE_H;
+      });
+
+      // ── Footer ────────────────────────────────────────────────────────
+      y += 10;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y);
+      ctx.lineTo(W - PAD, y);
+      ctx.stroke();
+      y += 16;
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 12px sans-serif';
+      ctx.fillText(t.footer, W / 2, y);
+
+      // ── Download ──────────────────────────────────────────────────────
       const link = document.createElement('a');
-      link.download = `GroceryPOS_${selectedPlan.plan}_QR.png`;
+      link.download = `GroceryPOS_${t.plan.replace(/\s+/g,'_')}_QR.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
       toast('QR downloaded ✅', 'success');
+    }
+
+    // Small helper — rounded rect path (canvas has no native roundRect in older Safari)
+    function _roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
     }
 
     async function submitRegistration(e) {
