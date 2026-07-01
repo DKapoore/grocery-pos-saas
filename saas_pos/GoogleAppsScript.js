@@ -16,6 +16,108 @@
 const SHEET_REGISTRATIONS = "Registrations";
 const SHEET_APPROVED      = "Approved Users";
 const SHEET_BILLS         = "Bills";
+const SHEET_USERS         = "Users";   // ★ Cloud Auth Database — single source of truth for login
+
+// ============================================================
+// SECURITY — Shared secret between FastAPI backend and this script
+// ============================================================
+// 1. Apps Script editor → Project Settings (gear icon) → Script Properties
+// 2. Add property: API_SECRET = <ek lamba random string yahan>
+// 3. FastAPI Render env var GAS_API_SECRET mein bhi WAHI value daalo
+// This prevents random people from hitting your public Web App URL and
+// reading/writing user accounts.
+function getApiSecret() {
+  return PropertiesService.getScriptProperties().getProperty('API_SECRET') || '';
+}
+
+function checkAuth(data) {
+  const expected = getApiSecret();
+  if (!expected) return true; // not configured yet — allow (dev mode), but warn in logs
+  return data && data.api_secret === expected;
+}
+
+// ============================================================
+// USERS SHEET — Columns (in order):
+// user_id | username | password_hash | full_name | email | whatsapp |
+// city | store_type | subscription_plan | plan_amount | expiry_date |
+// account_status | device_limit | allowed_ips | trial_bills_used |
+// payment_status | upi_used | receipt_path | settings_password_hash |
+// created_date | last_login
+// ============================================================
+const USERS_HEADER = [
+  "user_id", "username", "password_hash", "full_name", "email", "whatsapp",
+  "city", "store_type", "subscription_plan", "plan_amount", "expiry_date",
+  "account_status", "device_limit", "allowed_ips", "trial_bills_used",
+  "payment_status", "upi_used", "receipt_path", "settings_password_hash",
+  "created_date", "last_login"
+];
+// Map column name -> 1-based index, built once from USERS_HEADER
+const UCOL = {};
+USERS_HEADER.forEach((name, i) => { UCOL[name] = i + 1; });
+
+function getUsersSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_USERS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_USERS);
+    sheet.appendRow(USERS_HEADER);
+    sheet.getRange(1, 1, 1, USERS_HEADER.length)
+      .setBackground("#673AB7").setFontColor("white").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Find the row number (1-based, includes header) for a given username.
+// Returns -1 if not found. Username match is case-insensitive.
+function findUserRow(sheet, username) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  const usernames = sheet.getRange(2, UCOL.username, lastRow - 1, 1).getValues();
+  const target = String(username || '').trim().toLowerCase();
+  for (let i = 0; i < usernames.length; i++) {
+    if (String(usernames[i][0] || '').trim().toLowerCase() === target) {
+      return i + 2; // +2 because data starts at row 2 and i is 0-based
+    }
+  }
+  return -1;
+}
+
+// Find the row number (1-based) for a given numeric user_id. Returns -1 if not found.
+function findUserRowById(sheet, userId) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  const ids = sheet.getRange(2, UCOL.user_id, lastRow - 1, 1).getValues();
+  const target = parseInt(userId, 10);
+  for (let i = 0; i < ids.length; i++) {
+    if (parseInt(ids[i][0], 10) === target) return i + 2;
+  }
+  return -1;
+}
+
+function rowToUserObject(sheet, row) {
+  const values = sheet.getRange(row, 1, 1, USERS_HEADER.length).getValues()[0];
+  const obj = {};
+  USERS_HEADER.forEach((name, i) => { obj[name] = values[i]; });
+  return obj;
+}
+
+// Generate the next numeric user_id. Uses LockService to avoid race
+// conditions when two signups happen at almost the same moment.
+function getNextUserId(sheet) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return 1;
+    const ids = sheet.getRange(2, UCOL.user_id, lastRow - 1, 1).getValues();
+    let max = 0;
+    ids.forEach(r => { const n = parseInt(r[0], 10); if (!isNaN(n) && n > max) max = n; });
+    return max + 1;
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 // ============================================================
 // MAIN ENTRY POINT - Ye function POST request receive karta hai
@@ -24,6 +126,18 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
+
+    // ── Cloud Auth actions require the shared secret ──────────────────────
+    const AUTH_ACTIONS = ['signup', 'login_lookup', 'get_user', 'get_user_by_id', 'list_users',
+                           'update_account', 'delete_user', 'update_last_login'];
+    if (AUTH_ACTIONS.indexOf(action) !== -1) {
+      if (!checkAuth(data)) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ success: false, message: "Unauthorized — invalid API secret" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      return handleAuthAction(action, data);
+    }
 
     if (action === "new_registration") {
       handleNewRegistration(data);
@@ -44,6 +158,135 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// ============================================================
+// CLOUD AUTH — routes signup/login/admin-management actions
+// ============================================================
+function handleAuthAction(action, data) {
+  const out = (obj) => ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+
+  const sheet = getUsersSheet();
+
+  if (action === 'signup') {
+    const existingRow = findUserRow(sheet, data.username);
+    if (existingRow !== -1) {
+      return out({ success: false, message: "Username already exists" });
+    }
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    let newId;
+    try {
+      newId = getNextUserId(sheet);
+      const now = new Date().toISOString();
+      const row = [];
+      row[UCOL.user_id - 1] = newId;
+      row[UCOL.username - 1] = data.username || '';
+      row[UCOL.password_hash - 1] = data.password_hash || '';
+      row[UCOL.full_name - 1] = data.full_name || '';
+      row[UCOL.email - 1] = data.email || '';
+      row[UCOL.whatsapp - 1] = data.whatsapp || '';
+      row[UCOL.city - 1] = data.city || '';
+      row[UCOL.store_type - 1] = data.store_type || '';
+      row[UCOL.subscription_plan - 1] = data.subscription_plan || 'free';
+      row[UCOL.plan_amount - 1] = data.plan_amount || 0;
+      row[UCOL.expiry_date - 1] = data.expiry_date || '';
+      row[UCOL.account_status - 1] = data.account_status || 'Inactive';
+      row[UCOL.device_limit - 1] = data.device_limit || 1;
+      row[UCOL.allowed_ips - 1] = data.allowed_ips || '';
+      row[UCOL.trial_bills_used - 1] = data.trial_bills_used || 0;
+      row[UCOL.payment_status - 1] = data.payment_status || 'pending';
+      row[UCOL.upi_used - 1] = data.upi_used || '';
+      row[UCOL.receipt_path - 1] = data.receipt_path || '';
+      row[UCOL.settings_password_hash - 1] = '';
+      row[UCOL.created_date - 1] = now;
+      row[UCOL.last_login - 1] = '';
+      sheet.appendRow(row);
+    } finally {
+      lock.releaseLock();
+    }
+    return out({ success: true, user_id: newId });
+  }
+
+  if (action === 'login_lookup' || action === 'get_user') {
+    const row = findUserRow(sheet, data.username);
+    if (row === -1) return out({ success: false, message: "User not found" });
+    const user = rowToUserObject(sheet, row);
+    return out({ success: true, user: user });
+  }
+
+  if (action === 'get_user_by_id') {
+    const row = findUserRowById(sheet, data.user_id);
+    if (row === -1) return out({ success: false, message: "User not found" });
+    const user = rowToUserObject(sheet, row);
+    return out({ success: true, user: user });
+  }
+
+  if (action === 'list_users') {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return out({ success: true, users: [] });
+    const values = sheet.getRange(2, 1, lastRow - 1, USERS_HEADER.length).getValues();
+    const users = values
+      .filter(r => r[UCOL.username - 1]) // skip fully blank rows
+      .map(r => {
+        const obj = {};
+        USERS_HEADER.forEach((name, i) => { obj[name] = r[i]; });
+        return obj;
+      });
+    return out({ success: true, users: users });
+  }
+
+  if (action === 'update_account') {
+    // Prefer looking up by numeric user_id when provided (stable identity —
+    // works even when the admin is renaming the username in this same call).
+    // Falls back to username lookup for callers that only know the username.
+    let row = -1;
+    if (data.user_id !== undefined && data.user_id !== null && data.user_id !== '') {
+      row = findUserRowById(sheet, data.user_id);
+    }
+    if (row === -1 && data.username) {
+      row = findUserRow(sheet, data.username);
+    }
+    if (row === -1) return out({ success: false, message: "User not found" });
+
+    // If renaming, make sure the new username isn't already taken by someone else
+    const fields = data.fields || {};
+    if (fields.username) {
+      const clash = findUserRow(sheet, fields.username);
+      if (clash !== -1 && clash !== row) {
+        return out({ success: false, message: "Username already taken" });
+      }
+    }
+    Object.keys(fields).forEach(key => {
+      if (UCOL[key]) {
+        sheet.getRange(row, UCOL[key]).setValue(fields[key]);
+      }
+    });
+    return out({ success: true });
+  }
+
+  if (action === 'update_last_login') {
+    const row = findUserRow(sheet, data.username);
+    if (row === -1) return out({ success: false, message: "User not found" });
+    sheet.getRange(row, UCOL.last_login).setValue(new Date().toISOString());
+    return out({ success: true });
+  }
+
+  if (action === 'delete_user') {
+    let row = -1;
+    if (data.user_id !== undefined && data.user_id !== null && data.user_id !== '') {
+      row = findUserRowById(sheet, data.user_id);
+    }
+    if (row === -1 && data.username) {
+      row = findUserRow(sheet, data.username);
+    }
+    if (row === -1) return out({ success: false, message: "User not found" });
+    sheet.deleteRow(row);
+    return out({ success: true });
+  }
+
+  return out({ success: false, message: "Unknown auth action: " + action });
 }
 
 // ============================================================
