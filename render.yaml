@@ -14,14 +14,29 @@ services:
         value: Admin@POS2024
       - key: RENDER_DATA_DIR
         value: /var/data
+      # ── REQUIRED — Cloud Auth (Google Sheets) ──────────────────────────
+      # Without these, login/signup/admin-user-management will fail.
+      # Fill in Render dashboard → Environment:
+      # - key: GAS_WEBHOOK_URL   (Apps Script Web App /exec URL)
+      # - key: GAS_API_SECRET    (must match Script Property API_SECRET
+      #                           in GoogleAppsScript.js — keeps the Sheet
+      #                           API private)
+      #
       # Optional — fill in Render dashboard:
       # - key: SMTP_HOST
       # - key: SMTP_PORT
       # - key: SMTP_USER
       # - key: SMTP_PASS
-      # - key: GAS_WEBHOOK_URL
       # - key: APP_URL
     disk:
       name: pos-data
       mountPath: /var/data
-      sizeGB: 1          # Persistent disk — subscriber data survives restarts/deploys
+      sizeGB: 1
+      # NOTE: As of the Cloud Auth migration, this disk no longer stores
+      # user accounts/login credentials — those live in the Google Sheet
+      # and survive every redeploy automatically. This disk now only holds:
+      #   • pos_saas.db — POS business data (products, bills, customers,
+      #     per-shop settings, device sessions)
+      #   • uploads/ — payment receipt screenshots
+      # If this disk is ever lost, no one is locked out of their account;
+      # only POS history/products/receipts would need to be restored.
