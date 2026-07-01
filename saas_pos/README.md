@@ -1,5 +1,83 @@
 # 🛒 Grocery POS SaaS — Setup & Google Sheet Integration Guide
 
+## 🔑 Cloud Auth Setup (REQUIRED — do this first)
+
+As of this update, **all login/signup/account data lives in a Google Sheet**,
+not in the Render database. This means user accounts survive every redeploy
+automatically — Render's disk is no longer a single point of failure for
+logins. The app **will not work** until this is set up.
+
+```
+User → FastAPI Backend (Render) → Google Apps Script Web API → Google Sheet (Users tab)
+```
+
+### Step A1 — Create the Auth Google Sheet
+
+1. Go to [sheets.google.com](https://sheets.google.com) → New Sheet
+2. Name it anything, e.g. `GroceryPOS Cloud Auth`
+3. You don't need to create the `Users` tab yourself — the script creates it
+   automatically on first run, with these columns:
+   `user_id, username, password_hash, full_name, email, whatsapp, city,
+   store_type, subscription_plan, plan_amount, expiry_date, account_status,
+   device_limit, allowed_ips, trial_bills_used, payment_status, upi_used,
+   receipt_path, settings_password_hash, created_date, last_login`
+
+### Step A2 — Add the Apps Script
+
+1. In your new Sheet: **Extensions → Apps Script**
+2. Delete any existing code
+3. Paste the entire contents of `saas_pos/GoogleAppsScript.js`
+4. Save (Ctrl+S), name the project e.g. `GroceryPOS Cloud Auth API`
+
+### Step A3 — Set the shared secret (important for security)
+
+This secret stops random people from hitting your public Web App URL and
+reading/writing user accounts.
+
+1. In the Apps Script editor → click the **⚙️ Project Settings** (gear icon)
+2. Scroll to **Script Properties** → **Add script property**
+3. Property: `API_SECRET`  →  Value: a long random string (e.g. generate one
+   at [randomkeygen.com](https://randomkeygen.com))
+4. Save — remember this value, you'll need it again in Step A5
+
+### Step A4 — Deploy as Web App
+
+1. Click **Deploy → New Deployment**
+2. Select type: **Web App**
+3. Set:
+   - **Execute as:** Me (your Google account)
+   - **Who has access:** Anyone
+4. Click **Deploy**
+5. **Copy the Web App URL** — looks like:
+   ```
+   https://script.google.com/macros/s/AKfycbXXXXXXXX/exec
+   ```
+
+> ⚠️ Whenever you edit `GoogleAppsScript.js` and want the changes live, you
+> must do **Deploy → Manage Deployments → ✏️ Edit → New version → Deploy**.
+> Saving the script alone does NOT update the live Web App URL.
+
+### Step A5 — Configure FastAPI (Render) to use it
+
+In Render dashboard → your backend service → **Environment**, add:
+
+```
+GAS_WEBHOOK_URL=https://script.google.com/macros/s/AKfycbXXXXXXXX/exec
+GAS_API_SECRET=<the same random string from Step A3>
+```
+
+Redeploy. Login/signup/admin will now work, backed entirely by the Sheet.
+
+### Verifying it works
+
+1. Open your app → **Try Demo / Free Trial** → sign up with any username.
+2. Open the Google Sheet → a `Users` tab should now exist with one row.
+3. Open the Admin Panel → that user should appear in the Users table.
+4. Restart/redeploy the Render service → the user should still be there
+   and still able to log in (this is the whole point of the migration).
+
+---
+
 ## 🚀 Quick Start
 
 ### Frontend (GitHub Pages)
@@ -14,7 +92,8 @@
 4. **Root Directory:** `saas_pos/backend`
 5. **Build Command:** `pip install -r requirements.txt`
 6. **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-7. Add **Persistent Disk** (CRITICAL for data survival):
+7. Add **Persistent Disk** (for POS data — products/bills/receipts only,
+   NOT required for login to survive redeploys anymore):
    - Render dashboard → your service → Disks
    - Mount Path: `/var/data`
    - Size: 1 GB (free tier)
@@ -25,16 +104,25 @@
    ADMIN_PASS=YourStrongPassword123
    RENDER_DATA_DIR=/var/data
    APP_URL=https://yourusername.github.io/repo-name/saas_pos/frontend/app.html
+   GAS_WEBHOOK_URL=https://script.google.com/macros/s/AKfycbXXXXXXXX/exec
+   GAS_API_SECRET=<same secret as the Apps Script Property>
    ```
 
-> ⚠️ **Without Persistent Disk**, SQLite data is lost on every Render restart/deploy.
-> With the disk, all subscriber data, bills, and products are preserved.
+> ⚠️ **POS data** (products, bills, customers, receipts) still benefits from
+> the Persistent Disk — without it, that data is lost on redeploy. **Login
+> accounts**, however, are now completely independent of this disk; they
+> live in the Google Sheet and always survive redeploys.
 
 ---
 
-## ☁️ Google Sheet Integration Setup
+## ☁️ Google Sheet Integration Setup (optional — per-shop product sync)
 
-Each shop owner gets their **own Google Sheet** connected to their POS app.
+This section is unrelated to the Cloud Auth setup above. Each shop owner can
+*optionally* connect their **own separate Google Sheet** for product import
+and sales export — this is a convenience feature, not required for the app
+to function.
+
+
 
 ### Step 1 — Create Google Sheet
 
@@ -156,11 +244,46 @@ CSV columns: `Name, Price, Category, Barcode, Tax%, Stock`
 | `SECRET_KEY` | JWT secret | random string |
 | `ADMIN_USER` | Admin login username | `admin` |
 | `ADMIN_PASS` | Admin login password | `Admin@POS2024` |
-| `RENDER_DATA_DIR` | Persistent disk path | `/var/data` |
+| `RENDER_DATA_DIR` | Persistent disk path (POS data + receipts only) | `/var/data` |
 | `APP_URL` | Frontend URL for emails | `https://...` |
 | `SMTP_HOST` | Email server | `smtp.gmail.com` |
 | `SMTP_PORT` | Email port | `587` |
 | `SMTP_USER` | Email address | `you@gmail.com` |
 | `SMTP_PASS` | App password | Gmail App Password |
-| `GAS_WEBHOOK_URL` | Admin-level GAS URL | `https://script.google.com/...` |
+| `GAS_WEBHOOK_URL` | **REQUIRED** — Cloud Auth Apps Script Web App URL | `https://script.google.com/.../exec` |
+| `GAS_API_SECRET` | **REQUIRED** — shared secret matching the Apps Script's `API_SECRET` property | random string |
+
+---
+
+## 🏗️ Backend Module Architecture
+
+```
+main.py              ← FastAPI routes (HTTP layer only)
+   │
+   ▼
+google_auth.py        ← Auth business logic: bcrypt hashing, login/signup/
+   │                     approve/block/extend rules, JSON contract shaping
+   ▼
+apps_script_api.py    ← Typed wrapper: one function per Sheet action
+   │                     (signup_user, lookup_user, update_account, ...)
+   ▼
+sheet_manager.py      ← Raw HTTP client: POSTs JSON to the Apps Script
+   │                     Web App, retries on network failure
+   ▼
+Google Apps Script (GoogleAppsScript.js) ← reads/writes the Users sheet
+```
+
+POS business data (products, bills, customers, per-shop settings, device
+sessions) is untouched by this migration and continues to use SQLite
+directly from `main.py`, keyed by the Sheet's stable numeric `user_id`.
+
+### Future migration to PostgreSQL
+
+Because `main.py` only ever calls into `google_auth.py` — never directly
+into `apps_script_api.py` or `sheet_manager.py` — moving off Google Sheets
+later only requires writing a new `db_api.py` with the same function
+signatures as `apps_script_api.py` (`signup_user`, `lookup_user`,
+`list_all_users`, `update_account`, `delete_user`, ...) and swapping the
+import at the top of `google_auth.py`. No changes would be needed in
+`main.py` or any frontend code.
 
