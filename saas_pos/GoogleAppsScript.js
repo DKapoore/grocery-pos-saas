@@ -1,13 +1,32 @@
 /**
- * GroceryPOS SaaS - Google Apps Script
- * 
- * SETUP INSTRUCTIONS:
- * 1. Google Sheets kholo → Extensions → Apps Script
- * 2. Ye poora code paste karo
- * 3. Deploy → New Deployment → Web App
- * 4. "Who has access" → Anyone
- * 5. Deploy karo aur URL copy karo
- * 6. Wo URL .env mein GAS_WEBHOOK_URL mein daalo
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║         GroceryPOS — Admin Auth Google Apps Script              ║
+ * ║         Version: 2.0  |  For: ADMIN ONLY (not for shop owners) ║
+ * ╠══════════════════════════════════════════════════════════════════╣
+ * ║                                                                  ║
+ * ║  ⚠️  YE FILE SIRF ADMIN KE LIYE HAI — SHOP OWNERS KO NAHI     ║
+ * ║      DENI HAI.                                                   ║
+ * ║                                                                  ║
+ * ║  Ye script ek GLOBAL Auth Google Sheet ke saath kaam karta hai  ║
+ * ║  jo poore SaaS ka login database hai:                           ║
+ * ║   • User signup / login credential check                        ║
+ * ║   • Account status (Active/Blocked/Inactive)                    ║
+ * ║   • Plan, expiry, device limit                                  ║
+ * ║   • Admin panel se user management                              ║
+ * ║                                                                  ║
+ * ║  Per-shop product sync ke liye alag file hai:                   ║
+ * ║  → GoogleAppsScript_PerShop.js  (shop owners ke liye)          ║
+ * ║                                                                  ║
+ * ╠══════════════════════════════════════════════════════════════════╣
+ * ║  SETUP (Admin ek baar kare):                                    ║
+ * ║  1. Ek naya Google Sheet banao: "GroceryPOS Cloud Auth"         ║
+ * ║  2. Extensions → Apps Script → ye code paste karo              ║
+ * ║  3. Script Properties mein API_SECRET set karo                  ║
+ * ║  4. Deploy → Web App → URL copy karo                            ║
+ * ║  5. Render env vars mein daalo:                                 ║
+ * ║       GAS_WEBHOOK_URL = <Web App URL>                           ║
+ * ║       GAS_API_SECRET  = <same secret as Script Property>        ║
+ * ╚══════════════════════════════════════════════════════════════════╝
  */
 
 // ============================================================
