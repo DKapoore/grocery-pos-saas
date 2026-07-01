@@ -482,7 +482,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div id="heroImageList"></div>
           <button class="btn-outline" style="width:100%;margin-top:10px;padding:10px;" onclick="addHeroImageField()">➕ Add Image URL</button>
           <div class="section-divider"><span>Save</span></div>
-          <button class="btn-accent" style="padding:12px 24px;" onclick="saveHeroImages()">💾 Save Carousel Images</button>
+          <button class="btn-accent" id="saveHeroImagesBtn" style="padding:12px 24px;" onclick="saveHeroImages()">💾 Save Carousel Images</button>
           <span id="heroImagesStatus" style="margin-left:12px;font-size:12px;color:var(--text2);"></span>
         </div>
       </div>
@@ -867,14 +867,21 @@ async function api(endpoint, options={}) {
 
 // ── LANDING PAGE HERO CAROUSEL ──────────────────────────────
 async function loadHeroImagesAdmin() {
+  const list = document.getElementById('heroImageList');
+  list.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0;">Loading...</div>';
   try {
     const res = await fetch(`${API}/api/hero-images`);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`Server returned ${res.status}: ${txt.slice(0,150)}`);
+    }
     const data = await res.json();
     const images = (data.images && data.images.length) ? data.images : [''];
-    const list = document.getElementById('heroImageList');
     list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i)).join('');
   } catch (e) {
-    document.getElementById('heroImageList').innerHTML = heroImageFieldHtml('', 0);
+    console.error('loadHeroImagesAdmin failed:', e);
+    list.innerHTML = heroImageFieldHtml('', 0);
+    toast('Could not load hero images: ' + e.message, 'error');
   }
 }
 
@@ -893,21 +900,48 @@ function heroImageFieldHtml(url, i) {
 function addHeroImageField() {
   const list = document.getElementById('heroImageList');
   list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length));
+  // Focus the newly added field so the admin can start typing immediately
+  const allInputs = list.querySelectorAll('.hero-img-input');
+  if (allInputs.length) allInputs[allInputs.length - 1].focus();
 }
 
 async function saveHeroImages() {
   const inputs = document.querySelectorAll('#heroImageList .hero-img-input');
   const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+
+  // Basic client-side validation — catch obviously broken URLs before
+  // sending, so the admin gets immediate, specific feedback.
+  const badUrls = images.filter(u => !/^https?:\/\/.+/i.test(u));
+  if (badUrls.length) {
+    toast(`Invalid URL (must start with http:// or https://): ${badUrls[0]}`, 'error');
+    return;
+  }
+
   const statusEl = document.getElementById('heroImagesStatus');
+  const saveBtn = document.getElementById('saveHeroImagesBtn');
   statusEl.textContent = 'Saving...';
+  if (saveBtn) saveBtn.disabled = true;
   try {
-    await api('/api/admin/hero-images', { method: 'PUT', body: JSON.stringify({ images }) });
+    if (!adminToken) throw new Error('Admin session expired — please login again');
+    const res = await fetch(`${API}/api/admin/hero-images`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ images })
+    });
+    let data;
+    try { data = await res.json(); }
+    catch { throw new Error(`Server returned non-JSON response (HTTP ${res.status}). Check Render logs / GAS_WEBHOOK_URL config.`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
     statusEl.textContent = `✅ Saved ${images.length} image(s)`;
     toast('Hero carousel images saved!', 'success');
     loadHeroImagesAdmin();
   } catch (e) {
+    console.error('saveHeroImages failed:', e);
     statusEl.textContent = '';
     toast('Save failed: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
@@ -1043,6 +1077,7 @@ function renderUsersTable(filtered = null) {
           <button class="btn-xs" onclick="openGasAssign(${u.id},'${u.username}','${u.gas_url||''}')" style="background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Assign Google Sheet">☁️</button>
           <button class="btn-xs" onclick="openDeviceModal(${u.id},'${u.username}',${u.max_devices||1},'${u.allowed_ips||''}')" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Device Limit & Sessions">📱</button>
           <button class="btn-xs" onclick="openSettingsPwdModal(${u.id})" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Settings Tab Lock Password">🔒</button>
+          <button class="btn-xs" onclick="confirmDeleteUser(${u.id},'${u.username}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Delete User">🗑️</button>
           ${!u.is_blocked
             ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
             : `<button class="btn-accent btn-xs" onclick="blockUser(${u.id},false)" title="Unblock">✅</button>`}
@@ -1494,6 +1529,20 @@ function closeDeviceModal() {
 
 // ── SETTINGS TAB LOCK PASSWORD ───────────────────────────────────────────────
 let _settingsPwdUserId = null;
+
+// ── DELETE USER ──────────────────────────────────────────────────────────
+async function confirmDeleteUser(userId, username) {
+  if (!confirm(`⚠️ Permanently delete user "${username}"?\n\nYe action wapas nahi ho sakta — account/login record Google Sheet se hamesha ke liye delete ho jayega. POS billing data (products/bills) safe rahega.`)) {
+    return;
+  }
+  try {
+    await api('/api/admin/delete-user', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    toast(`User "${username}" deleted`, 'success');
+    loadAll();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
 
 function openSettingsPwdModal(userId) {
   _settingsPwdUserId = userId;
