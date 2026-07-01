@@ -144,6 +144,8 @@ def init_db():
         customer_name TEXT,
         customer_mobile TEXT,
         payment_mode TEXT DEFAULT 'Cash',
+        table_no TEXT DEFAULT '',
+        waiter TEXT DEFAULT '',
         subtotal REAL DEFAULT 0,
         tax_total REAL DEFAULT 0,
         discount REAL DEFAULT 0,
@@ -186,8 +188,13 @@ def init_db():
         mobile TEXT DEFAULT '',
         upi_id TEXT DEFAULT '',
         gst_number TEXT DEFAULT '',
+        fssai_no TEXT DEFAULT '',
+        extra_header_lines TEXT DEFAULT '',
         footer TEXT DEFAULT 'Thank you for shopping!',
         tax_percent REAL DEFAULT 0,
+        cgst_percent REAL DEFAULT 0,
+        sgst_percent REAL DEFAULT 0,
+        bill_format TEXT DEFAULT 'standard',
         gas_url TEXT DEFAULT '',
         sheet_id TEXT DEFAULT '',
         enable_amount_words INTEGER DEFAULT 0
@@ -216,9 +223,16 @@ def migrate_db():
         "ALTER TABLE user_settings ADD COLUMN gas_url TEXT DEFAULT ''",
         "ALTER TABLE user_settings ADD COLUMN sheet_id TEXT DEFAULT ''",
         "ALTER TABLE user_settings ADD COLUMN enable_amount_words INTEGER DEFAULT 0",
+        "ALTER TABLE user_settings ADD COLUMN fssai_no TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN extra_header_lines TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN cgst_percent REAL DEFAULT 0",
+        "ALTER TABLE user_settings ADD COLUMN sgst_percent REAL DEFAULT 0",
+        "ALTER TABLE user_settings ADD COLUMN bill_format TEXT DEFAULT 'standard'",
         "ALTER TABLE bills ADD COLUMN additional_charge REAL DEFAULT 0",
         "ALTER TABLE bills ADD COLUMN additional_charge_type TEXT DEFAULT 'flat'",
         "ALTER TABLE bills ADD COLUMN additional_charge_label TEXT DEFAULT ''",
+        "ALTER TABLE bills ADD COLUMN table_no TEXT DEFAULT ''",
+        "ALTER TABLE bills ADD COLUMN waiter TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
@@ -370,6 +384,8 @@ class BillCreate(BaseModel):
     customer_name: Optional[str] = ""
     customer_mobile: Optional[str] = ""
     payment_mode: Optional[str] = "Cash"
+    table_no: Optional[str] = ""
+    waiter: Optional[str] = ""
     subtotal: float
     tax_total: float
     discount: Optional[float] = 0
@@ -392,8 +408,13 @@ class SettingsUpdate(BaseModel):
     mobile: Optional[str] = ""
     upi_id: Optional[str] = ""
     gst_number: Optional[str] = ""
+    fssai_no: Optional[str] = ""
+    extra_header_lines: Optional[str] = ""
     footer: Optional[str] = "Thank you!"
     tax_percent: Optional[float] = 0
+    cgst_percent: Optional[float] = 0
+    sgst_percent: Optional[float] = 0
+    bill_format: Optional[str] = "standard"
     enable_amount_words: Optional[int] = 0
 
 class AdminApprove(BaseModel):
@@ -720,12 +741,15 @@ async def save_bill(bill: BillCreate, current_user: dict = Depends(get_current_u
     conn = get_db()
     conn.execute("""INSERT INTO bills 
         (user_id, bill_number, cart_json, customer_name, customer_mobile, payment_mode,
+         table_no, waiter,
          subtotal, tax_total, discount, discount_type,
          additional_charge, additional_charge_type, additional_charge_label,
          final_amount, notes, status, loyalty_points_used, completed_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (current_user["id"], bill.bill_number, bill.cart_json, bill.customer_name,
-         bill.customer_mobile, bill.payment_mode, bill.subtotal, bill.tax_total,
+         bill.customer_mobile, bill.payment_mode,
+         bill.table_no or '', bill.waiter or '',
+         bill.subtotal, bill.tax_total,
          bill.discount, bill.discount_type,
          bill.additional_charge, bill.additional_charge_type, bill.additional_charge_label,
          bill.final_amount, bill.notes, "completed",
@@ -866,10 +890,12 @@ async def get_settings(current_user: dict = Depends(get_current_user)):
 async def update_settings(s: SettingsUpdate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
     conn.execute("""INSERT OR REPLACE INTO user_settings 
-        (user_id, shop_name, address, mobile, upi_id, gst_number, footer, tax_percent, enable_amount_words)
-        VALUES (?,?,?,?,?,?,?,?,?)""",
-        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number, s.footer,
-         s.tax_percent, s.enable_amount_words))
+        (user_id, shop_name, address, mobile, upi_id, gst_number, fssai_no, extra_header_lines,
+         footer, tax_percent, cgst_percent, sgst_percent, bill_format, enable_amount_words)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number,
+         s.fssai_no, s.extra_header_lines, s.footer, s.tax_percent,
+         s.cgst_percent, s.sgst_percent, s.bill_format, s.enable_amount_words))
     conn.commit()
     conn.close()
     return {"success": True}
