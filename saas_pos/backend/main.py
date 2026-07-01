@@ -16,15 +16,27 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import urllib.request, urllib.parse
 
+# ── Cloud Auth (Google Sheets) — replaces SQLite for all login/account data ──
+# See google_auth.py / apps_script_api.py / sheet_manager.py for the 3-layer
+# implementation. main.py only ever calls into google_auth.py.
+import google_auth
+from sheet_manager import SheetManagerError
+
 # ======================== CONFIG ========================
 SECRET_KEY = os.getenv("SECRET_KEY", "pos_saas_secret_2024_change_in_prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 
 # ── Render Persistent Disk ──────────────────────────────────────────────────
-# Render free/paid services lose ephemeral filesystem on restart.
-# Mount a Persistent Disk at /var/data in Render dashboard → it survives deploys.
-# Local dev falls back to current directory automatically.
+# IMPORTANT: As of this update, user LOGIN/ACCOUNT data (username, password,
+# plan, expiry, status, device limit) no longer lives here — it lives in the
+# Google Sheet (see google_auth.py). This disk is now used ONLY for:
+#   1) pos_saas.db — POS business data (products, bills, customers, settings)
+#      which is per-shop operational data, not account/auth data.
+#   2) uploads/ — payment receipt screenshots.
+# If this disk were ever lost, user ACCOUNTS would be completely unaffected
+# (they live in Google Sheets); only POS billing history/products would need
+# to be re-entered, and receipt images would need to be re-uploaded.
 _DATA_DIR = os.getenv("RENDER_DATA_DIR", "/var/data")
 if not os.path.isdir(_DATA_DIR):
     _DATA_DIR = os.path.dirname(os.path.abspath(__file__))  # local fallback
@@ -44,8 +56,13 @@ SMTP_PASS = os.getenv("SMTP_PASS", "")
 # WhatsApp (using wa.me link - for actual API use Twilio/Wati)
 WA_API_URL = os.getenv("WA_API_URL", "")
 
-# Google Apps Script webhook for Sheets
+# Google Apps Script webhook for Sheets — now doubles as the AUTH database endpoint.
+# GAS_API_SECRET must match the API_SECRET Script Property set in GoogleAppsScript.js,
+# otherwise the Apps Script Web App will reject all auth read/write calls.
 GAS_WEBHOOK_URL = os.getenv("GAS_WEBHOOK_URL", "")
+GAS_API_SECRET = os.getenv("GAS_API_SECRET", "")
+if not GAS_WEBHOOK_URL:
+    print("[WARN] GAS_WEBHOOK_URL not set — login/signup will fail until configured.")
 
 # ======================== APP INIT ========================
 app = FastAPI(title="Grocery POS SaaS API", version="1.0.0")
@@ -69,36 +86,22 @@ def get_db():
 def init_db():
     conn = get_db()
     c = conn.cursor()
-    
-    # Users / Subscriptions
-    c.execute("""CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT,
-        full_name TEXT,
-        email TEXT,
-        whatsapp TEXT,
-        city TEXT,
-        store_type TEXT,
-        plan TEXT DEFAULT 'free',
-        plan_amount INTEGER DEFAULT 0,
-        upi_used TEXT,
-        receipt_path TEXT,
-        payment_status TEXT DEFAULT 'pending',
-        is_active INTEGER DEFAULT 0,
-        is_blocked INTEGER DEFAULT 0,
-        trial_bills_used INTEGER DEFAULT 0,
-        subscription_start TEXT,
-        subscription_expiry TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        approved_at TEXT,
-        gas_url TEXT DEFAULT '',
-        sheet_id TEXT DEFAULT '',
-        max_devices INTEGER DEFAULT 1,
-        allowed_ips TEXT DEFAULT ''
-    )""")
-    
-    # User Sessions — device tracking
+
+    # ── NOTE ──────────────────────────────────────────────────────────────
+    # There is intentionally NO "users" table here anymore. All account /
+    # login data (username, password_hash, plan, expiry, status, device
+    # limit) now lives in the Google Sheet — see google_auth.py.
+    #
+    # The tables below still have a `user_id INTEGER` column. This is the
+    # SAME numeric user_id that's stored in the Google Sheet's `user_id`
+    # column (assigned at signup time by GoogleAppsScript.js). SQLite no
+    # longer owns or generates this ID — it's just referencing an identity
+    # that lives in the Sheet. This keeps all POS business data (products,
+    # bills, customers, settings) working exactly as before, while account
+    # data itself is fully decoupled from the local database / Render disk.
+
+    # User Sessions — device tracking (kept local; high write volume, not
+    # "credentials", and not required to be in the Sheet by the architecture spec)
     c.execute("""CREATE TABLE IF NOT EXISTS user_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -109,8 +112,7 @@ def init_db():
         user_agent TEXT DEFAULT '',
         last_seen TEXT DEFAULT (datetime('now')),
         created_at TEXT DEFAULT (datetime('now')),
-        is_active INTEGER DEFAULT 1,
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        is_active INTEGER DEFAULT 1
     )""")
 
     # Admin sessions
@@ -120,7 +122,7 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now'))
     )""")
     
-    # Products (per user)
+    # Products (per user) — user_id references the Sheet's user_id, not a local table
     c.execute("""CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -130,11 +132,10 @@ def init_db():
         category TEXT DEFAULT 'General',
         tax_percent REAL DEFAULT 0,
         stock INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        created_at TEXT DEFAULT (datetime('now'))
     )""")
     
-    # Bills (per user)
+    # Bills (per user) — user_id references the Sheet's user_id, not a local table
     c.execute("""CREATE TABLE IF NOT EXISTS bills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -147,16 +148,18 @@ def init_db():
         tax_total REAL DEFAULT 0,
         discount REAL DEFAULT 0,
         discount_type TEXT DEFAULT 'flat',
+        additional_charge REAL DEFAULT 0,
+        additional_charge_type TEXT DEFAULT 'flat',
+        additional_charge_label TEXT DEFAULT '',
         final_amount REAL DEFAULT 0,
         notes TEXT,
         status TEXT DEFAULT 'active',
         loyalty_points_used INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now')),
-        completed_at TEXT,
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        completed_at TEXT
     )""")
     
-    # Customers (per user)
+    # Customers (per user) — user_id references the Sheet's user_id, not a local table
     c.execute("""CREATE TABLE IF NOT EXISTS customers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -168,11 +171,13 @@ def init_db():
         total_spend REAL DEFAULT 0,
         visit_count INTEGER DEFAULT 0,
         last_visit TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        created_at TEXT DEFAULT (datetime('now'))
     )""")
 
-    # User Settings (per user)
+    # User Settings (per user) — user_id references the Sheet's user_id, not a local table.
+    # NOTE: settings_password_hash column kept here for backward compatibility but is no
+    # longer the source of truth — it now mirrors the Sheet's settings_password_hash column
+    # (see /api/settings endpoints below, which read/write through google_auth).
     c.execute("""CREATE TABLE IF NOT EXISTS user_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER UNIQUE NOT NULL,
@@ -183,8 +188,9 @@ def init_db():
         gst_number TEXT DEFAULT '',
         footer TEXT DEFAULT 'Thank you for shopping!',
         tax_percent REAL DEFAULT 0,
-        settings_password_hash TEXT DEFAULT '',
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        gas_url TEXT DEFAULT '',
+        sheet_id TEXT DEFAULT '',
+        enable_amount_words INTEGER DEFAULT 0
     )""")
 
     # App-wide config (admin managed) — e.g. landing page hero carousel images
@@ -203,11 +209,16 @@ def migrate_db():
     conn = get_db()
     c = conn.cursor()
     migrations = [
-        "ALTER TABLE users ADD COLUMN gas_url TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN sheet_id TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1",
-        "ALTER TABLE users ADD COLUMN allowed_ips TEXT DEFAULT ''",
-        "ALTER TABLE user_settings ADD COLUMN settings_password_hash TEXT DEFAULT ''",
+        # Older deployments may still have a legacy `users` table from before
+        # this migration — it's no longer read or written by any route, but
+        # we leave it in place (not dropped) so no historical data is lost.
+        # New deployments simply never create it (see init_db above).
+        "ALTER TABLE user_settings ADD COLUMN gas_url TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN sheet_id TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN enable_amount_words INTEGER DEFAULT 0",
+        "ALTER TABLE bills ADD COLUMN additional_charge REAL DEFAULT 0",
+        "ALTER TABLE bills ADD COLUMN additional_charge_type TEXT DEFAULT 'flat'",
+        "ALTER TABLE bills ADD COLUMN additional_charge_label TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
@@ -232,41 +243,50 @@ def decode_token(token: str):
     except:
         return None
 
-def hash_password(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
-
-def generate_password() -> str:
-    return secrets.token_urlsafe(8)
+# NOTE: hash_password / generate_password used to live here using unsalted
+# SHA-256. Both now live in google_auth.py using bcrypt (proper salted
+# password hashing). Local aliases kept so any remaining call sites in this
+# file keep working without changes.
+hash_password = google_auth.hash_password
+generate_password = google_auth.generate_password
 
 # ======================== AUTH DEPENDENCY ========================
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Resolves the JWT to a user. The token stores `username` (not a local
+    DB id) — the actual account record (plan, expiry, status, device_limit)
+    is fetched fresh from the Google Sheet on every request via google_auth.
+    This means admin changes (block/extend/approve) take effect immediately,
+    without needing the user to get a new token."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     payload = decode_token(credentials.credentials)
-    if not payload:
+    if not payload or not payload.get("username"):
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (payload.get("user_id"),)).fetchone()
+    try:
+        user = google_auth.get_user(payload["username"])
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
 
     if not user:
-        conn.close()
         raise HTTPException(status_code=401, detail="User not found")
     if user["is_blocked"]:
-        conn.close()
         raise HTTPException(status_code=403, detail="Account blocked")
-    if not user["is_active"] and user["plan"] != "free":
-        conn.close()
+    if not user["is_active"] and user["subscription_plan"] != "free":
         raise HTTPException(status_code=403, detail="Account not active")
 
     # Check subscription expiry
-    if user["subscription_expiry"] and user["plan"] != "free":
-        expiry = datetime.fromisoformat(user["subscription_expiry"])
-        if datetime.utcnow() > expiry:
-            conn.close()
-            raise HTTPException(status_code=403, detail="Subscription expired")
+    if user["expiry_date"] and user["subscription_plan"] != "free":
+        try:
+            expiry = datetime.fromisoformat(user["expiry_date"])
+            if datetime.utcnow() > expiry:
+                raise HTTPException(status_code=403, detail="Subscription expired")
+        except ValueError:
+            pass
 
-    # Session validity check — if admin force-logged-out this token
+    # Session validity check — if admin force-logged-out this token.
+    # Sessions remain in SQLite (device/session tracking, not credentials).
+    conn = get_db()
     token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
     session = conn.execute(
         "SELECT id FROM user_sessions WHERE token_hash=? AND is_active=1",
@@ -274,19 +294,42 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     ).fetchone()
 
     has_any_session = conn.execute(
-        "SELECT COUNT(*) as c FROM user_sessions WHERE user_id=?", (user["id"],)
+        "SELECT COUNT(*) as c FROM user_sessions WHERE user_id=?", (user["user_id"],)
     ).fetchone()["c"]
 
-    if user["plan"] != "free" and has_any_session > 0 and not session:
+    if user["subscription_plan"] != "free" and has_any_session > 0 and not session:
         conn.close()
         raise HTTPException(status_code=401, detail="Session expired or logged out remotely. Please login again.")
 
     if session:
         conn.execute("UPDATE user_sessions SET last_seen=datetime(\'now\') WHERE id=?", (session["id"],))
         conn.commit()
-
     conn.close()
-    return dict(user)
+
+    # Shape a dict that's compatible with the rest of this file, which was
+    # written expecting SQLite's `users` row shape (current_user["id"],
+    # current_user["plan"], etc). We map Sheet field names to the old names
+    # here so downstream endpoints below don't all need rewriting.
+    return {
+        "id": user["user_id"],
+        "username": user["username"],
+        "full_name": user["full_name"],
+        "email": user["email"],
+        "whatsapp": user["whatsapp"],
+        "city": user["city"],
+        "store_type": user["store_type"],
+        "plan": user["subscription_plan"],
+        "plan_amount": user["plan_amount"],
+        "upi_used": user["upi_used"],
+        "receipt_path": user["receipt_path"],
+        "payment_status": user["payment_status"],
+        "is_active": 1 if user["is_active"] else 0,
+        "is_blocked": 1 if user["is_blocked"] else 0,
+        "trial_bills_used": user["trial_bills_used"],
+        "subscription_expiry": user["expiry_date"],
+        "max_devices": user["device_limit"],
+        "allowed_ips": user["allowed_ips"],
+    }
 
 def get_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
@@ -331,6 +374,9 @@ class BillCreate(BaseModel):
     tax_total: float
     discount: Optional[float] = 0
     discount_type: Optional[str] = "flat"
+    additional_charge: Optional[float] = 0
+    additional_charge_type: Optional[str] = "flat"
+    additional_charge_label: Optional[str] = ""
     final_amount: float
     notes: Optional[str] = ""
     loyalty_points_used: Optional[int] = 0
@@ -348,6 +394,7 @@ class SettingsUpdate(BaseModel):
     gst_number: Optional[str] = ""
     footer: Optional[str] = "Thank you!"
     tax_percent: Optional[float] = 0
+    enable_amount_words: Optional[int] = 0
 
 class AdminApprove(BaseModel):
     user_id: int
@@ -360,6 +407,9 @@ class AdminApprove(BaseModel):
 class AdminBlock(BaseModel):
     user_id: int
     block: bool
+
+class AdminDeleteUser(BaseModel):
+    user_id: int
 
 class ExtendSubscription(BaseModel):
     user_id: int
@@ -446,32 +496,38 @@ async def register(
     plan: str = Form(...),
     receipt: UploadFile = File(...)
 ):
-    conn = get_db()
-    existing = conn.execute("SELECT id FROM users WHERE username=? OR email=?", (username, email)).fetchone()
+    existing = google_auth.get_user(username)
     if existing:
-        conn.close()
         raise HTTPException(status_code=400, detail="Username or email already exists")
-    
-    # Save receipt
+
+    # Save receipt — this is a file, not credential data, so it's fine to keep
+    # on the Render disk (referenced by path from the Sheet's receipt_path column).
     ext = receipt.filename.split(".")[-1] if "." in receipt.filename else "jpg"
     receipt_path = f"{UPLOAD_DIR}/receipt_{username}_{int(datetime.utcnow().timestamp())}.{ext}"
     with open(receipt_path, "wb") as f:
         shutil.copyfileobj(receipt.file, f)
-    
+
     plan_amount = 299 if plan == "monthly" else 3200
-    
-    conn.execute("""INSERT INTO users 
-        (username, full_name, email, whatsapp, city, store_type, upi_used, receipt_path, plan, plan_amount, payment_status, is_active)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,0)""",
-        (username, full_name, email, whatsapp, city, store_type, upi_used, receipt_path, plan, plan_amount, "pending"))
-    user_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    
-    # Default settings
-    conn.execute("INSERT OR IGNORE INTO user_settings (user_id, shop_name) VALUES (?,?)", (user_id, full_name + "'s Shop"))
+
+    res = google_auth.signup(
+        username=username, password=None, full_name=full_name, email=email,
+        whatsapp=whatsapp, city=city, store_type=store_type,
+        subscription_plan=plan, plan_amount=plan_amount,
+        upi_used=upi_used, receipt_path=receipt_path,
+        account_status="Inactive", payment_status="pending",
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "Registration failed"))
+
+    # Default settings — still local (per-shop billing config, not account data)
+    conn = get_db()
+    conn.execute("INSERT OR IGNORE INTO user_settings (user_id, shop_name) VALUES (?,?)",
+                 (res["user_id"], full_name + "'s Shop"))
     conn.commit()
     conn.close()
-    
-    # Push to Google Sheets
+
+    # Push to Google Sheets (legacy "Registrations" log tab — kept for the
+    # existing admin notification workflow / WhatsApp+Email approval flow)
     push_to_google_sheets({
         "action": "new_registration",
         "username": username, "full_name": full_name,
@@ -479,60 +535,47 @@ async def register(
         "plan_amount": plan_amount, "city": city, "store_type": store_type,
         "upi_used": upi_used, "timestamp": datetime.utcnow().isoformat()
     })
-    
+
     return {"success": True, "message": "Registration submitted. Admin will verify and send login credentials within 24 hours."}
 
 @app.post("/api/auth/login")
 async def login(req: LoginRequest, request: Request):
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE username=?", (req.username,)).fetchone()
+    auth_res = google_auth.authenticate(req.username, req.password)
+    if not auth_res.get("success"):
+        msg = auth_res.get("message", "Invalid credentials")
+        status_code = 403 if "blocked" in msg.lower() or "expired" in msg.lower() or "not activated" in msg.lower() else 401
+        raise HTTPException(status_code=status_code, detail=msg)
 
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not user["is_active"]:
-        conn.close()
-        raise HTTPException(status_code=403, detail="Account not activated yet. Please wait for admin approval.")
-
-    if user["plan"] == "free" and not user["password_hash"]:
-        pass
-    elif not user["password_hash"] or hash_password(req.password) != user["password_hash"]:
-        conn.close()
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if user["is_blocked"]:
-        conn.close()
-        raise HTTPException(status_code=403, detail="Account blocked. Contact support.")
+    user = auth_res["user"]  # normalized dict from google_auth — see _normalize_user
 
     # ── IP Whitelist Check ──────────────────────────────────────────────────
     client_ip = request.headers.get("X-Forwarded-For", request.client.host or "").split(",")[0].strip()
-    allowed_ips_raw = user["allowed_ips"] if "allowed_ips" in user.keys() else ""
-    if allowed_ips_raw and allowed_ips_raw.strip():
+    allowed_ips_raw = user["allowed_ips"] or ""
+    if allowed_ips_raw.strip():
         allowed_list = [ip.strip() for ip in allowed_ips_raw.split(",") if ip.strip()]
         if allowed_list and client_ip not in allowed_list:
-            conn.close()
             raise HTTPException(status_code=403, detail=f"Access denied from IP {client_ip}. Contact admin.")
 
     # ── Device Session Limit Check ──────────────────────────────────────────
-    max_devices = user["max_devices"] if "max_devices" in user.keys() else 1
+    conn = get_db()
+    max_devices = user["device_limit"] or 1
     device_id = (req.device_id or "").strip()
     device_label = (req.device_label or "unknown device").strip()
     user_agent = request.headers.get("User-Agent", "")[:200]
 
-    if device_id and user["plan"] != "free":
+    if device_id and user["subscription_plan"] != "free":
         # Count distinct active devices (excluding this device_id if already registered)
         active_sessions = conn.execute(
             """SELECT DISTINCT device_id FROM user_sessions
                WHERE user_id=? AND is_active=1 AND device_id != ?""",
-            (user["id"], device_id)
+            (user["user_id"], device_id)
         ).fetchall()
         active_device_count = len(active_sessions)
 
         # Check if this device already has a session
         existing = conn.execute(
             "SELECT id FROM user_sessions WHERE user_id=? AND device_id=? AND is_active=1",
-            (user["id"], device_id)
+            (user["user_id"], device_id)
         ).fetchone()
 
         if not existing and active_device_count >= max_devices:
@@ -544,21 +587,23 @@ async def login(req: LoginRequest, request: Request):
             )
 
     # ── Create Token ────────────────────────────────────────────────────────
-    token = create_token({"user_id": user["id"], "username": user["username"]})
+    # Token now stores `username` (the Sheet's stable identity) instead of a
+    # local SQLite row id — see get_current_user() above.
+    token = create_token({"username": user["username"]})
     token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-    if device_id and user["plan"] != "free":
+    if device_id and user["subscription_plan"] != "free":
         # Deactivate old sessions for this device (re-login on same device)
         conn.execute(
             "UPDATE user_sessions SET is_active=0 WHERE user_id=? AND device_id=?",
-            (user["id"], device_id)
+            (user["user_id"], device_id)
         )
         # Register new session
         conn.execute(
             """INSERT INTO user_sessions
                (user_id, token_hash, device_id, device_label, ip_address, user_agent, last_seen, created_at, is_active)
                VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'),1)""",
-            (user["id"], token_hash, device_id, device_label, client_ip, user_agent)
+            (user["user_id"], token_hash, device_id, device_label, client_ip, user_agent)
         )
         conn.commit()
 
@@ -567,45 +612,46 @@ async def login(req: LoginRequest, request: Request):
     return {
         "token": token,
         "user": {
-            "id": user["id"],
+            "id": user["user_id"],
             "username": user["username"],
             "full_name": user["full_name"],
-            "plan": user["plan"],
+            "plan": user["subscription_plan"],
             "is_active": user["is_active"],
             "trial_bills_used": user["trial_bills_used"],
-            "subscription_expiry": user["subscription_expiry"],
+            "subscription_expiry": user["expiry_date"],
             "payment_status": user["payment_status"],
-            "gas_url": user["gas_url"] if "gas_url" in user.keys() else "",
-            "sheet_id": user["sheet_id"] if "sheet_id" in user.keys() else "",
             "max_devices": max_devices,
         }
     }
 
 @app.post("/api/auth/free-trial")
 async def free_trial(req: LoginRequest):
-    """Create or login free trial account"""
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE username=?", (req.username,)).fetchone()
-    
+    """Create or login free trial account — backed by the Google Sheet."""
+    user = google_auth.get_user(req.username)
+
     if not user:
-        # Create free trial account
-        conn.execute("""INSERT INTO users (username, full_name, plan, is_active, trial_bills_used) 
-                       VALUES (?,?,?,?,?)""", (req.username, req.username, 'free', 1, 0))
-        user_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        conn.execute("INSERT OR IGNORE INTO user_settings (user_id, shop_name) VALUES (?,?)", (user_id, req.username + "'s Shop"))
+        # Create free trial account directly with Active status (no approval needed)
+        res = google_auth.signup(
+            username=req.username, password=None, full_name=req.username,
+            subscription_plan="free", account_status="Active", payment_status="free",
+        )
+        if not res.get("success"):
+            raise HTTPException(status_code=400, detail=res.get("message", "Could not start free trial"))
+        conn = get_db()
+        conn.execute("INSERT OR IGNORE INTO user_settings (user_id, shop_name) VALUES (?,?)",
+                     (res["user_id"], req.username + "'s Shop"))
         conn.commit()
-        user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-    
-    conn.close()
-    
-    token = create_token({"user_id": user["id"], "username": user["username"]})
+        conn.close()
+        user = google_auth.get_user(req.username)
+
+    token = create_token({"username": user["username"]})
     return {
         "token": token,
         "user": {
-            "id": user["id"],
+            "id": user["user_id"],
             "username": user["username"],
             "full_name": user["full_name"] or user["username"],
-            "plan": user["plan"],
+            "plan": user["subscription_plan"],
             "is_active": user["is_active"],
             "trial_bills_used": user["trial_bills_used"],
             "subscription_expiry": None,
@@ -624,8 +670,6 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "trial_bills_used": current_user["trial_bills_used"],
         "subscription_expiry": current_user["subscription_expiry"],
         "payment_status": current_user["payment_status"],
-        "gas_url": current_user["gas_url"] if "gas_url" in current_user.keys() else "",
-        "sheet_id": current_user["sheet_id"] if "sheet_id" in current_user.keys() else ""
     }
 
 # ======================== PRODUCTS ========================
@@ -676,16 +720,23 @@ async def save_bill(bill: BillCreate, current_user: dict = Depends(get_current_u
     conn = get_db()
     conn.execute("""INSERT INTO bills 
         (user_id, bill_number, cart_json, customer_name, customer_mobile, payment_mode,
-         subtotal, tax_total, discount, discount_type, final_amount, notes, status, loyalty_points_used, completed_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+         subtotal, tax_total, discount, discount_type,
+         additional_charge, additional_charge_type, additional_charge_label,
+         final_amount, notes, status, loyalty_points_used, completed_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (current_user["id"], bill.bill_number, bill.cart_json, bill.customer_name,
          bill.customer_mobile, bill.payment_mode, bill.subtotal, bill.tax_total,
-         bill.discount, bill.discount_type, bill.final_amount, bill.notes, "completed",
+         bill.discount, bill.discount_type,
+         bill.additional_charge, bill.additional_charge_type, bill.additional_charge_label,
+         bill.final_amount, bill.notes, "completed",
          bill.loyalty_points_used, datetime.utcnow().isoformat()))
     
-    # Increment trial counter
+    # Increment trial counter — this lives in the Sheet now, not SQLite
     if current_user["plan"] == "free":
-        conn.execute("UPDATE users SET trial_bills_used=trial_bills_used+1 WHERE id=?", (current_user["id"],))
+        try:
+            google_auth.set_trial_bills_used(current_user["username"], current_user["trial_bills_used"] + 1)
+        except SheetManagerError:
+            pass  # don't fail bill creation if the Sheet write hiccups
     
     # Update customer loyalty points
     if bill.customer_mobile:
@@ -802,49 +853,50 @@ async def get_settings(current_user: dict = Depends(get_current_user)):
         row = conn.execute("SELECT * FROM user_settings WHERE user_id=?", (current_user["id"],)).fetchone()
     conn.close()
     data = dict(row)
-    # Never expose the hash itself — only whether a lock is set
-    data["settings_locked"] = bool(data.get("settings_password_hash"))
-    data.pop("settings_password_hash", None)
+    # Settings-tab lock status now lives on the Sheet (account-management data),
+    # not in this local table.
+    try:
+        sheet_user = google_auth.get_user(current_user["username"])
+        data["settings_locked"] = bool(sheet_user and sheet_user.get("settings_password_hash"))
+    except SheetManagerError:
+        data["settings_locked"] = False
     return data
 
 @app.put("/api/settings")
 async def update_settings(s: SettingsUpdate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
-    # Preserve existing settings_password_hash — this column is admin-managed only,
-    # never touched by the regular shop-settings save.
-    existing = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
-                             (current_user["id"],)).fetchone()
-    pw_hash = existing["settings_password_hash"] if existing else ""
     conn.execute("""INSERT OR REPLACE INTO user_settings 
-        (user_id, shop_name, address, mobile, upi_id, gst_number, footer, tax_percent, settings_password_hash)
+        (user_id, shop_name, address, mobile, upi_id, gst_number, footer, tax_percent, enable_amount_words)
         VALUES (?,?,?,?,?,?,?,?,?)""",
-        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number, s.footer, s.tax_percent, pw_hash))
+        (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number, s.footer,
+         s.tax_percent, s.enable_amount_words))
     conn.commit()
     conn.close()
     return {"success": True}
 
 @app.post("/api/settings/verify-password")
 async def verify_settings_password(req: SettingsPasswordVerify, current_user: dict = Depends(get_current_user)):
-    """Unlock the settings tab — checks the per-user settings lock password (set only by admin)."""
-    conn = get_db()
-    row = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
-                        (current_user["id"],)).fetchone()
-    conn.close()
-    stored_hash = row["settings_password_hash"] if row else ""
+    """Unlock the settings tab — checks the per-user settings lock password
+    (set only by admin), stored as settings_password_hash on the Sheet."""
+    try:
+        sheet_user = google_auth.get_user(current_user["username"])
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    stored_hash = (sheet_user or {}).get("settings_password_hash", "")
     if not stored_hash:
         # No lock set — settings are open to anyone logged into this account
         return {"success": True, "locked": False}
-    if hash_password(req.password) != stored_hash:
+    if not google_auth.verify_password(req.password, stored_hash):
         raise HTTPException(status_code=401, detail="Galat password")
     return {"success": True, "locked": True}
 
 @app.get("/api/settings/lock-status")
 async def settings_lock_status(current_user: dict = Depends(get_current_user)):
-    conn = get_db()
-    row = conn.execute("SELECT settings_password_hash FROM user_settings WHERE user_id=?",
-                        (current_user["id"],)).fetchone()
-    conn.close()
-    return {"locked": bool(row and row["settings_password_hash"])}
+    try:
+        sheet_user = google_auth.get_user(current_user["username"])
+    except SheetManagerError:
+        return {"locked": False}
+    return {"locked": bool(sheet_user and sheet_user.get("settings_password_hash"))}
 
 # ======================== WHATSAPP BILL ========================
 @app.post("/api/bills/whatsapp")
@@ -882,44 +934,67 @@ async def admin_login(req: LoginRequest):
 # ======================== ADMIN ROUTES ========================
 @app.get("/api/admin/users")
 async def admin_get_users(admin = Depends(get_admin)):
-    conn = get_db()
-    rows = conn.execute("""SELECT id, username, full_name, email, whatsapp, city, store_type,
-                           plan, plan_amount, upi_used, receipt_path, payment_status, 
-                           is_active, is_blocked, trial_bills_used, subscription_start,
-                           subscription_expiry, created_at, approved_at,
-                           max_devices, allowed_ips
-                           FROM users ORDER BY created_at DESC""").fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        users = google_auth.list_users()
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    # Shape each user to match what admin.html expects (same field names as
+    # the old SQLite `users` table response, so the admin panel needs zero changes).
+    return [
+        {
+            "id": u["user_id"],
+            "username": u["username"],
+            "full_name": u["full_name"],
+            "email": u["email"],
+            "whatsapp": u["whatsapp"],
+            "city": u["city"],
+            "store_type": u["store_type"],
+            "plan": u["subscription_plan"],
+            "plan_amount": u["plan_amount"],
+            "upi_used": u["upi_used"],
+            "receipt_path": u["receipt_path"],
+            "payment_status": u["payment_status"],
+            "is_active": 1 if u["is_active"] else 0,
+            "is_blocked": 1 if u["is_blocked"] else 0,
+            "trial_bills_used": u["trial_bills_used"],
+            "subscription_start": u["created_date"],
+            "subscription_expiry": u["expiry_date"],
+            "created_at": u["created_date"],
+            "approved_at": u["last_login"],
+            "max_devices": u["device_limit"],
+            "allowed_ips": u["allowed_ips"],
+        }
+        for u in sorted(users, key=lambda x: x["created_date"], reverse=True)
+    ]
 
 @app.post("/api/admin/approve")
 async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
-    password = req.password or generate_password()
-    start = datetime.utcnow()
-    expiry = start + timedelta(days=req.plan_days)
-    plan = "yearly" if req.plan_days >= 300 else "monthly"
-    
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
-    if not user:
+    res = google_auth.approve_user(
+        user_id=req.user_id, new_username=req.username,
+        password=req.password, plan_days=req.plan_days,
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "Approve failed"))
+
+    password = res["generated_password"]
+    plan = res["plan"]
+    expiry_str = res["expiry"]
+    expiry = datetime.fromisoformat(expiry_str)
+
+    user = google_auth.get_user(req.username)
+
+    # Optional per-shop "export bills to their own Google Sheet" config —
+    # unrelated to the auth Sheet, stored locally (operational config, not credentials).
+    if req.gas_url or req.sheet_id:
+        conn = get_db()
+        conn.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (req.user_id,))
+        conn.execute("UPDATE user_settings SET gas_url=?, sheet_id=? WHERE user_id=?",
+                     (req.gas_url or '', req.sheet_id or '', req.user_id))
+        conn.commit()
         conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    conn.execute("""UPDATE users SET 
-        username=?, password_hash=?, is_active=1, payment_status='approved',
-        subscription_start=?, subscription_expiry=?, approved_at=?, plan=?,
-        gas_url=?, sheet_id=?
-        WHERE id=?""",
-        (req.username, hash_password(password), start.isoformat(), expiry.isoformat(),
-         start.isoformat(), plan, req.gas_url or '', req.sheet_id or '', req.user_id))
-    conn.commit()
-    
-    # Send credentials
-    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
-    conn.close()
-    
+
     login_url = os.getenv("APP_URL", "https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html")
-    
+
     email_body = f"""
     <h2>🎉 Your POS Account is Ready!</h2>
     <p>Dear {user['full_name']},</p>
@@ -933,7 +1008,7 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
     </table>
     <p>Keep these credentials safe!</p>
     """
-    
+
     wa_msg = f"""✅ *POS Account Approved!*
 
 👤 Username: {req.username}
@@ -942,37 +1017,35 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
 🔗 Login: {login_url}
 
 Keep this safe! 🙏"""
-    
+
     send_email(user["email"], "🎉 Your POS Login Credentials", email_body)
     send_whatsapp(user["whatsapp"], wa_msg)
-    
-    # Push to Google Sheets
+
+    # Push to Google Sheets (legacy notification log tab)
     push_to_google_sheets({
         "action": "approved",
         "username": req.username,
         "plan": plan,
-        "expiry": expiry.isoformat(),
-        "approved_at": start.isoformat()
+        "expiry": expiry_str,
+        "approved_at": datetime.utcnow().isoformat()
     })
-    
-    return {"success": True, "generated_password": password, "message": f"User approved. Credentials sent to {user['email']} and WhatsApp {user['whatsapp']}"}
+
+    return {"success": True, "generated_password": password,
+            "message": f"User approved. Credentials sent to {user['email']} and WhatsApp {user['whatsapp']}"}
 
 @app.post("/api/admin/generate-settings-password")
 async def admin_generate_settings_password(req: AdminGenSettingsPassword, admin = Depends(get_admin)):
     """Admin generates (or regenerates) the per-user Settings-tab lock password.
-    Only the shop owner (admin) can set/reset this — the user cannot change it themselves."""
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
+    Only the shop owner (admin) can set/reset this — the user cannot change it themselves.
+    Stored as settings_password_hash on the Sheet (account-management data)."""
+    user = google_auth.get_user_by_id(req.user_id)
     if not user:
-        conn.close()
         raise HTTPException(status_code=404, detail="User not found")
 
     new_password = generate_password()
-    conn.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (req.user_id,))
-    conn.execute("UPDATE user_settings SET settings_password_hash=? WHERE user_id=?",
-                 (hash_password(new_password), req.user_id))
-    conn.commit()
-    conn.close()
+    ok = google_auth.update_settings_password(user["username"], hash_password(new_password))
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to save settings password to Sheet")
 
     shop_name = user["full_name"] or user["username"]
 
@@ -1031,12 +1104,29 @@ async def update_hero_images(req: HeroImagesUpdate, admin = Depends(get_admin)):
     return {"success": True, "images": req.images}
 
 
+@app.post("/api/admin/block")
 async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
-    conn = get_db()
-    conn.execute("UPDATE users SET is_blocked=? WHERE id=?", (1 if req.block else 0, req.user_id))
-    conn.commit()
-    conn.close()
+    if req.block:
+        ok = google_auth.set_account_status(req.user_id, blocked=True)
+    else:
+        ok = google_auth.set_account_status(req.user_id, blocked=False, active=True)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to update account status")
     return {"success": True}
+
+@app.post("/api/admin/delete-user")
+async def admin_delete_user(req: AdminDeleteUser, admin = Depends(get_admin)):
+    """Permanently removes the account row from the Google Sheet. POS data
+    (products/bills/customers tied to this user_id) is intentionally left
+    untouched in SQLite, in case the admin needs to recover it later —
+    only the login/account record is deleted."""
+    user = google_auth.get_user_by_id(req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    ok = google_auth.delete_account(req.user_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to delete user from Sheet")
+    return {"success": True, "message": f"User '{user['username']}' deleted"}
 
 class UpdateGasUrl(BaseModel):
     user_id: int
@@ -1045,12 +1135,15 @@ class UpdateGasUrl(BaseModel):
 
 @app.post("/api/admin/update-gas-url")
 async def admin_update_gas_url(req: UpdateGasUrl, admin = Depends(get_admin)):
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
+    """Per-shop 'export bills to my own Google Sheet' config — unrelated to
+    the auth Sheet. This is operational/billing config, so it stays in the
+    local user_settings table, keyed by the Sheet's stable numeric user_id."""
+    user = google_auth.get_user_by_id(req.user_id)
     if not user:
-        conn.close()
         raise HTTPException(status_code=404, detail="User not found")
-    conn.execute("UPDATE users SET gas_url=?, sheet_id=? WHERE id=?",
+    conn = get_db()
+    conn.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (req.user_id,))
+    conn.execute("UPDATE user_settings SET gas_url=?, sheet_id=? WHERE user_id=?",
                  (req.gas_url, req.sheet_id, req.user_id))
     conn.commit()
     conn.close()
@@ -1058,25 +1151,10 @@ async def admin_update_gas_url(req: UpdateGasUrl, admin = Depends(get_admin)):
 
 @app.post("/api/admin/extend")
 async def admin_extend(req: ExtendSubscription, admin = Depends(get_admin)):
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE id=?", (req.user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    current_expiry = user["subscription_expiry"]
-    if current_expiry:
-        base = datetime.fromisoformat(current_expiry)
-        if base < datetime.utcnow():
-            base = datetime.utcnow()
-    else:
-        base = datetime.utcnow()
-    
-    new_expiry = base + timedelta(days=req.days)
-    conn.execute("UPDATE users SET subscription_expiry=? WHERE id=?", (new_expiry.isoformat(), req.user_id))
-    conn.commit()
-    conn.close()
-    return {"success": True, "new_expiry": new_expiry.isoformat()}
+    res = google_auth.extend_subscription(req.user_id, req.days)
+    if not res.get("success"):
+        raise HTTPException(status_code=404, detail=res.get("message", "User not found"))
+    return res
 
 @app.get("/api/admin/receipt/{user_id}")
 async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -1087,9 +1165,7 @@ async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthoriz
     payload = decode_token(raw_token)
     if not payload or payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access only")
-    conn = get_db()
-    user = conn.execute("SELECT receipt_path FROM users WHERE id=?", (user_id,)).fetchone()
-    conn.close()
+    user = google_auth.get_user_by_id(user_id)
     if not user or not user["receipt_path"]:
         raise HTTPException(status_code=404, detail="Receipt not found")
     if not os.path.exists(user["receipt_path"]):
@@ -1098,30 +1174,23 @@ async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthoriz
 
 @app.get("/api/admin/stats")
 async def admin_stats(admin = Depends(get_admin)):
-    conn = get_db()
-    total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
-    active = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_active=1").fetchone()["c"]
-    pending = conn.execute("SELECT COUNT(*) as c FROM users WHERE payment_status='pending'").fetchone()["c"]
-    blocked = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_blocked=1").fetchone()["c"]
-    conn.close()
+    try:
+        users = google_auth.list_users()
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    total = len(users)
+    active = sum(1 for u in users if u["is_active"])
+    pending = sum(1 for u in users if u["payment_status"] == "pending")
+    blocked = sum(1 for u in users if u["is_blocked"])
     return {"total": total, "active": active, "pending_verification": pending, "blocked": blocked}
 
 @app.post("/api/admin/update-device-limit")
 async def admin_update_device_limit(req: UpdateDeviceLimit, admin = Depends(get_admin)):
     """Set max devices and IP whitelist per user"""
-    conn = get_db()
-    user = conn.execute("SELECT id FROM users WHERE id=?", (req.user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
-    # Clamp between 1 and 50
     max_d = max(1, min(50, req.max_devices))
-    conn.execute(
-        "UPDATE users SET max_devices=?, allowed_ips=? WHERE id=?",
-        (max_d, req.allowed_ips.strip(), req.user_id)
-    )
-    conn.commit()
-    conn.close()
+    ok = google_auth.update_device_limit(req.user_id, max_d, req.allowed_ips)
+    if not ok:
+        raise HTTPException(status_code=404, detail="User not found")
     return {"success": True, "max_devices": max_d}
 
 @app.get("/api/admin/sessions/{user_id}")
