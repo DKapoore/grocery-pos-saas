@@ -3090,6 +3090,44 @@
         <div class="gallery-dots" id="galleryDots"></div>
       </div>
 
+      <!-- Who Uses This? -->
+      <div style="padding:48px 0 32px;text-align:center;" id="whoUsesSection">
+        <h2 style="font-size:1.6rem;font-weight:800;margin-bottom:6px;">🏢 Who Uses GroceryPOS?</h2>
+        <p class="sub" style="margin-bottom:28px;">Har tarah ke business ke liye perfect — ek hi software, alag alag formats</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;max-width:840px;margin:0 auto;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">🛒</div>
+            <div style="font-weight:700;font-size:14px;">Grocery Store</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Kirana, Supermarket, General Store</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">🍽️</div>
+            <div style="font-weight:700;font-size:14px;">Restaurant / Hotel</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Table billing, CGST/SGST, Service Charge</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">☕</div>
+            <div style="font-weight:700;font-size:14px;">Cafe / Bakery</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Fast counter billing, UPI QR payment</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">💊</div>
+            <div style="font-weight:700;font-size:14px;">Medical / Pharmacy</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">FSSAI No, GST billing, product catalog</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">👗</div>
+            <div style="font-weight:700;font-size:14px;">Clothing / Retail</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Barcode scan, discount, loyalty points</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:6px;">🏪</div>
+            <div style="font-weight:700;font-size:14px;">Any Shop</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Customizable for any retail business</div>
+          </div>
+        </div>
+      </div>
+
       <!-- FAQ -->
       <div class="faq-section" id="faqSection">
         <h2 id="faqHeading">❓ Frequently Asked Questions</h2>
@@ -3116,6 +3154,14 @@
         <div class="faq-item">
           <div class="faq-question" onclick="toggleFaq(this)"><span id="faq6q">Is refund available?</span><span>+</span></div>
           <div class="faq-answer" id="faq6a">Yes, if you are not satisfied within the first 10 days, you get a 100% payment refund.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)"><span id="faq7q">Is this suitable for restaurants and hotels?</span><span>+</span></div>
+          <div class="faq-answer" id="faq7a">Yes! Switch to Hotel/Restaurant format in Settings → Bill Format. You get Table No, Waiter name, CGST/SGST split columns, Taxable Amount, Service Charge, FSSAI No on bills, and Amount in Words — everything a restaurant or hotel needs for a professional GST bill.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)"><span id="faq8q">Can I use this for my medical store or pharmacy?</span><span>+</span></div>
+          <div class="faq-answer" id="faq8a">Yes. You can add your FSSAI number, GSTIN, and product-wise tax % to each medicine. The bill format can be customized and supports extra header lines for drug license numbers or branch names.</div>
         </div>
       </div>
 
@@ -3576,7 +3622,7 @@
     let currentUser = null,
       authToken = null;
     let settings = { shopName: 'My Shop', upi: '', address: '', mobile: '', footer: 'Thank you! Visit Again 🙏', taxPercent: 0,
-      gstNumber: '' };
+      gstNumber: '', fssaiNo: '', extraHeaderLines: [], cgstPercent: 0, sgstPercent: 0, billFormat: 'standard', enableAmountWords: 0 };
     let products = [];
     let billSessions = [];
     let activeBillId = null;
@@ -3755,6 +3801,11 @@
         settings = { shopName: settData.shop_name || 'My Shop', upi: settData.upi_id || '', address: settData
             .address || '', mobile: settData.mobile || '', footer: settData.footer || 'Thank you! 🙏',
           taxPercent: settData.tax_percent || 0, gstNumber: settData.gst_number || '',
+          fssaiNo: settData.fssai_no || '',
+          extraHeaderLines: settData.extra_header_lines ? settData.extra_header_lines.split('\n').filter(Boolean) : [],
+          cgstPercent: settData.cgst_percent || 0,
+          sgstPercent: settData.sgst_percent || 0,
+          billFormat: settData.bill_format || 'standard',
           enableAmountWords: settData.enable_amount_words || 0 };
         // Per-shop optional Google Sheet sync config now lives in /api/settings
         // (user_settings table), not in the login response.
@@ -3817,6 +3868,7 @@
       const bill = { id: newBillId(), billNumber: newBillNumber(), status: 'active', cart: [], customer: { name: '',
           mobile: '' }, paymentMode: 'Cash', discount: 0, discountType: 'flat', loyaltyDiscount: 0,
         additionalCharge: 0, additionalChargeType: 'flat', additionalChargeLabel: '',
+        tableNo: '', waiter: '',
         notes: '', createdAt: new Date().toISOString() };
       billSessions.push(bill);
       activeBillId = bill.id;
@@ -4217,7 +4269,9 @@
             method: 'POST',
             body: JSON.stringify({ bill_number: bill.billNumber, cart_json: JSON.stringify(bill.cart),
               customer_name: bill.customer?.name || '', customer_mobile: bill.customer?.mobile || '',
-              payment_mode: pmMode, subtotal, tax_total: tax, discount: disc, discount_type: bill.discountType,
+              payment_mode: pmMode,
+              table_no: bill.tableNo || '', waiter: bill.waiter || '',
+              subtotal, tax_total: tax, discount: disc, discount_type: bill.discountType,
               additional_charge: addCharge, additional_charge_type: bill.additionalChargeType || 'flat',
               additional_charge_label: bill.additionalChargeLabel || '',
               final_amount: final, notes: bill.notes || '',
@@ -4294,25 +4348,136 @@
       const date = new Date().toLocaleDateString('en-IN');
       const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
       const widths = { thermal: '300px', a5: '520px', a4: '740px' };
-      const fonts = { thermal: '11px', a5: '13px', a4: '14px' };
-      const w = widths[size] || widths.thermal,
-        f = fonts[size] || fonts.thermal;
+      const fonts  = { thermal: '11px', a5: '13px', a4: '14px' };
+      const w = widths[size] || widths.thermal, f = fonts[size] || fonts.thermal;
       const titleSize = size === 'thermal' ? '15px' : '20px';
-      const totSize = size === 'thermal' ? '14px' : '18px';
-      const addChargeLabel = bill.additionalChargeLabel || 'Additional Charge';
-      const showAmtWords = settings.enableAmountWords;
-      const upiStr = settings.upi ?
-        `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR` :
-        '';
-      return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+      const totSize   = size === 'thermal' ? '14px' : '18px';
+      const addChargeLabel = bill.additionalChargeLabel || 'Service Charge';
+      const showAmtWords   = settings.enableAmountWords;
+      const isHotel  = settings.billFormat === 'hotel';
+      const extraLines = (settings.extraHeaderLines || []).filter(Boolean);
+      const upiStr = settings.upi
+        ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`
+        : '';
+
+      // ── Shared header ──────────────────────────────────────────────────
+      const headerHTML = `
         ${isFree ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:10px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>` : ''}
-        <div style="text-align:center;margin-bottom:10px;">
-          <div style="font-size:${titleSize};font-weight:900;color:#000;">${settings.shopName}</div>
-          ${settings.address?`<div style="font-size:${f};color:#000;">${settings.address}</div>`:''}
-          ${settings.mobile?`<div style="font-size:${f};color:#000;">📞 ${settings.mobile}</div>`:''}
-          ${settings.gstNumber?`<div style="font-size:${f};color:#000;">GST: ${settings.gstNumber}</div>`:''}
+        <div style="text-align:center;margin-bottom:8px;">
+          <div style="font-size:${titleSize};font-weight:900;color:#000;letter-spacing:.5px;">${settings.shopName}</div>
+          ${settings.address ? `<div style="font-size:${f};color:#000;margin-top:2px;">${settings.address}</div>` : ''}
+          ${settings.mobile  ? `<div style="font-size:${f};color:#000;">📞 ${settings.mobile}</div>` : ''}
+          ${extraLines.map(l => `<div style="font-size:${f};color:#000;">${l}</div>`).join('')}
+          ${settings.gstNumber ? `<div style="font-size:${f};color:#000;margin-top:2px;"><b>GSTIN:</b> ${settings.gstNumber}</div>` : ''}
+          ${settings.fssaiNo  ? `<div style="font-size:${f};color:#000;"><b>FSSAI:</b> ${settings.fssaiNo}</div>` : ''}
         </div>
-        <hr style="border:1px dashed #000;margin:6px 0;">
+        <hr style="border:1px solid #000;margin:4px 0;">`;
+
+      // ── Hotel / Restaurant format ────────────────────────────────────
+      if (isHotel) {
+        const cgst = settings.cgstPercent || 0;
+        const sgst = settings.sgstPercent || 0;
+        // Per-item taxable amount = price × qty (before tax)
+        // CGST and SGST are calculated on taxable amount
+        const itemRows = bill.cart.map(item => {
+          const qty      = item.quantity || 1;
+          const rate     = parseFloat(item.price) || 0;
+          const taxable  = rate * qty;
+          const cgstAmt  = taxable * (cgst / 100);
+          const sgstAmt  = taxable * (sgst / 100);
+          const netAmt   = taxable + cgstAmt + sgstAmt;
+          return { ...item, qty, rate, taxable, cgstAmt, sgstAmt, netAmt };
+        });
+        const totalTaxable = itemRows.reduce((s, i) => s + i.taxable, 0);
+        const totalCgst    = itemRows.reduce((s, i) => s + i.cgstAmt, 0);
+        const totalSgst    = itemRows.reduce((s, i) => s + i.sgstAmt, 0);
+        const netBeforeDisc = totalTaxable + totalCgst + totalSgst;
+
+        // For hotel, total = taxable+CGST+SGST - discount + addCharge
+        const hotelFinal = Math.max(0, netBeforeDisc + addCharge - disc - loyaltyDisc);
+
+        const thStyle  = `padding:4px 3px;text-align:right;border:1px solid #999;font-size:${size==='thermal'?'9px':f};background:#eee;`;
+        const thStyleL = `padding:4px 3px;text-align:left;border:1px solid #999;font-size:${size==='thermal'?'9px':f};background:#eee;`;
+        const tdStyle  = `padding:3px;text-align:right;border:1px solid #ddd;font-size:${size==='thermal'?'9px':f};`;
+        const tdStyleL = `padding:3px;text-align:left;border:1px solid #ddd;font-size:${size==='thermal'?'9px':f};`;
+
+        return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+          ${headerHTML}
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:${f};color:#000;margin:6px 0;">
+            <div>
+              <div><b>Bill No:</b> ${bill.billNumber}</div>
+              <div><b>Date:</b> ${date} &nbsp; <b>Time:</b> ${time}</div>
+              ${bill.customer?.name ? `<div><b>Customer:</b> ${bill.customer.name}${bill.customer.mobile?' | '+bill.customer.mobile:''}</div>` : ''}
+            </div>
+            <div style="text-align:right;">
+              ${bill.tableNo ? `<div><b>Table:</b> ${bill.tableNo}</div>` : ''}
+              ${bill.waiter  ? `<div><b>Waiter:</b> ${bill.waiter}</div>` : ''}
+              ${bill.paymentMode ? `<div><b>Payment:</b> ${bill.paymentMode}</div>` : ''}
+            </div>
+          </div>
+          <hr style="border:1px solid #000;margin:4px 0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="${thStyleL}">Description</th>
+                <th style="${thStyle}">Qty</th>
+                <th style="${thStyle}">Rate</th>
+                <th style="${thStyle}">Taxable</th>
+                <th style="${thStyle}">CGST<br>${cgst}%</th>
+                <th style="${thStyle}">SGST<br>${sgst}%</th>
+                <th style="${thStyle}">Net Amt</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows.map(i => `<tr>
+                <td style="${tdStyleL}">${i.name}</td>
+                <td style="${tdStyle}">${i.qty}</td>
+                <td style="${tdStyle}">₹${i.rate.toFixed(2)}</td>
+                <td style="${tdStyle}">₹${i.taxable.toFixed(2)}</td>
+                <td style="${tdStyle}">₹${i.cgstAmt.toFixed(2)}</td>
+                <td style="${tdStyle}">₹${i.sgstAmt.toFixed(2)}</td>
+                <td style="${tdStyle};font-weight:600;">₹${i.netAmt.toFixed(2)}</td>
+              </tr>`).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:#f5f5f5;">
+                <td colspan="3" style="${tdStyleL}font-weight:700;">TOTAL</td>
+                <td style="${tdStyle}font-weight:700;">₹${totalTaxable.toFixed(2)}</td>
+                <td style="${tdStyle}font-weight:700;">₹${totalCgst.toFixed(2)}</td>
+                <td style="${tdStyle}font-weight:700;">₹${totalSgst.toFixed(2)}</td>
+                <td style="${tdStyle}font-weight:900;border-top:2px solid #000;">₹${netBeforeDisc.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <hr style="border:1px dashed #000;margin:6px 0;">
+          <div style="font-size:${f};color:#000;max-width:200px;margin-left:auto;">
+            <div style="display:flex;justify-content:space-between;"><span>Taxable Amount:</span><span>₹${totalTaxable.toFixed(2)}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>CGST (${cgst}%):</span><span>₹${totalCgst.toFixed(2)}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>SGST (${sgst}%):</span><span>₹${totalSgst.toFixed(2)}</span></div>
+            ${addCharge>0?`<div style="display:flex;justify-content:space-between;"><span>${addChargeLabel}:</span><span>+₹${addCharge.toFixed(2)}</span></div>`:''}
+            ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
+            ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:${totSize};font-weight:900;color:#000;border-top:2px solid #000;padding-top:6px;margin-top:4px;">
+            <span>NET AMOUNT:</span><span>₹${hotelFinal.toFixed(2)}</span>
+          </div>
+          ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(hotelFinal)}</div>`:''}
+          ${bill.notes?`<div style="font-size:${f};color:#555;margin-top:6px;"><b>Note:</b> ${bill.notes}</div>`:''}
+          ${upiStr?`
+          <div style="text-align:center;margin:12px 0;">
+            <div style="font-size:${f};font-weight:bold;color:#000;margin-bottom:4px;">📱 Scan to Pay via UPI</div>
+            <div style="display:flex;justify-content:center;"><div id="billQR" style="display:inline-block;background:#fff;padding:6px;border:2px solid #000;border-radius:6px;"></div></div>
+            <div style="font-size:${f};font-weight:bold;color:#000;margin-top:4px;">${settings.upi}</div>
+          </div>`:''}
+          <hr style="border:1px dashed #000;margin:8px 0;">
+          <div style="text-align:center;font-size:${f};color:#000;font-style:italic;">${settings.footer||'Thank you! Visit Again 🙏'}</div>
+          <div style="text-align:center;font-size:9px;color:#aaa;margin-top:4px;">Powered by GroceryPOS</div>
+        </div>`;
+      }
+
+      // ── Standard format (Grocery / Retail / Pharmacy) ─────────────────
+      return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+        ${headerHTML}
         <div style="display:flex;justify-content:space-between;font-size:${f};color:#000;">
           <b>Bill# ${bill.billNumber}</b><span>${date} ${time}</span>
         </div>
@@ -4347,6 +4512,7 @@
           <span>TOTAL:</span><span>₹${final.toFixed(2)}</span>
         </div>
         ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(final)}</div>`:''}
+        ${bill.notes?`<div style="font-size:${f};color:#555;margin-top:6px;"><b>Note:</b> ${bill.notes}</div>`:''}
         ${upiStr?`
         <div style="text-align:center;margin:14px 0;">
           <div style="font-size:${f};font-weight:bold;color:#000;margin-bottom:6px;">📱 Scan to Pay via UPI</div>
@@ -4535,9 +4701,15 @@
     function openCustomerPanel() {
       const bill = getActiveBill();
       if (!bill) return;
+      const isHotel = settings.billFormat === 'hotel';
       openModal(`
         <div class="modal-handle"></div>
-        <h3>👤 Customer Details</h3>
+        <h3>👤 ${isHotel ? 'Table & Customer Details' : 'Customer Details'}</h3>
+        ${isHotel ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div><label>Table No *</label><input id="tableNo" value="${bill.tableNo||''}" placeholder="e.g. T-5"></div>
+          <div><label>Waiter <span style="font-size:10px;color:var(--text2);">(optional)</span></label><input id="waiterName" value="${bill.waiter||''}" placeholder="Staff name"></div>
+        </div>` : ''}
         <label>Name</label><input id="custName" value="${bill.customer?.name||''}" placeholder="Customer name">
         <label>Mobile</label><input id="custMobile" value="${bill.customer?.mobile||''}" placeholder="10-digit number" type="tel">
         <label>Payment Mode</label>
@@ -4573,9 +4745,12 @@
     function saveCustomer(billId) {
       const bill = billSessions.find(b => b.id === billId);
       if (!bill) return;
-      bill.customer = { name: document.getElementById('custName').value, mobile: document.getElementById('custMobile')
-          .value };
+      bill.customer = { name: document.getElementById('custName').value, mobile: document.getElementById('custMobile').value };
       bill.paymentMode = document.getElementById('custPayMode').value;
+      const tableInput = document.getElementById('tableNo');
+      const waiterInput = document.getElementById('waiterName');
+      if (tableInput) bill.tableNo = tableInput.value.trim();
+      if (waiterInput) bill.waiter = waiterInput.value.trim();
       saveState();
       renderAll();
       closeModal();
@@ -4901,9 +5076,10 @@
         </div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:14px;">Last sync: ${lastSync}${pending>0?` | ⏳ ${pending} pending`:''}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface);border-radius:10px;padding:4px;margin-bottom:14px;">
-          <button id="stab1" onclick="switchSettingsTab(1)" style="padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;">🏪 Shop</button>
-          <button id="stab2" onclick="switchSettingsTab(2)" style="padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;">☁️ Cloud</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;background:var(--surface);border-radius:10px;padding:4px;margin-bottom:14px;">
+          <button id="stab1" onclick="switchSettingsTab(1)" style="padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:12px;">🏪 Shop</button>
+          <button id="stab2" onclick="switchSettingsTab(2)" style="padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:12px;">🧾 Bill</button>
+          <button id="stab3" onclick="switchSettingsTab(3)" style="padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:12px;">☁️ Cloud</button>
         </div>
         <div id="settingsTab1">
           <label>Shop Name</label><input id="setShop" value="${settings.shopName}">
@@ -4911,9 +5087,35 @@
           <label>Mobile</label><input id="setMob" value="${settings.mobile||''}">
           <label>UPI ID</label><input id="setUpi" value="${settings.upi||''}">
           <label>GST Number</label><input id="setGst" value="${settings.gstNumber||''}">
+          <label>FSSAI No <span style="font-size:10px;color:var(--text2);">(for food businesses)</span></label>
+          <input id="setFssai" value="${settings.fssaiNo||''}" placeholder="e.g. 12345678901234">
+          <label>Extra Header Lines <span style="font-size:10px;color:var(--text2);">(e.g. branch name, tagline)</span></label>
+          <div id="extraHeaderList">
+            ${(settings.extraHeaderLines||[]).map(l=>`<div style="display:flex;gap:6px;margin-bottom:6px;"><input class="extra-header-input" value="${l.replace(/"/g,'&quot;')}" placeholder="Additional header line"><button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button></div>`).join('')}
+          </div>
+          <button class="btn-outline" style="width:100%;padding:8px;margin-bottom:12px;font-size:12px;" onclick="addExtraHeaderLine()">➕ Add Header Line</button>
           <label>Footer Message</label><input id="setFooter" value="${settings.footer||'Thank you! 🙏'}">
+          <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Shop Settings</button>
+        </div>
+        <div id="settingsTab2" style="display:none;">
+          <label>Bill Format</label>
+          <select id="setBillFormat">
+            <option value="standard" ${settings.billFormat==='standard'?'selected':''}>🛒 Standard (Grocery / Retail)</option>
+            <option value="hotel"    ${settings.billFormat==='hotel'?'selected':''}>🍽️ Hotel / Restaurant / Cafe</option>
+            <option value="pharmacy" ${settings.billFormat==='pharmacy'?'selected':''}>💊 Medical / Pharmacy</option>
+          </select>
+          <div style="background:var(--info2);border:1px solid var(--info);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);margin-bottom:12px;">
+            <b>Hotel / Restaurant</b>: Table No, Waiter, CGST/SGST columns, Taxable Amount, Amount in Words — sab automatically aayenge.<br>
+            <b>Pharmacy</b>: Batch No, Expiry column support (products mein add karein).<br>
+            <b>Standard</b>: Grocery / retail format — single tax column.
+          </div>
           <label>Default Tax %</label><input id="setTax" type="number" value="${settings.taxPercent||0}" min="0" max="100">
-          <div style="background:var(--accent2,#f0fdf4);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><label>CGST %</label><input id="setCgst" type="number" value="${settings.cgstPercent||0}" min="0" max="50" step="0.5" placeholder="0"></div>
+            <div><label>SGST %</label><input id="setSgst" type="number" value="${settings.sgstPercent||0}" min="0" max="50" step="0.5" placeholder="0"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin:-8px 0 12px;">CGST + SGST tax split hotel/restaurant bills ke liye. Standard mein sirf Tax % use hota hai.</div>
+          <div style="background:var(--accent2,#f0fdf4);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:4px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:8px;">🖨️ Receipt Options</div>
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:normal;">
               <input type="checkbox" id="setAmountWords" ${settings.enableAmountWords?'checked':''} style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
@@ -4923,9 +5125,9 @@
               </div>
             </label>
           </div>
-          <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Shop Settings</button>
+          <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Bill Settings</button>
         </div>
-        <div id="settingsTab2" style="display:none;">
+        <div id="settingsTab3" style="display:none;">
           <div style="background:var(--info2);border:1px solid var(--info);border-radius:10px;padding:12px;font-size:12px;margin-bottom:12px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:6px;">☁️ Google Sheet Integration — Setup Guide</div>
             <ol style="padding-left:16px;line-height:1.9;color:var(--text2);">
@@ -4972,14 +5174,25 @@
     }
 
     function switchSettingsTab(n) {
-      document.getElementById('settingsTab1').style.display = n === 1 ? 'block' : 'none';
-      document.getElementById('settingsTab2').style.display = n === 2 ? 'block' : 'none';
-      document.getElementById('stab1').style.cssText = n === 1 ?
-        'padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;' :
-        'padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;';
-      document.getElementById('stab2').style.cssText = n === 2 ?
-        'padding:7px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:13px;' :
-        'padding:7px;border-radius:8px;background:none;color:var(--text2);border:none;font-weight:600;font-size:13px;';
+      [1, 2, 3].forEach(i => {
+        const tab = document.getElementById(`settingsTab${i}`);
+        const btn = document.getElementById(`stab${i}`);
+        if (tab) tab.style.display = i === n ? 'block' : 'none';
+        if (btn) {
+          btn.style.background = i === n ? 'var(--accent)' : 'none';
+          btn.style.color = i === n ? '#fff' : 'var(--text2)';
+        }
+      });
+    }
+
+    function addExtraHeaderLine() {
+      const list = document.getElementById('extraHeaderList');
+      if (!list) return;
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
+      div.innerHTML = `<input class="extra-header-input" placeholder="Additional header line" style="flex:1;"><button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button>`;
+      list.appendChild(div);
+      div.querySelector('input').focus();
     }
 
     async function testCloudConnection() {
@@ -5006,18 +5219,36 @@
 
     async function saveSettings() {
       const enableAmtWords = document.getElementById('setAmountWords')?.checked ? 1 : 0;
-      settings = { shopName: document.getElementById('setShop').value, address: document.getElementById('setAddr')
-          .value, mobile: document.getElementById('setMob').value, upi: document.getElementById('setUpi').value,
-        gstNumber: document.getElementById('setGst').value, footer: document.getElementById('setFooter').value,
-        taxPercent: parseFloat(document.getElementById('setTax').value) || 0,
-        enableAmountWords: enableAmtWords };
+      const billFormat = document.getElementById('setBillFormat')?.value || 'standard';
+      const extraLines = Array.from(document.querySelectorAll('.extra-header-input'))
+        .map(i => i.value.trim()).filter(Boolean).join('\n');
+      settings = {
+        shopName:         document.getElementById('setShop').value,
+        address:          document.getElementById('setAddr').value,
+        mobile:           document.getElementById('setMob').value,
+        upi:              document.getElementById('setUpi').value,
+        gstNumber:        document.getElementById('setGst').value,
+        fssaiNo:          (document.getElementById('setFssai')?.value || '').trim(),
+        extraHeaderLines: extraLines ? extraLines.split('\n').filter(Boolean) : [],
+        footer:           document.getElementById('setFooter').value,
+        taxPercent:       parseFloat(document.getElementById('setTax').value) || 0,
+        cgstPercent:      parseFloat(document.getElementById('setCgst')?.value) || 0,
+        sgstPercent:      parseFloat(document.getElementById('setSgst')?.value) || 0,
+        billFormat:       billFormat,
+        enableAmountWords: enableAmtWords
+      };
       localStorage.setItem('pos_settings', JSON.stringify(settings));
       try {
         await apiCall('/api/settings', {
           method: 'PUT',
-          body: JSON.stringify({ shop_name: settings.shopName, address: settings.address, mobile: settings
-              .mobile, upi_id: settings.upi, gst_number: settings.gstNumber, footer: settings.footer,
-            tax_percent: settings.taxPercent, enable_amount_words: enableAmtWords })
+          body: JSON.stringify({
+            shop_name: settings.shopName, address: settings.address, mobile: settings.mobile,
+            upi_id: settings.upi, gst_number: settings.gstNumber, fssai_no: settings.fssaiNo,
+            extra_header_lines: settings.extraHeaderLines.join('\n'),
+            footer: settings.footer, tax_percent: settings.taxPercent,
+            cgst_percent: settings.cgstPercent, sgst_percent: settings.sgstPercent,
+            bill_format: settings.billFormat, enable_amount_words: enableAmtWords
+          })
         });
       } catch (e) {}
       closeDrawer();
