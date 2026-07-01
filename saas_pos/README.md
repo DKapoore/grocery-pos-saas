@@ -117,32 +117,75 @@ Redeploy. Login/signup/admin will now work, backed entirely by the Sheet.
 
 ## ☁️ Google Sheet Integration Setup (optional — per-shop product sync)
 
-This section is unrelated to the Cloud Auth setup above. Each shop owner can
-*optionally* connect their **own separate Google Sheet** for product import
-and sales export — this is a convenience feature, not required for the app
-to function.
+> ⚠️ **Ye Auth Sheet se bilkul alag hai.** Auth Sheet (upar) admin ka ek global system hai. Ye section har shop owner ke apne alag Sheet ke liye hai — products sync aur sales export ke liye. Login/account se koi connection nahi.
+
+**File:** `saas_pos/GoogleAppsScript_PerShop.js` — sirf yahi file yahan use karni hai, `GoogleAppsScript.js` nahi.
+
+**Kya milta hai:**
+- `Products` sheet → POS app mein products + rates automatic load
+- `Sales` sheet → har completed bill automatically record
+- `Sales_Items` sheet → item-wise detailed analytics
+- App se connection ping/test support
+
+### Step 1 — Apna Google Sheet banao
+
+1. [sheets.google.com](https://sheets.google.com) → New Sheet
+2. Naam dein: e.g. `MyShop POS Data`
+3. **Setup automatic hoga** — `setupSheets()` function khud sab sheets banata hai (Step 4 mein)
+
+### Step 2 — Apps Script add karo
+
+1. Sheet mein: **Extensions → Apps Script**
+2. Purana sab code delete karo
+3. `saas_pos/GoogleAppsScript_PerShop.js` ka poora content paste karo
+4. Save (Ctrl+S), project naam: e.g. `MyShop POS Script`
+
+### Step 3 — Pehli baar Setup run karo (optional)
+
+1. Apps Script editor mein: **Run → `setupSheets`**
+2. Permission maangega → Allow karo
+3. `Products`, `Sales`, `Sales_Items` tabs automatically ban jayenge with sample data
+
+### Step 4 — Deploy as Web App
+
+1. **Deploy → New Deployment**
+2. Type: **Web App**
+3. Execute as: **Me**
+4. Who has access: **Anyone**
+5. Deploy → **URL copy karo**
+
+> ⚠️ Jab bhi code change karo: **Deploy → Manage Deployments → Edit → New Version → Deploy**
+
+### Step 5 — URL POS app mein lagao
+
+**Option A (Admin Panel se — recommended):**
+Admin Panel → Users → us user ki row mein 📋 button → GAS URL field mein paste karo → Save
+
+**Option B (User khud Settings mein):**
+POS App → Settings → ☁️ Cloud tab → GAS URL field mein paste karo → Save
+
+### Products Sheet format
+
+Sheet mein headers hone chahiye (exact naam zaruri nahi — keywords match hote hain):
+
+| Column | Accepted Keywords | Example |
+|--------|------------------|---------|
+| Product name | name, item, product | Amul Milk 500ml |
+| Price | price, rate, mrp | 28 |
+| Category | category, cat, type | Dairy |
+| Barcode | barcode, code, sku | 8901030010214 |
+| Tax % | tax, gst, vat | 5 |
+| Stock | stock, qty, quantity | 50 |
+| Unit | unit, uom | pcs |
+
+Blank rows aur zero-price rows automatically skip ho jaate hain.
+
+### Test karo (deploy se pehle)
+
+Apps Script editor mein: **Run → `testConnection`**
+Console mein result dikhega — products count, aur ek test sale row `Sales` sheet mein add hogi.
 
 
-
-### Step 1 — Create Google Sheet
-
-1. Go to [sheets.google.com](https://sheets.google.com) → New Sheet
-2. Name it: `MyShop POS Data`
-3. Create these tabs (sheets):
-   - `Products` — columns: `Name, Price, Category, Barcode, Tax%, Stock`
-   - `Sales` — auto-filled by app
-   - `Customers` — auto-filled by app
-
-### Step 2 — Add Google Apps Script
-
-1. In your Sheet: **Extensions → Apps Script**
-2. Delete existing code
-3. Paste the entire code from `saas_pos/GoogleAppsScript.js`
-4. Save (Ctrl+S), name project: `POS Integration`
-
-### Step 3 — Deploy as Web App
-
-1. Click **Deploy → New Deployment**
 2. Select type: **Web App**
 3. Set:
    - **Execute as:** Me (your Google account)
