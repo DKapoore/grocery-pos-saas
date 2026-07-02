@@ -129,6 +129,7 @@ def init_db():
         barcode TEXT,
         name TEXT NOT NULL,
         price REAL NOT NULL,
+        discount_percent REAL DEFAULT 0,
         category TEXT DEFAULT 'General',
         tax_percent REAL DEFAULT 0,
         stock INTEGER DEFAULT 0,
@@ -197,7 +198,16 @@ def init_db():
         bill_format TEXT DEFAULT 'standard',
         gas_url TEXT DEFAULT '',
         sheet_id TEXT DEFAULT '',
-        enable_amount_words INTEGER DEFAULT 0
+        enable_amount_words INTEGER DEFAULT 0,
+        bill_col_qty INTEGER DEFAULT 1,
+        bill_col_rate INTEGER DEFAULT 1,
+        bill_col_discount INTEGER DEFAULT 1,
+        bill_col_taxable INTEGER DEFAULT 1,
+        bill_col_cgst INTEGER DEFAULT 1,
+        bill_col_sgst INTEGER DEFAULT 1,
+        bill_col_net INTEGER DEFAULT 1,
+        waiter_list TEXT DEFAULT '',
+        table_list TEXT DEFAULT ''
     )""")
 
     # App-wide config (admin managed) — e.g. landing page hero carousel images
@@ -228,11 +238,21 @@ def migrate_db():
         "ALTER TABLE user_settings ADD COLUMN cgst_percent REAL DEFAULT 0",
         "ALTER TABLE user_settings ADD COLUMN sgst_percent REAL DEFAULT 0",
         "ALTER TABLE user_settings ADD COLUMN bill_format TEXT DEFAULT 'standard'",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_qty INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_rate INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_discount INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_taxable INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_cgst INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_sgst INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN bill_col_net INTEGER DEFAULT 1",
+        "ALTER TABLE user_settings ADD COLUMN waiter_list TEXT DEFAULT ''",
+        "ALTER TABLE user_settings ADD COLUMN table_list TEXT DEFAULT ''",
         "ALTER TABLE bills ADD COLUMN additional_charge REAL DEFAULT 0",
         "ALTER TABLE bills ADD COLUMN additional_charge_type TEXT DEFAULT 'flat'",
         "ALTER TABLE bills ADD COLUMN additional_charge_label TEXT DEFAULT ''",
         "ALTER TABLE bills ADD COLUMN table_no TEXT DEFAULT ''",
         "ALTER TABLE bills ADD COLUMN waiter TEXT DEFAULT ''",
+        "ALTER TABLE products ADD COLUMN discount_percent REAL DEFAULT 0",
     ]
     for sql in migrations:
         try:
@@ -374,6 +394,7 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = ""
     name: str
     price: float
+    discount_percent: Optional[float] = 0
     category: Optional[str] = "General"
     tax_percent: Optional[float] = 0
     stock: Optional[int] = 0
@@ -416,6 +437,15 @@ class SettingsUpdate(BaseModel):
     sgst_percent: Optional[float] = 0
     bill_format: Optional[str] = "standard"
     enable_amount_words: Optional[int] = 0
+    bill_col_qty: Optional[int] = 1
+    bill_col_rate: Optional[int] = 1
+    bill_col_discount: Optional[int] = 1
+    bill_col_taxable: Optional[int] = 1
+    bill_col_cgst: Optional[int] = 1
+    bill_col_sgst: Optional[int] = 1
+    bill_col_net: Optional[int] = 1
+    waiter_list: Optional[str] = ""
+    table_list: Optional[str] = ""
 
 class AdminApprove(BaseModel):
     user_id: int
@@ -704,9 +734,10 @@ async def get_products(current_user: dict = Depends(get_current_user)):
 @app.post("/api/products")
 async def add_product(p: ProductCreate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
-    conn.execute("""INSERT INTO products (user_id, barcode, name, price, category, tax_percent, stock)
-                    VALUES (?,?,?,?,?,?,?)""",
-                 (current_user["id"], p.barcode, p.name, p.price, p.category, p.tax_percent, p.stock))
+    conn.execute("""INSERT INTO products (user_id, barcode, name, price, discount_percent, category, tax_percent, stock)
+                    VALUES (?,?,?,?,?,?,?,?)""",
+                 (current_user["id"], p.barcode, p.name, p.price, p.discount_percent or 0,
+                  p.category, p.tax_percent, p.stock))
     pid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     conn.commit()
     conn.close()
@@ -715,9 +746,10 @@ async def add_product(p: ProductCreate, current_user: dict = Depends(get_current
 @app.put("/api/products/{pid}")
 async def update_product(pid: int, p: ProductCreate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
-    conn.execute("""UPDATE products SET barcode=?, name=?, price=?, category=?, tax_percent=?, stock=?
+    conn.execute("""UPDATE products SET barcode=?, name=?, price=?, discount_percent=?, category=?, tax_percent=?, stock=?
                     WHERE id=? AND user_id=?""",
-                 (p.barcode, p.name, p.price, p.category, p.tax_percent, p.stock, pid, current_user["id"]))
+                 (p.barcode, p.name, p.price, p.discount_percent or 0,
+                  p.category, p.tax_percent, p.stock, pid, current_user["id"]))
     conn.commit()
     conn.close()
     return {"success": True}
@@ -891,11 +923,17 @@ async def update_settings(s: SettingsUpdate, current_user: dict = Depends(get_cu
     conn = get_db()
     conn.execute("""INSERT OR REPLACE INTO user_settings 
         (user_id, shop_name, address, mobile, upi_id, gst_number, fssai_no, extra_header_lines,
-         footer, tax_percent, cgst_percent, sgst_percent, bill_format, enable_amount_words)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+         footer, tax_percent, cgst_percent, sgst_percent, bill_format, enable_amount_words,
+         bill_col_qty, bill_col_rate, bill_col_discount, bill_col_taxable,
+         bill_col_cgst, bill_col_sgst, bill_col_net,
+         waiter_list, table_list)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (current_user["id"], s.shop_name, s.address, s.mobile, s.upi_id, s.gst_number,
          s.fssai_no, s.extra_header_lines, s.footer, s.tax_percent,
-         s.cgst_percent, s.sgst_percent, s.bill_format, s.enable_amount_words))
+         s.cgst_percent, s.sgst_percent, s.bill_format, s.enable_amount_words,
+         s.bill_col_qty, s.bill_col_rate, s.bill_col_discount, s.bill_col_taxable,
+         s.bill_col_cgst, s.bill_col_sgst, s.bill_col_net,
+         s.waiter_list, s.table_list))
     conn.commit()
     conn.close()
     return {"success": True}
