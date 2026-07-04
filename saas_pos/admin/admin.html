@@ -20,6 +20,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;}
 body{background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+button,a,select{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 a{color:var(--accent3);text-decoration:none;}
 a:hover{text-decoration:underline;}
 
@@ -467,24 +468,42 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="page" id="page-landing">
       <div class="page-header">
         <div>
-          <div class="page-title">🖼️ Landing Page — Hero Mockup Carousel</div>
-          <div class="page-sub">Mobile mockup frame par demo ke liye carousel images manage karein</div>
+          <div class="page-title">🖼️ Landing Page — Carousel Management</div>
+          <div class="page-sub">Home page ke dono carousels ke liye alag-alag image URLs manage karein</div>
         </div>
       </div>
-      <div style="max-width:640px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;">
+
+        <!-- Section A: Mobile Mockup Carousel (9:16 portrait) -->
         <div class="table-wrap" style="padding:22px;">
-          <h3 style="margin-bottom:8px;">📱 Carousel Images</h3>
-          <p style="color:var(--text2);font-size:13px;margin-bottom:14px;">
-            Image URLs add karein jo landing page ke phone mockup mein carousel ki tarah ghoomenge.
-            <strong>9:16 ratio</strong> recommended hai (jaise 1080×1920px). Agar koi image nahi di gayi,
-            to default decorative slides dikhengi.
+          <h3 style="margin-bottom:4px;">📱 Mobile Mockup Carousel</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+            Home hero section ke floating mobile frame ke andar dikhne wali images.<br>
+            <strong>9:16 portrait ratio</strong> (e.g. 1080×1920px)
           </p>
           <div id="heroImageList"></div>
-          <button class="btn-outline" style="width:100%;margin-top:10px;padding:10px;" onclick="addHeroImageField()">➕ Add Image URL</button>
-          <div class="section-divider"><span>Save</span></div>
-          <button class="btn-accent" id="saveHeroImagesBtn" style="padding:12px 24px;" onclick="saveHeroImages()">💾 Save Carousel Images</button>
-          <span id="heroImagesStatus" style="margin-left:12px;font-size:12px;color:var(--text2);"></span>
+          <button class="btn-outline" style="width:100%;margin-top:8px;padding:9px;" onclick="addHeroImageField()">➕ Add Image URL</button>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn-accent" id="saveHeroImagesBtn" style="padding:10px 20px;" onclick="saveHeroImages()">💾 Save</button>
+            <span id="heroImagesStatus" style="font-size:12px;color:var(--text2);"></span>
+          </div>
         </div>
+
+        <!-- Section B: "See Software In Action" Carousel (3:2 landscape) -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">🖥️ "See Software In Action" Carousel</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+            "See Software In Action" section ke gallery slider mein dikhne wali images.<br>
+            <strong>3:2 landscape ratio</strong> (e.g. 1200×800px)
+          </p>
+          <div id="previewImageList"></div>
+          <button class="btn-outline" style="width:100%;margin-top:8px;padding:9px;" onclick="addPreviewImageField()">➕ Add Image URL</button>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn-accent" id="savePreviewImagesBtn" style="padding:10px 20px;" onclick="savePreviewImages()">💾 Save</button>
+            <span id="previewImagesStatus" style="font-size:12px;color:var(--text2);"></span>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -871,10 +890,7 @@ async function loadHeroImagesAdmin() {
   list.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0;">Loading...</div>';
   try {
     const res = await fetch(`${API}/api/hero-images`);
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`Server returned ${res.status}: ${txt.slice(0,150)}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const images = (data.images && data.images.length) ? data.images : [''];
     list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i)).join('');
@@ -885,59 +901,119 @@ async function loadHeroImagesAdmin() {
   }
 }
 
-function heroImageFieldHtml(url, i) {
+async function loadPreviewImagesAdmin() {
+  const list = document.getElementById('previewImageList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0;">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/api/preview-images`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const images = (data.images && data.images.length) ? data.images : [''];
+    list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i, 'preview')).join('');
+  } catch (e) {
+    console.error('loadPreviewImagesAdmin failed:', e);
+    list.innerHTML = heroImageFieldHtml('', 0, 'preview');
+    toast('Could not load preview images: ' + e.message, 'error');
+  }
+}
+
+function heroImageFieldHtml(url, i, prefix = 'hero') {
   const safeUrl = (url || '').replace(/"/g, '&quot;');
+  const cls = prefix === 'preview' ? 'preview-img-input' : 'hero-img-input';
+  const aspectHint = prefix === 'preview' ? '3:2 landscape (1200×800px)' : '9:16 portrait (1080×1920px)';
   return `
     <div class="hero-img-row" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;">
-        <input type="text" class="hero-img-input" value="${safeUrl}" placeholder="https://example.com/demo-screenshot.jpg (9:16 ratio)" style="width:100%;">
-        ${url ? `<img src="${safeUrl}" style="width:50px;height:89px;object-fit:cover;border-radius:6px;margin-top:6px;border:1px solid var(--border);" onerror="this.style.display='none'">` : ''}
+        <input type="text" class="${cls}" value="${safeUrl}" placeholder="https://... (${aspectHint})" style="width:100%;"
+          oninput="previewImgThumb(this)">
+        <div style="margin-top:6px;min-height:${prefix==='preview'?'50px':'89px'};">
+          ${url ? `<img src="${safeUrl}" style="width:${prefix==='preview'?'80px':'50px'};height:${prefix==='preview'?'53px':'89px'};object-fit:cover;border-radius:6px;border:1px solid var(--border);" onerror="this.style.display='none'">` : ''}
+        </div>
       </div>
       <button class="btn-outline" style="padding:8px 12px;flex-shrink:0;" onclick="this.closest('.hero-img-row').remove()">🗑️</button>
     </div>`;
 }
 
+function previewImgThumb(input) {
+  const img = input.parentElement.querySelector('img');
+  if (img) { img.src = input.value.trim(); img.style.display = ''; }
+  else if (input.value.trim()) {
+    const d = document.createElement('img');
+    const isPreview = input.classList.contains('preview-img-input');
+    d.style.cssText = `width:${isPreview?'80px':'50px'};height:${isPreview?'53px':'89px'};object-fit:cover;border-radius:6px;border:1px solid var(--border);`;
+    d.src = input.value.trim();
+    d.onerror = function() { this.style.display='none'; };
+    input.parentElement.querySelector('div').appendChild(d);
+  }
+}
+
 function addHeroImageField() {
   const list = document.getElementById('heroImageList');
-  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length));
-  // Focus the newly added field so the admin can start typing immediately
-  const allInputs = list.querySelectorAll('.hero-img-input');
-  if (allInputs.length) allInputs[allInputs.length - 1].focus();
+  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length, 'hero'));
+  list.querySelectorAll('.hero-img-input')[list.children.length-1]?.focus();
+}
+
+function addPreviewImageField() {
+  const list = document.getElementById('previewImageList');
+  if (!list) return;
+  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length, 'preview'));
+  list.querySelectorAll('.preview-img-input')[list.children.length-1]?.focus();
 }
 
 async function saveHeroImages() {
   const inputs = document.querySelectorAll('#heroImageList .hero-img-input');
   const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
-
-  // Basic client-side validation — catch obviously broken URLs before
-  // sending, so the admin gets immediate, specific feedback.
   const badUrls = images.filter(u => !/^https?:\/\/.+/i.test(u));
-  if (badUrls.length) {
-    toast(`Invalid URL (must start with http:// or https://): ${badUrls[0]}`, 'error');
-    return;
-  }
-
+  if (badUrls.length) { toast(`Invalid URL: ${badUrls[0]}`, 'error'); return; }
   const statusEl = document.getElementById('heroImagesStatus');
-  const saveBtn = document.getElementById('saveHeroImagesBtn');
+  const saveBtn  = document.getElementById('saveHeroImagesBtn');
   statusEl.textContent = 'Saving...';
   if (saveBtn) saveBtn.disabled = true;
   try {
-    if (!adminToken) throw new Error('Admin session expired — please login again');
+    if (!adminToken) throw new Error('Session expired — please login again');
     const res = await fetch(`${API}/api/admin/hero-images`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
       body: JSON.stringify({ images })
     });
-    let data;
-    try { data = await res.json(); }
-    catch { throw new Error(`Server returned non-JSON response (HTTP ${res.status}). Check Render logs / GAS_WEBHOOK_URL config.`); }
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-
     statusEl.textContent = `✅ Saved ${images.length} image(s)`;
-    toast('Hero carousel images saved!', 'success');
+    toast('Mobile mockup carousel saved!', 'success');
     loadHeroImagesAdmin();
   } catch (e) {
     console.error('saveHeroImages failed:', e);
+    statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function savePreviewImages() {
+  const inputs = document.querySelectorAll('#previewImageList .preview-img-input');
+  const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  const badUrls = images.filter(u => !/^https?:\/\/.+/i.test(u));
+  if (badUrls.length) { toast(`Invalid URL: ${badUrls[0]}`, 'error'); return; }
+  const statusEl = document.getElementById('previewImagesStatus');
+  const saveBtn  = document.getElementById('savePreviewImagesBtn');
+  statusEl.textContent = 'Saving...';
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    if (!adminToken) throw new Error('Session expired — please login again');
+    const res = await fetch(`${API}/api/admin/preview-images`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ images })
+    });
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    statusEl.textContent = `✅ Saved ${images.length} image(s)`;
+    toast('"See Software In Action" carousel saved!', 'success');
+    loadPreviewImagesAdmin();
+  } catch (e) {
+    console.error('savePreviewImages failed:', e);
     statusEl.textContent = '';
     toast('Save failed: ' + e.message, 'error');
   } finally {
@@ -951,12 +1027,17 @@ function showPage(name, el) {
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
-  if (name === 'landing') loadHeroImagesAdmin();
+  if (name === 'landing') { loadHeroImagesAdmin(); loadPreviewImagesAdmin(); }
 }
 
 // ── LOAD DATA ────────────────────────────────────────────────
 async function loadAll() {
   try {
+    // Show skeleton stats immediately so page doesn't look frozen
+    ['statTotal','statActive','statPending','statBlocked'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.textContent === '') el.textContent = '…';
+    });
     const [stats, users] = await Promise.all([
       api('/api/admin/stats'),
       api('/api/admin/users')
