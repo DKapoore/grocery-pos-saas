@@ -27,6 +27,10 @@
       box-sizing: border-box;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
+    button, a, select, input[type="checkbox"], input[type="radio"], label[onclick] {
+      touch-action: manipulation; /* eliminate 300ms tap delay on mobile */
+      -webkit-tap-highlight-color: transparent;
+    }
     :root {
       --bg: #ffffff;
       --surface: #f8fafc;
@@ -3183,8 +3187,8 @@
             <option value="hi">🇮🇳 हिंदी</option>
             <option value="mr">🇮🇳 मराठी</option>
           </select>
-          <button class="btn-outline" onclick="showScreen('screen-login')">Login</button>
-          <button class="btn-accent" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})">Get Started</button>
+          <button class="btn-outline" onclick="showLoginScreen('login')">Login</button>
+          <button class="btn-accent" onclick="showLoginScreen('trial')">Get Started</button>
         </div>
       </nav>
 
@@ -3194,7 +3198,7 @@
           <h1 id="heroHeading">Smart Grocery <span>POS</span> Billing Software</h1>
           <p id="heroSub">Fast billing with barcode + QR scanner, WhatsApp invoice sharing, Google Sheet live price sync, and UPI QR payments.</p>
           <div class="hero-btns">
-            <button class="btn-accent" onclick="showScreen('screen-login')" id="heroDemo">Try Demo</button>
+            <button class="btn-accent" onclick="showLoginScreen('login')" id="heroDemo">Try Demo</button>
             <button class="btn-outline" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})" id="heroBuy">Buy Subscription</button>
             <button class="btn-outline" onclick="document.querySelector('.footer').scrollIntoView({behavior:'smooth'})" id="heroContact">Contact Us</button>
           </div>
@@ -3328,6 +3332,7 @@
         <p class="sub" id="previewSub">Explore real screenshots of our billing software</p>
         <div class="gallery-slider" id="gallerySlider">
           <div class="gallery-track" id="galleryTrack">
+            <!-- Default decorative cards — replaced by admin-set images when available -->
             <div class="slide-card"><div class="card"><div class="icon">🧾</div><h4>Billing Dashboard</h4><p>Complete billing interface with cart and summary.</p></div></div>
             <div class="slide-card"><div class="card"><div class="icon">📷</div><h4>Barcode + QR Scanner</h4><p>Scan product barcodes and QR codes instantly.</p></div></div>
             <div class="slide-card"><div class="card"><div class="icon">💬</div><h4>WhatsApp Bill Sharing</h4><p>Share invoice directly to customer on WhatsApp.</p></div></div>
@@ -3343,37 +3348,13 @@
       <div style="padding:48px 0 32px;text-align:center;" id="whoUsesSection">
         <h2 style="font-size:1.6rem;font-weight:800;margin-bottom:6px;">🏢 Who Uses GroceryPOS?</h2>
         <p class="sub" style="margin-bottom:28px;">Har tarah ke business ke liye perfect — ek hi software, alag alag formats</p>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;max-width:840px;margin:0 auto;">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">🛒</div>
-            <div style="font-weight:700;font-size:14px;">Grocery Store</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Kirana, Supermarket, General Store</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">🍽️</div>
-            <div style="font-weight:700;font-size:14px;">Restaurant / Hotel</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Table billing, CGST/SGST, Service Charge</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">☕</div>
-            <div style="font-weight:700;font-size:14px;">Cafe / Bakery</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Fast counter billing, UPI QR payment</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">💊</div>
-            <div style="font-weight:700;font-size:14px;">Medical / Pharmacy</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">FSSAI No, GST billing, product catalog</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">👗</div>
-            <div style="font-weight:700;font-size:14px;">Clothing / Retail</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Barcode scan, discount, loyalty points</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:6px;">🏪</div>
-            <div style="font-weight:700;font-size:14px;">Any Shop</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Customizable for any retail business</div>
-          </div>
+        <div class="features-grid" style="max-width:900px;margin:0 auto;">
+          <div class="feature-card"><div class="icon">🛒</div><h4>Grocery Store</h4><p>Kirana, Supermarket, General Store ke liye fast billing.</p></div>
+          <div class="feature-card"><div class="icon">🍽️</div><h4>Restaurant / Hotel</h4><p>Table billing, CGST/SGST split, Waiter management.</p></div>
+          <div class="feature-card"><div class="icon">☕</div><h4>Cafe / Bakery</h4><p>Counter billing, UPI QR payment, fast checkout.</p></div>
+          <div class="feature-card"><div class="icon">💊</div><h4>Medical / Pharmacy</h4><p>Drug license, FSSAI, per-medicine tax billing.</p></div>
+          <div class="feature-card"><div class="icon">👗</div><h4>Clothing / Retail</h4><p>Barcode scan, discount, loyalty points system.</p></div>
+          <div class="feature-card"><div class="icon">🏪</div><h4>Any Shop</h4><p>Customizable format for any retail business.</p></div>
         </div>
       </div>
 
@@ -3550,9 +3531,10 @@
           <button class="login-tab" id="tabTrial" onclick="switchLoginTab('trial')">🎁 Free Trial</button>
         </div>
         <div id="loginForm">
-          <label>Username</label><input id="loginUser" placeholder="Enter username">
+          <label>Username</label><input id="loginUser" placeholder="Enter username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
           <label>Password</label><input id="loginPass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
-          <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doLogin()">Login →</button>
+          <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doLogin()" id="loginBtn">Login →</button>
+          <div style="font-size:12px;color:var(--text2);text-align:center;margin-top:8px;">New user? <span style="color:var(--accent);cursor:pointer;font-weight:600;" onclick="switchLoginTab('trial')">Start Free Trial</span></div>
           <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
         </div>
         <div id="trialForm" class="hidden">
@@ -3672,6 +3654,10 @@
         faq5a: "Yes. Software supports both Barcode and QR code scanning.",
         faq6q: "Is refund available?",
         faq6a: "Yes, if you are not satisfied within the first 10 days, you get a 100% payment refund.",
+        faq7q: "Is this suitable for restaurants and hotels?",
+        faq7a: "Yes! Switch to Hotel/Restaurant format in Settings → Bill Format. You get Table No, Waiter name, CGST/SGST split, Taxable Amount, Service Charge, FSSAI No on bills, and Amount in Words.",
+        faq8q: "Can I use this for my medical store or pharmacy?",
+        faq8a: "Yes. You can add your FSSAI number, GSTIN, and product-wise tax % to each medicine. The bill format can be customized and supports extra header lines for drug license numbers.",
         pricingHeading: "Choose Your Plan",
         pricingSub: "Unlimited billing after activation",
         upiHeading: "💳 Pay via UPI",
@@ -3706,6 +3692,10 @@
         faq5a: "हाँ। सॉफ्टवेयर बारकोड और QR कोड दोनों को स्कैन करता है।",
         faq6q: "क्या रिफंड उपलब्ध है?",
         faq6a: "हाँ, यदि आप पहले 10 दिनों में संतुष्ट नहीं हैं, तो आपको 100% भुगतान वापस मिलता है।",
+        faq7q: "क्या यह रेस्टोरेंट और होटल के लिए उपयुक्त है?",
+        faq7a: "हाँ! Settings → Bill Format में Hotel/Restaurant format चुनें। आपको Table No, Waiter का नाम, CGST/SGST, Taxable Amount, Service Charge और FSSAI No बिल पर मिलेगा।",
+        faq8q: "क्या मैं इसे मेडिकल स्टोर या फार्मेसी के लिए उपयोग कर सकता हूँ?",
+        faq8a: "हाँ। आप FSSAI नंबर, GSTIN और प्रत्येक दवा पर product-wise tax % जोड़ सकते हैं। बिल फॉर्मेट को customized किया जा सकता है।",
         pricingHeading: "अपनी योजना चुनें",
         pricingSub: "सक्रियण के बाद असीमित बिलिंग",
         upiHeading: "💳 UPI से भुगतान करें",
@@ -3740,6 +3730,10 @@
         faq5a: "होय. सॉफ्टवेअर बारकोड आणि QR कोड दोन्ही स्कॅन करतो.",
         faq6q: "परतावा उपलब्ध आहे का?",
         faq6a: "होय, जर तुम्ही पहिल्या 10 दिवसांत समाधानी नसाल तर तुम्हाला 100% पेमेंट परत मिळते.",
+        faq7q: "हे रेस्टॉरंट आणि हॉटेलसाठी योग्य आहे का?",
+        faq7a: "होय! Settings → Bill Format मध्ये Hotel/Restaurant format निवडा. तुम्हाला Table No, Waiter चे नाव, CGST/SGST, Taxable Amount, Service Charge आणि FSSAI No बिलावर मिळेल.",
+        faq8q: "मी हे माझ्या मेडिकल स्टोर किंवा फार्मसीसाठी वापरू शकतो का?",
+        faq8a: "होय. तुम्ही FSSAI क्रमांक, GSTIN आणि प्रत्येक औषधावर product-wise tax % जोडू शकता. बिल फॉर्मेट customized करता येते.",
         pricingHeading: "तुमची योजना निवडा",
         pricingSub: "सक्रियतेनंतर अमर्यादित बिलिंग",
         upiHeading: "💳 UPI द्वारे पैसे द्या",
@@ -3781,6 +3775,8 @@
       document.getElementById('faq5a').textContent = t.faq5a;
       document.getElementById('faq6q').textContent = t.faq6q;
       document.getElementById('faq6a').textContent = t.faq6a;
+      if (t.faq7q) { document.getElementById('faq7q').textContent = t.faq7q; document.getElementById('faq7a').textContent = t.faq7a; }
+      if (t.faq8q) { document.getElementById('faq8q').textContent = t.faq8q; document.getElementById('faq8a').textContent = t.faq8a; }
       document.getElementById('pricingHeading').textContent = t.pricingHeading;
       document.getElementById('pricingSub').textContent = t.pricingSub;
       document.getElementById('upiHeading').textContent = t.upiHeading;
@@ -3885,6 +3881,8 @@
     // decorative hardcoded slides with real screenshots. If none are set,
     // the existing decorative slides remain as a fallback so the hero never
     // looks broken/empty.
+    // ── Carousel A: Floating Mobile Shape (9:16 portrait) ────────────────
+    // Completely separate from the gallery carousel below.
     async function loadHeroImages() {
       try {
         const res = await fetch(`${API}/api/hero-images`);
@@ -3896,10 +3894,9 @@
         const slider = document.getElementById('heroSlider');
         if (!slider) return;
         slider.innerHTML = images.map((url, i) =>
-          `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="GroceryPOS demo screenshot ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" style="width:100%;height:100%;object-fit:cover;"></div>`
+          `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="GroceryPOS demo ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.parentElement.style.background='#e2e8f0'"></div>`
         ).join('');
 
-        // Reset the rotation to use the new slide set
         const newSlides = slider.querySelectorAll('.slide');
         heroIndex = 0;
         if (heroAutoInterval) clearInterval(heroAutoInterval);
@@ -3912,7 +3909,52 @@
         }
       } catch (e) { /* network issue — keep decorative fallback */ }
     }
+
+    // ── Carousel B: "See Software In Action" gallery (3:2 landscape) ─────
+    // Completely separate from the hero mobile mockup carousel above.
+    // Uses /api/preview-images — different API key, different admin section.
+    let _previewAutoInterval = null;
+    let _previewIndex = 0;
+
+    async function loadPreviewImages() {
+      try {
+        const res = await fetch(`${API}/api/preview-images`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const images = (data.images || []).filter(Boolean);
+        if (!images.length) return; // keep decorative fallback cards
+
+        const track = document.getElementById('galleryTrack');
+        if (!track) return;
+
+        // Replace decorative cards with real images
+        track.innerHTML = images.map((url, i) =>
+          `<div class="slide-card" style="flex-shrink:0;">
+             <img src="${url}" alt="GroceryPOS screenshot ${i + 1}"
+               style="width:100%;height:220px;object-fit:cover;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.12);"
+               loading="${i === 0 ? 'eager' : 'lazy'}"
+               onerror="this.parentElement.innerHTML='<div class=card style=height:220px><div class=icon>📸</div><p>Image unavailable</p></div>'">
+           </div>`
+        ).join('');
+
+        // If the gallery has its own JS auto-scroll logic, re-trigger it
+        const track2 = document.getElementById('galleryTrack');
+        const slider  = document.getElementById('gallerySlider');
+        if (track2 && slider && images.length > 1) {
+          if (_previewAutoInterval) clearInterval(_previewAutoInterval);
+          const cardW = track2.firstElementChild?.offsetWidth || 280;
+          _previewIndex = 0;
+          _previewAutoInterval = setInterval(() => {
+            _previewIndex = (_previewIndex + 1) % images.length;
+            track2.style.transition = 'transform .5s ease';
+            track2.style.transform = `translateX(-${_previewIndex * (cardW + 20)}px)`;
+          }, 3500);
+        }
+      } catch (e) { /* network issue — keep decorative fallback */ }
+    }
+
     loadHeroImages();
+    loadPreviewImages();
     let trialStatus = { plan: 'free', trial_bills_used: 0, is_locked: false };
     let selectedPlan = null;
     let cloudConfig = JSON.parse(localStorage.getItem('pos_cloud_config') || '{}');
@@ -4000,19 +4042,28 @@
       return 'Browser';
     }
 
+    let _loginBusy = false;
     async function doLogin() {
+      if (_loginBusy) return;
       const username = document.getElementById('loginUser').value.trim();
       const password = document.getElementById('loginPass').value;
       if (!username || !password) { toast('Username & password required', 'error'); return; }
+      _loginBusy = true;
+      const btn = document.getElementById('loginBtn') || document.querySelector('#screen-login .btn-accent');
+      const orig = btn ? btn.textContent : '';
+      if (btn) { btn.textContent = '⏳ Logging in...'; btn.disabled = true; }
       try {
         const data = await apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify({
-          username, password,
-          device_id: getDeviceId(),
-          device_label: getDeviceLabel()
+          username, password, device_id: getDeviceId(), device_label: getDeviceLabel()
         })});
         saveAuth(data.token, data.user);
         await initApp();
-      } catch (e) { toast(e.message || 'Login failed', 'error'); }
+      } catch (e) {
+        toast(e.message || 'Login failed — check username & password', 'error');
+      } finally {
+        _loginBusy = false;
+        if (btn) { btn.textContent = orig; btn.disabled = false; }
+      }
     }
 
     async function doLogout() {
@@ -4033,6 +4084,21 @@
         saveAuth(data.token, data.user);
         await initApp();
       } catch (e) { toast(e.message || 'Failed', 'error'); }
+    }
+
+    // Opens screen-login and immediately activates the correct tab.
+    // tab = 'login'  → existing user login form (username+password)
+    // tab = 'trial'  → free trial / new user form
+    function showLoginScreen(tab) {
+      showScreen('screen-login');
+      switchLoginTab(tab || 'login');
+      // Pre-focus the first input field after a brief render delay
+      setTimeout(() => {
+        const firstInput = tab === 'trial'
+          ? document.getElementById('trialUser')
+          : document.getElementById('loginUser');
+        if (firstInput) { firstInput.focus(); firstInput.select(); }
+      }, 120);
     }
 
     function switchLoginTab(tab) {
@@ -4138,7 +4204,75 @@
       activeBillId = bill.id;
       saveState();
       renderAll();
+      // Hotel/Restaurant mode — immediately ask Table No & Waiter so they're set from the start
+      if (settings.billFormat === 'hotel' || settings.billFormat === 'cafe' || settings.billFormat === 'restaurant') {
+        setTimeout(() => openBillStartPrompt(bill.id), 80);
+      }
       return bill;
+    }
+
+    function openBillStartPrompt(billId) {
+      const bill = billSessions.find(b => b.id === billId);
+      if (!bill) return;
+      const waiters = settings.waiterList || [];
+      const tables  = settings.tableList  || [];
+
+      const tableField = tables.length > 0
+        ? `<select id="promptTable" style="width:100%;padding:10px;font-size:15px;border:2px solid var(--border);border-radius:10px;margin-bottom:12px;">
+             <option value="">-- Select Table --</option>
+             ${tables.map(t => `<option value="${t}">${t}</option>`).join('')}
+           </select>`
+        : `<input id="promptTable" placeholder="Table No (e.g. T-5, Table 3)" style="width:100%;padding:10px;font-size:15px;border:2px solid var(--border);border-radius:10px;margin-bottom:12px;">`;
+
+      const waiterField = waiters.length > 0
+        ? `<select id="promptWaiter" style="width:100%;padding:10px;font-size:15px;border:2px solid var(--border);border-radius:10px;">
+             <option value="">-- Select Waiter (Optional) --</option>
+             ${waiters.map(w => `<option value="${w}">${w}</option>`).join('')}
+           </select>`
+        : `<input id="promptWaiter" placeholder="Waiter name (optional)" style="width:100%;padding:10px;font-size:15px;border:2px solid var(--border);border-radius:10px;">`;
+
+      openModal(`
+        <div class="modal-handle"></div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:2rem;">🍽️</div>
+          <h3 style="margin:4px 0 2px;">New Bill — Table Details</h3>
+          <p style="font-size:12px;color:var(--text2);">Bill No: <b>${bill.billNumber}</b></p>
+        </div>
+
+        <label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px;">🪑 Table No *</label>
+        ${tableField}
+
+        <label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px;">👤 Waiter</label>
+        ${waiterField}
+
+        <div class="modal-actions" style="margin-top:16px;">
+          <button class="btn-outline" onclick="closeBillStartPrompt('${billId}')">Skip</button>
+          <button class="btn-accent" onclick="saveBillStartPrompt('${billId}')">Start Billing ✅</button>
+        </div>
+      `);
+      // Auto-focus first field
+      setTimeout(() => {
+        const el = document.getElementById('promptTable');
+        if (el) el.focus();
+      }, 80);
+    }
+
+    function saveBillStartPrompt(billId) {
+      const bill = billSessions.find(b => b.id === billId);
+      if (!bill) { closeModal(); return; }
+      const tableEl  = document.getElementById('promptTable');
+      const waiterEl = document.getElementById('promptWaiter');
+      if (tableEl)  bill.tableNo = tableEl.value.trim();
+      if (waiterEl) bill.waiter  = waiterEl.value.trim();
+      saveState();
+      renderAll();
+      closeModal();
+      if (bill.tableNo) toast(`🪑 ${bill.tableNo}${bill.waiter ? ' | 👤 ' + bill.waiter : ''} — Billing started`, 'success');
+    }
+
+    function closeBillStartPrompt(billId) {
+      closeModal();
+      toast('Table not set — add from Customer panel anytime', 'info');
     }
 
     function getActiveBill() { return billSessions.find(b => b.id === activeBillId) || (billSessions.length > 0 ?
@@ -4209,15 +4343,18 @@
     function renderTabs() {
       const bar = document.getElementById('tabsBar');
       const activeBills = billSessions.filter(b => b.status !== 'completed');
+      const isHotel = settings.billFormat === 'hotel' || settings.billFormat === 'cafe' || settings.billFormat === 'restaurant';
       let html = `<button class="new-tab-btn" onclick="createNewBill()" title="New Bill (Ctrl+N)">＋</button>`;
       activeBills.forEach(b => {
         const { final } = calcBill(b);
         const isActive = b.id === activeBillId;
         const cls = isActive ? 'bill-tab active' : b.status === 'hold' ? 'bill-tab hold' : 'bill-tab';
         const dotCls = b.status === 'hold' ? 'tab-dot dot-hold' : 'tab-dot dot-active';
-        html += `<div class="${cls}" onclick="switchToBill('${b.id}')" ondblclick="event.stopPropagation();closeBillTab('${b.id}')" title="Double-click to close">
+        const tabLabel = isHotel && b.tableNo ? `${b.tableNo}` : b.billNumber;
+        const subLabel = isHotel && b.tableNo ? b.billNumber : `₹${final.toFixed(0)}`;
+        html += `<div class="${cls}" onclick="switchToBill('${b.id}')" ondblclick="event.stopPropagation();closeBillTab('${b.id}')" title="${isHotel && b.tableNo ? 'Table: '+b.tableNo+(b.waiter?' | Waiter: '+b.waiter:'') : b.billNumber} — Double-click to close">
           <span class="${dotCls}"></span>
-          ${b.billNumber}<br><small style="font-size:10px;opacity:.8;">₹${final.toFixed(0)}</small>
+          ${tabLabel}<br><small style="font-size:10px;opacity:.8;">${subLabel}</small>
         </div>`;
       });
       bar.innerHTML = html;
@@ -4523,57 +4660,64 @@
       `);
     }
 
+    let _finalizeBusy = false;
     async function finalizeBill(billId, save = true) {
+      if (_finalizeBusy) return;
+      _finalizeBusy = true;
       const bill = billSessions.find(b => b.id === billId);
-      if (!bill) return;
+      if (!bill) { _finalizeBusy = false; return; }
       const pmMode = document.getElementById('pmMode')?.value || 'Cash';
       bill.paymentMode = pmMode;
       const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
-      if (save && authToken) {
-        try {
-          await apiCall('/api/bills', {
-            method: 'POST',
-            body: JSON.stringify({ bill_number: bill.billNumber, cart_json: JSON.stringify(bill.cart),
-              customer_name: bill.customer?.name || '', customer_mobile: bill.customer?.mobile || '',
-              payment_mode: pmMode,
-              table_no: bill.tableNo || '', waiter: bill.waiter || '',
-              subtotal, tax_total: tax, discount: disc, discount_type: bill.discountType,
-              additional_charge: addCharge, additional_charge_type: bill.additionalChargeType || 'flat',
-              additional_charge_label: bill.additionalChargeLabel || '',
-              final_amount: final, notes: bill.notes || '',
-              loyalty_points_used: bill.loyaltyPoints || 0 })
-          });
-          if (trialStatus.plan === 'free') { trialStatus.trial_bills_used += 1;
-            trialStatus.is_locked = trialStatus.trial_bills_used >= 3;
-            updateSubBadge();
-            checkTrialLock(); }
-          const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
-          hist.unshift({ ...bill, subtotal, tax, disc, final, completedAt: new Date().toISOString() });
-          localStorage.setItem('sales_history', JSON.stringify(hist.slice(0, 200)));
-          syncInvoiceToSheet(bill);
-        } catch (e) {
-          if (e.message === 'FREE_TRIAL_EXPIRED') { trialStatus.is_locked = true;
-            checkTrialLock();
-            updateSubBadge();
-            closeModal();
-            toast('Free trial ended! Upgrade.', 'error'); return; }
-        }
-      }
+
+      // ── Instant UI update — don't wait for API ─────────────────────────
       bill.status = 'completed';
-      if (bill.customer?.mobile) {
-        const mob = bill.customer.mobile.replace(/\D/g, '');
-        const waMsg = encodeURIComponent(
-          `🛒 *${settings.shopName}*\n\n✅ Bill: ${bill.billNumber}\nAmount: ₹${final.toFixed(2)}\n\nThank you! 🙏`);
-        setTimeout(() => { if (confirm('Send bill on WhatsApp?')) window.open(
-            `https://wa.me/91${mob}?text=${waMsg}`, '_blank'); }, 400);
-      }
       closeModal();
       saveState();
       const active = billSessions.find(b => b.status === 'active');
-      if (active) activeBillId = active.id;
-      else createNewBill();
+      if (active) activeBillId = active.id; else createNewBill();
       renderAll();
       toast(`Bill ${bill.billNumber} done! ₹${final.toFixed(2)} ✅`, 'success');
+
+      // Trial counter — update immediately in memory
+      if (save && trialStatus.plan === 'free') {
+        trialStatus.trial_bills_used += 1;
+        trialStatus.is_locked = trialStatus.trial_bills_used >= 3;
+        updateSubBadge(); checkTrialLock();
+      }
+
+      // Save to local history immediately
+      const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
+      hist.unshift({ ...bill, subtotal, tax, disc, final, completedAt: new Date().toISOString() });
+      localStorage.setItem('sales_history', JSON.stringify(hist.slice(0, 200)));
+
+      // ── Background API save ────────────────────────────────────────────
+      if (save && authToken) {
+        apiCall('/api/bills', {
+          method: 'POST',
+          body: JSON.stringify({ bill_number: bill.billNumber, cart_json: JSON.stringify(bill.cart),
+            customer_name: bill.customer?.name || '', customer_mobile: bill.customer?.mobile || '',
+            payment_mode: pmMode, table_no: bill.tableNo || '', waiter: bill.waiter || '',
+            subtotal, tax_total: tax, discount: disc, discount_type: bill.discountType,
+            additional_charge: addCharge, additional_charge_type: bill.additionalChargeType || 'flat',
+            additional_charge_label: bill.additionalChargeLabel || '',
+            final_amount: final, notes: bill.notes || '', loyalty_points_used: bill.loyaltyPoints || 0 })
+        }).catch(e => {
+          if (e.message === 'FREE_TRIAL_EXPIRED') { trialStatus.is_locked = true; checkTrialLock(); updateSubBadge(); }
+          // Don't show error toast for background save — bill is already saved locally
+        });
+      }
+
+      // Sheet sync — also background
+      syncInvoiceToSheet(bill);
+
+      // WhatsApp share — slight delay so UI settles first
+      if (bill.customer?.mobile) {
+        const mob = bill.customer.mobile.replace(/\D/g, '');
+        const waMsg = encodeURIComponent(`🛒 *${settings.shopName}*\n\n✅ Bill: ${bill.billNumber}\nAmount: ₹${final.toFixed(2)}\n\nThank you! 🙏`);
+        setTimeout(() => { if (confirm('Send bill on WhatsApp?')) window.open(`https://wa.me/91${mob}?text=${waMsg}`, '_blank'); }, 300);
+      }
+      _finalizeBusy = false;
     }
 
     function getBillSize() { return document.getElementById('billSizeSelect')?.value || 'thermal'; }
@@ -5042,7 +5186,6 @@
       closeModal();
       toast('Customer saved ✅', 'success');
     }
-
     async function redeemPoints(billId, mobile, balance) {
       const pts = Math.min(balance, 100 * Math.floor(balance / 100));
       try {
@@ -5386,68 +5529,45 @@
         <div id="settingsTab2" style="display:none;">
           <label>Bill Format</label>
           <select id="setBillFormat" onchange="onBillFormatChange(this.value)">
-            <option value="standard" \${settings.billFormat==='standard'?'selected':''}>🛒 Standard (Grocery / Retail)</option>
-            <option value="hotel"    \${settings.billFormat==='hotel'?'selected':''}>🍽️ Hotel / Restaurant / Cafe</option>
-            <option value="pharmacy" \${settings.billFormat==='pharmacy'?'selected':''}>💊 Medical / Pharmacy</option>
+            <option value="standard">🛒 Standard (Grocery / Retail)</option>
+            <option value="hotel">🍽️ Hotel / Restaurant / Cafe</option>
+            <option value="pharmacy">💊 Medical / Pharmacy</option>
           </select>
 
-          <label>Default Tax %</label><input id="setTax" type="number" value="\${settings.taxPercent||0}" min="0" max="100">
+          <label>Default Tax %</label><input id="setTax" type="number" min="0" max="100">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
-            <div><label>CGST %</label><input id="setCgst" type="number" value="\${settings.cgstPercent||0}" min="0" max="50" step="0.5"></div>
-            <div><label>SGST %</label><input id="setSgst" type="number" value="\${settings.sgstPercent||0}" min="0" max="50" step="0.5"></div>
+            <div><label>CGST %</label><input id="setCgst" type="number" min="0" max="50" step="0.5"></div>
+            <div><label>SGST %</label><input id="setSgst" type="number" min="0" max="50" step="0.5"></div>
           </div>
 
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin:10px 0;">
             <div style="font-weight:700;font-size:13px;margin-bottom:8px;">🗂️ Bill Column Visibility</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-              \${[
-                ['bcQty','Qty','qty'],['bcRate','Rate','rate'],['bcDiscount','Discount %','discount'],
-                ['bcTaxable','Taxable Amt','taxable'],['bcCgst','CGST','cgst'],['bcSgst','SGST','sgst'],['bcNet','Net Amount','net']
-              ].map(([id,lbl,key])=>\`
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:normal;padding:6px 8px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
-                <input type="checkbox" id="\${id}" \${((settings.billCols||{})[key]!==0)?'checked':''} style="width:15px;height:15px;accent-color:var(--accent);">
-                \${lbl}
-              </label>\`).join('')}
-            </div>
+            <div id="billColsGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
           </div>
 
           <div style="background:var(--accent2,#f0fdf4);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:normal;">
-              <input type="checkbox" id="setAmountWords" \${settings.enableAmountWords?'checked':''} style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
+              <input type="checkbox" id="setAmountWords" style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
               <div><div style="font-weight:600;">Amount in Words</div>
               <div style="font-size:11px;color:var(--text2);">Bill par total words mein print hoga</div></div>
             </label>
           </div>
 
-          <div id="hotelSettingsSection" style="display:\${settings.billFormat==='hotel'?'block':'none'};">
+          <div id="hotelSettingsSection" style="display:none;">
             <div style="background:var(--warn2,#fff7ed);border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:14px;margin-bottom:10px;">
               <div style="font-weight:700;font-size:13px;margin-bottom:12px;">🍽️ Hotel / Restaurant Settings</div>
-
               <label style="font-size:12px;font-weight:700;">👤 Waiter Name List</label>
-              <div id="waiterListContainer">
-                \${(settings.waiterList||[]).map((w)=>\`
-                <div style="display:flex;gap:6px;margin-bottom:6px;">
-                  <input class="waiter-input" value="\${w.replace(/"/g,'&quot;')}" placeholder="Waiter name" style="flex:1;">
-                  <button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button>
-                </div>\`).join('')}
-              </div>
+              <div id="waiterListContainer"></div>
               <button class="btn-outline" style="width:100%;padding:7px;margin-bottom:14px;font-size:12px;" onclick="addWaiterRow()">➕ Add Waiter</button>
-
               <label style="font-size:12px;font-weight:700;">🪑 Table Number List</label>
-              <div id="tableListContainer">
-                \${(settings.tableList||[]).map((t)=>\`
-                <div style="display:flex;gap:6px;margin-bottom:6px;">
-                  <input class="table-input" value="\${t.replace(/"/g,'&quot;')}" placeholder="Table number / name" style="flex:1;">
-                  <button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button>
-                </div>\`).join('')}
-              </div>
+              <div id="tableListContainer"></div>
               <button class="btn-outline" style="width:100%;padding:7px;font-size:12px;" onclick="addTableRow()">➕ Add Table</button>
             </div>
           </div>
 
           <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="saveSettings()">💾 Save Bill Settings</button>
         </div>
-        <div id="settingsTab3" style="display:none;">
+                <div id="settingsTab3" style="display:none;">
           <div style="background:var(--info2);border:1px solid var(--info);border-radius:10px;padding:12px;font-size:12px;margin-bottom:12px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:6px;">☁️ Google Sheet Integration — Setup Guide</div>
             <ol style="padding-left:16px;line-height:1.9;color:var(--text2);">
@@ -5493,6 +5613,62 @@
       `);
     }
 
+    function renderBillSettingsTab() {
+      // Populate bill format select
+      const fmtEl = document.getElementById('setBillFormat');
+      if (fmtEl) fmtEl.value = settings.billFormat || 'standard';
+
+      // Tax fields
+      const taxEl  = document.getElementById('setTax');
+      const cgstEl = document.getElementById('setCgst');
+      const sgstEl = document.getElementById('setSgst');
+      if (taxEl)  taxEl.value  = settings.taxPercent  || 0;
+      if (cgstEl) cgstEl.value = settings.cgstPercent || 0;
+      if (sgstEl) sgstEl.value = settings.sgstPercent || 0;
+
+      // Amount in words
+      const awEl = document.getElementById('setAmountWords');
+      if (awEl) awEl.checked = !!settings.enableAmountWords;
+
+      // Bill columns — always-on (Qty, Rate, Net) are disabled checkboxes shown greyed
+      const COLS = [
+        { id:'bcQty',      label:'Qty',         key:'qty',      alwaysOn: true },
+        { id:'bcRate',     label:'Rate',         key:'rate',     alwaysOn: true },
+        { id:'bcDiscount', label:'Discount %',   key:'discount', alwaysOn: false },
+        { id:'bcTaxable',  label:'Taxable Amt',  key:'taxable',  alwaysOn: false },
+        { id:'bcCgst',     label:'CGST',         key:'cgst',     alwaysOn: false },
+        { id:'bcSgst',     label:'SGST',         key:'sgst',     alwaysOn: false },
+        { id:'bcNet',      label:'Net Amount',   key:'net',      alwaysOn: true },
+      ];
+      const bc = settings.billCols || {};
+      const grid = document.getElementById('billColsGrid');
+      if (grid) {
+        grid.innerHTML = COLS.map(c => {
+          const checked  = c.alwaysOn || (bc[c.key] !== 0);
+          const disabled = c.alwaysOn ? 'disabled' : '';
+          const tip      = c.alwaysOn ? ' title="Always visible"' : '';
+          return `<label style="display:flex;align-items:center;gap:8px;cursor:${c.alwaysOn?'not-allowed':'pointer'};font-size:12px;font-weight:normal;padding:6px 8px;background:var(--bg);border-radius:8px;border:1px solid var(--border);opacity:${c.alwaysOn?'0.7':'1'};"${tip}>
+            <input type="checkbox" id="${c.id}" ${checked?'checked':''} ${disabled} style="width:15px;height:15px;accent-color:var(--accent);">
+            ${c.label}${c.alwaysOn?' 🔒':''}
+          </label>`;
+        }).join('');
+      }
+
+      // Waiter / Table lists
+      const wc = document.getElementById('waiterListContainer');
+      if (wc) wc.innerHTML = (settings.waiterList||[]).map(w =>
+        `<div style="display:flex;gap:6px;margin-bottom:6px;"><input class="waiter-input" value="${w.replace(/"/g,'&quot;')}" placeholder="Waiter name" style="flex:1;"><button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button></div>`
+      ).join('');
+
+      const tc = document.getElementById('tableListContainer');
+      if (tc) tc.innerHTML = (settings.tableList||[]).map(t =>
+        `<div style="display:flex;gap:6px;margin-bottom:6px;"><input class="table-input" value="${t.replace(/"/g,'&quot;')}" placeholder="Table number / name" style="flex:1;"><button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid var(--border);background:none;border-radius:6px;cursor:pointer;">✕</button></div>`
+      ).join('');
+
+      // Hotel section visibility
+      onBillFormatChange(settings.billFormat || 'standard');
+    }
+
     function switchSettingsTab(n) {
       [1, 2, 3].forEach(i => {
         const tab = document.getElementById(`settingsTab${i}`);
@@ -5503,6 +5679,7 @@
           btn.style.color = i === n ? '#fff' : 'var(--text2)';
         }
       });
+      if (n === 2) renderBillSettingsTab();
     }
 
     function addExtraHeaderLine() {
@@ -5517,7 +5694,7 @@
 
     function onBillFormatChange(val) {
       const sec = document.getElementById('hotelSettingsSection');
-      if (sec) sec.style.display = val === 'hotel' ? 'block' : 'none';
+      if (sec) sec.style.display = ['hotel', 'cafe', 'restaurant'].includes(val) ? 'block' : 'none';
     }
 
     function addWaiterRow() {
@@ -5568,13 +5745,13 @@
       const extraLines = Array.from(document.querySelectorAll('.extra-header-input'))
         .map(i => i.value.trim()).filter(Boolean).join('\n');
       const bc = {
-        qty:      document.getElementById('bcQty')?.checked ? 1 : 0,
-        rate:     document.getElementById('bcRate')?.checked ? 1 : 0,
+        qty:      1, // always on
+        rate:     1, // always on
+        net:      1, // always on
         discount: document.getElementById('bcDiscount')?.checked ? 1 : 0,
         taxable:  document.getElementById('bcTaxable')?.checked ? 1 : 0,
         cgst:     document.getElementById('bcCgst')?.checked ? 1 : 0,
         sgst:     document.getElementById('bcSgst')?.checked ? 1 : 0,
-        net:      document.getElementById('bcNet')?.checked ? 1 : 0,
       };
       const waiterList = Array.from(document.querySelectorAll('.waiter-input'))
         .map(i => i.value.trim()).filter(Boolean);
@@ -5599,24 +5776,23 @@
         tableList:        tableList,
       };
       localStorage.setItem('pos_settings', JSON.stringify(settings));
-      try {
-        await apiCall('/api/settings', {
-          method: 'PUT',
-          body: JSON.stringify({
-            shop_name: settings.shopName, address: settings.address, mobile: settings.mobile,
-            upi_id: settings.upi, gst_number: settings.gstNumber, fssai_no: settings.fssaiNo,
-            extra_header_lines: settings.extraHeaderLines.join('\n'),
-            footer: settings.footer, tax_percent: settings.taxPercent,
-            cgst_percent: settings.cgstPercent, sgst_percent: settings.sgstPercent,
-            bill_format: settings.billFormat, enable_amount_words: enableAmtWords,
-            bill_col_qty: bc.qty, bill_col_rate: bc.rate, bill_col_discount: bc.discount,
-            bill_col_taxable: bc.taxable, bill_col_cgst: bc.cgst, bill_col_sgst: bc.sgst, bill_col_net: bc.net,
-            waiter_list: waiterList.join('\n'), table_list: tableList.join('\n'),
-          })
-        });
-      } catch (e) {}
       closeDrawer();
       toast('Settings saved! ✅', 'success');
+      // Background sync — non-blocking
+      apiCall('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          shop_name: settings.shopName, address: settings.address, mobile: settings.mobile,
+          upi_id: settings.upi, gst_number: settings.gstNumber, fssai_no: settings.fssaiNo,
+          extra_header_lines: settings.extraHeaderLines.join('\n'),
+          footer: settings.footer, tax_percent: settings.taxPercent,
+          cgst_percent: settings.cgstPercent, sgst_percent: settings.sgstPercent,
+          bill_format: settings.billFormat, enable_amount_words: enableAmtWords,
+          bill_col_qty: bc.qty, bill_col_rate: bc.rate, bill_col_discount: bc.discount,
+          bill_col_taxable: bc.taxable, bill_col_cgst: bc.cgst, bill_col_sgst: bc.sgst, bill_col_net: bc.net,
+          waiter_list: waiterList.join('\n'), table_list: tableList.join('\n'),
+        })
+      }).catch(() => {});
     }
 
     async function importProductsFromSheet() {
@@ -5915,20 +6091,18 @@
         category: document.getElementById('pCat').value || 'General',
         unit: document.getElementById('pUnit').value || 'piece',
         stock: parseInt(document.getElementById('pStock')?.value || 0) || 0 };
-      try {
-        const res = await apiCall('/api/products', {
-          method: 'POST',
-          body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
-            discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category,
-            unit: p.unit, stock: p.stock })
-        });
-        p.id = res.id || p.id;
-      } catch (e) {}
       products.push(p);
       localStorage.setItem('pos_products', JSON.stringify(products));
       closeModal();
       toast(`${p.name} saved! ✅`, 'success');
       if (document.getElementById('prodList')) renderProductList('');
+      // Background API save
+      apiCall('/api/products', {
+        method: 'POST',
+        body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
+          discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category,
+          unit: p.unit, stock: p.stock })
+      }).then(res => { if (res?.id) p.id = res.id; }).catch(() => {});
     }
 
     function showEditProduct(pid) {
@@ -5958,24 +6132,23 @@
     async function updateProduct(pid) {
       const p = products.find(x => x.id === pid);
       if (!p) return;
-      p.name = document.getElementById('epName').value.trim();
-      p.barcode = document.getElementById('epBarcode').value;
-      p.price = parseFloat(document.getElementById('epPrice').value) || p.price;
+      p.name     = document.getElementById('epName').value.trim();
+      p.barcode  = document.getElementById('epBarcode').value;
+      p.price    = parseFloat(document.getElementById('epPrice').value) || p.price;
       p.discount_percent = parseFloat(document.getElementById('epDiscount')?.value) || 0;
-      p.tax = parseFloat(document.getElementById('epTax').value) || 0;
-      p.stock = parseInt(document.getElementById('epStock')?.value) || 0;
+      p.tax      = parseFloat(document.getElementById('epTax').value) || 0;
+      p.stock    = parseInt(document.getElementById('epStock')?.value) || 0;
       p.category = document.getElementById('epCat').value;
-      try {
-        await apiCall(`/api/products/${pid}`, {
-          method: 'PUT',
-          body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
-            discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category, stock: p.stock })
-        });
-      } catch (e) {}
       localStorage.setItem('pos_products', JSON.stringify(products));
       closeModal();
       toast(`${p.name} updated ✅`, 'success');
       if (document.getElementById('prodList')) renderProductList('');
+      // Background API update
+      apiCall(`/api/products/${pid}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
+          discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category, stock: p.stock })
+      }).catch(() => {});
     }
 
     async function deleteProduct(pid) {
@@ -6451,13 +6624,14 @@
       const W       = 520;          // canvas width (px)
       const PAD     = 32;           // horizontal padding
       const INNER   = W - PAD * 2;  // drawable width
-      const QR_SZ   = 260;          // QR image size — compact but scannable
+      const QR_SZ   = 240;          // QR image size — compact but scannable
       const LINE_H  = 26;           // step line height
       const HEADER_H = 120;         // space for title + plan badge
-      const QR_TOP  = HEADER_H + 12;
-      const INFO_TOP = QR_TOP + QR_SZ + 20;   // amount/upi info starts here
-      const INFO_LINES = 3;                   // amtLabel, payTo, scanWith
-      const INFO_BLOCK = INFO_LINES * 24 + 10;
+      const QR_TOP  = HEADER_H + 16;
+      const QR_CARD_BOTTOM = QR_TOP + QR_SZ + 8; // card bottom (8px padding)
+      const INFO_TOP = QR_CARD_BOTTOM + 36;  // 36px clear gap below card
+      const INFO_LINES = 3;                  // amtLabel, payTo, scanWith
+      const INFO_BLOCK = INFO_LINES * 28 + 10;
       const DIV_H   = 1 + 16;                 // divider + spacing
       const STEPS_TITLE_H = 30;
       const STEPS_H = t.steps.length * LINE_H;
