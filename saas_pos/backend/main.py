@@ -1151,7 +1151,7 @@ Team GroceryPOS"""
 # ======================== HERO CAROUSEL IMAGES (Admin managed) ========================
 @app.get("/api/hero-images")
 async def get_hero_images():
-    """Public — used by the landing page mobile mockup carousel."""
+    """Public — used by the landing page mobile mockup carousel (9:16 portrait)."""
     conn = get_db()
     row = conn.execute("SELECT value FROM app_config WHERE key='hero_images'").fetchone()
     conn.close()
@@ -1162,6 +1162,24 @@ async def get_hero_images():
 async def update_hero_images(req: HeroImagesUpdate, admin = Depends(get_admin)):
     conn = get_db()
     conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('hero_images', ?)",
+                 (json.dumps(req.images),))
+    conn.commit()
+    conn.close()
+    return {"success": True, "images": req.images}
+
+@app.get("/api/preview-images")
+async def get_preview_images():
+    """Public — used by the 'See Software In Action' gallery carousel (3:2 landscape)."""
+    conn = get_db()
+    row = conn.execute("SELECT value FROM app_config WHERE key='preview_images'").fetchone()
+    conn.close()
+    images = json.loads(row["value"]) if row and row["value"] else []
+    return {"images": images}
+
+@app.put("/api/admin/preview-images")
+async def update_preview_images(req: HeroImagesUpdate, admin = Depends(get_admin)):
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('preview_images', ?)",
                  (json.dumps(req.images),))
     conn.commit()
     conn.close()
