@@ -28,7 +28,15 @@ class SheetManagerError(Exception):
 
 class SheetManager:
     def __init__(self, webhook_url: Optional[str] = None, api_secret: Optional[str] = None,
-                 timeout: int = 12, max_retries: int = 2):
+                 timeout: int = 8, max_retries: int = 1):
+        # NOTE: worst case is now ~timeout*(max_retries+1) + small sleeps ≈ 17s
+        # per Sheet call. This used to be 12s×3 ≈ 37s, and flows like register
+        # (get_user → signup → push_to_google_sheets) chain 2-3 such calls —
+        # easily exceeding platform/proxy timeouts. When that happens the
+        # browser gives up and shows "Failed to fetch" while the server keeps
+        # working in the background and later logs 200 OK — a response the
+        # client already stopped waiting for. Failing faster here means the
+        # user gets an honest, prompt error instead of a silent mismatch.
         self.webhook_url = webhook_url or os.getenv("GAS_WEBHOOK_URL", "")
         self.api_secret = api_secret or os.getenv("GAS_API_SECRET", "")
         self.timeout = timeout
