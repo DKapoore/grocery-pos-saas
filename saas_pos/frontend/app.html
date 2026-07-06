@@ -3459,7 +3459,7 @@
         </div>
         <div>
           <h4>Quick Links</h4>
-          <a href="#" onclick="showScreen('screen-login')">Login</a>
+          <a href="#" onclick="showLoginScreen('login')">Login</a>
           <a href="#" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})">Pricing</a>
           <a href="#" onclick="document.getElementById('faqSection').scrollIntoView({behavior:'smooth'})">FAQ</a>
         </div>
@@ -3972,6 +3972,11 @@
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id)?.classList.add('active');
+      // Always reset login screen to the Login tab — never leave it on Trial tab
+      // when navigating away and back. Explicit tab = 'trial' calls go via showLoginScreen.
+      if (id === 'screen-login') {
+        switchLoginTab('login');
+      }
     }
 
     function toast(msg, type = 'success') {
@@ -6820,7 +6825,7 @@
           <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
           <h2>Registration Submitted!</h2>
           <p style="color:var(--text2);margin:12px 0;">Admin will verify & send login to your WhatsApp & Email within <strong>24 hours</strong>.</p>
-          <button class="btn-accent" style="width:100%;padding:12px;margin-top:14px;" onclick="closeModal();showScreen('screen-login')">Go to Login →</button>
+          <button class="btn-accent" style="width:100%;padding:12px;margin-top:14px;" onclick="closeModal();showLoginScreen('login')">Go to Login →</button>
         </div>`);
       } catch (e) { toast(e.message || 'Submission failed', 'error');
         btn.textContent = 'Submit Registration →';
@@ -6851,7 +6856,7 @@
           await initApp();
         } catch (e) { localStorage.removeItem('pos_token');
           localStorage.removeItem('pos_user');
-          showScreen('screen-login'); }
+          showLoginScreen('login'); }
       }
     });
   </script>
