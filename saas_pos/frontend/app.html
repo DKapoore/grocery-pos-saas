@@ -3869,7 +3869,7 @@
     let settings = { shopName: 'My Shop', upi: '', address: '', mobile: '', footer: 'Thank you! Visit Again 🙏', taxPercent: 0,
       gstNumber: '', fssaiNo: '', extraHeaderLines: [], cgstPercent: 0, sgstPercent: 0,
       billFormat: 'standard', enableAmountWords: 0,
-      billCols: { qty:1, rate:1, discount:1, taxable:1, cgst:1, sgst:1, net:1 },
+      billCols: { qty:1, rate:1, discount:1, cgst:1, sgst:1, net:1 },
       waiterList: [], tableList: [] };
     let products = [];
     let billSessions = [];
@@ -3955,6 +3955,16 @@
 
     loadHeroImages();
     loadPreviewImages();
+    let trialWatermarkEnabled = true; // default ON until confirmed otherwise by backend
+    async function loadTrialWatermarkStatus() {
+      try {
+        const res = await fetch(`${API}/api/trial-watermark-status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        trialWatermarkEnabled = data.enabled !== false;
+      } catch (e) { /* network issue — keep default (enabled) */ }
+    }
+    loadTrialWatermarkStatus();
     let trialStatus = { plan: 'free', trial_bills_used: 0, is_locked: false };
     let selectedPlan = null;
     let cloudConfig = JSON.parse(localStorage.getItem('pos_cloud_config') || '{}');
@@ -4006,7 +4016,17 @@
       return data;
     }
 
-    function saveAuth(token, user) { authToken = token;
+    function saveAuth(token, user) {
+      // Safety net: if the browser has cached data from a DIFFERENT user
+      // (e.g. session expired and they logged in again, or logout wasn't
+      // called), wipe that stale cache now so it can never leak into this
+      // user's bills/products/settings.
+      const lastUsername = localStorage.getItem('pos_last_username');
+      if (lastUsername && user && user.username && lastUsername !== user.username) {
+        clearPerUserCache();
+      }
+      if (user && user.username) localStorage.setItem('pos_last_username', user.username);
+      authToken = token;
       currentUser = user;
       localStorage.setItem('pos_token', token);
       localStorage.setItem('pos_user', JSON.stringify(user)); }
@@ -4074,10 +4094,21 @@
     async function doLogout() {
       // Deactivate session on server before clearing local storage
       try { await apiCall('/api/auth/logout', { method: 'POST' }); } catch(e) {}
-      localStorage.removeItem('pos_auth_token');
+      clearPerUserCache();
+      localStorage.removeItem('pos_token');   // was 'pos_auth_token' — wrong key, never actually cleared the token
       localStorage.removeItem('pos_user');
       localStorage.removeItem('pos_device_id');
       location.reload();
+    }
+
+    // All localStorage keys that hold data belonging to ONE specific logged-in
+    // user. These must never leak between accounts sharing the same browser —
+    // cleared on logout, and also as a safety net whenever a different
+    // username logs in without an explicit logout having happened first.
+    function clearPerUserCache() {
+      ['bill_sessions', 'active_bill_id', 'billCounter', 'pos_products', 'pos_settings',
+       'sales_history', 'pos_customers', 'pos_pending_invoices', 'pos_notifs',
+       'pos_cloud_config', 'pos_last_backup'].forEach(k => localStorage.removeItem(k));
     }
 
     async function doFreeTrial() {
@@ -4134,7 +4165,6 @@
             qty:     settData.bill_col_qty      !== 0 ? 1 : 0,
             rate:    settData.bill_col_rate     !== 0 ? 1 : 0,
             discount:settData.bill_col_discount !== 0 ? 1 : 0,
-            taxable: settData.bill_col_taxable  !== 0 ? 1 : 0,
             cgst:    settData.bill_col_cgst     !== 0 ? 1 : 0,
             sgst:    settData.bill_col_sgst     !== 0 ? 1 : 0,
             net:     settData.bill_col_net      !== 0 ? 1 : 0,
@@ -4770,7 +4800,7 @@
       const addChargeLabel = bill.additionalChargeLabel || 'Service Charge';
       const showAmtWords   = settings.enableAmountWords;
       const isHotel  = settings.billFormat === 'hotel';
-      const bc = settings.billCols || { qty:1, rate:1, discount:1, taxable:1, cgst:1, sgst:1, net:1 };
+      const bc = settings.billCols || { qty:1, rate:1, discount:1, cgst:1, sgst:1, net:1 };
       const extraLines = (settings.extraHeaderLines || []).filter(Boolean);
       const upiStr = settings.upi
         ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`
@@ -4778,7 +4808,7 @@
 
       // ── Shared header ──────────────────────────────────────────────────
       const headerHTML = `
-        ${isFree ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:10px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>` : ''}
+        ${(isFree && trialWatermarkEnabled) ? `<div style="text-align:center;background:#fee2e2;border:2px dashed #dc2626;padding:6px;margin-bottom:10px;font-size:10px;font-weight:bold;color:#dc2626;">⚠️ FREE TRIAL — Upgrade for Professional Bills</div>` : ''}
         <div style="text-align:center;margin-bottom:8px;">
           <div style="font-size:${titleSize};font-weight:900;color:#000;letter-spacing:.5px;">${settings.shopName}</div>
           ${settings.address ? `<div style="font-size:${f};color:#000;margin-top:2px;">${settings.address}</div>` : ''}
@@ -4839,8 +4869,9 @@
                 ${bc.qty     ?`<th style="${thStyle}">Qty</th>`:''}
                 ${bc.rate    ?`<th style="${thStyle}">Rate</th>`:''}
                 ${bc.discount?`<th style="${thStyle}">Disc%</th>`:''}
-                ${bc.taxable ?`<th style="${thStyle}">Taxable</th>`:''}
-                ${bc.net     ?`<th style="${thStyle}">Net Amt</th>`:''}
+                ${bc.cgst    ?`<th style="${thStyle}">CGST</th>`:''}
+                ${bc.sgst    ?`<th style="${thStyle}">SGST</th>`:''}
+                ${bc.net     ?`<th style="${thStyle}">Amount</th>`:''}
               </tr>
             </thead>
             <tbody>
@@ -4848,23 +4879,23 @@
                 const discPct = i.discount_percent || 0;
                 const discAmt = i.rate * i.qty * (discPct / 100);
                 const taxableAfterDisc = i.taxable - discAmt;
-                const netAmt = taxableAfterDisc + i.cgstAmt + i.sgstAmt;
                 return `<tr>
                   <td style="${tdStyleL}">${i.name}</td>
                   ${bc.qty     ?`<td style="${tdStyle}">${i.qty}</td>`:''}
                   ${bc.rate    ?`<td style="${tdStyle}">₹${i.rate.toFixed(2)}</td>`:''}
                   ${bc.discount?`<td style="${tdStyle}">${discPct?discPct+'%':'-'}</td>`:''}
-                  ${bc.taxable ?`<td style="${tdStyle}">₹${taxableAfterDisc.toFixed(2)}</td>`:''}
-                  ${bc.net     ?`<td style="${tdStyle};font-weight:600;">₹${netAmt.toFixed(2)}</td>`:''}
+                  ${bc.cgst    ?`<td style="${tdStyle}">₹${i.cgstAmt.toFixed(2)}</td>`:''}
+                  ${bc.sgst    ?`<td style="${tdStyle}">₹${i.sgstAmt.toFixed(2)}</td>`:''}
+                  ${bc.net     ?`<td style="${tdStyle};font-weight:600;">₹${taxableAfterDisc.toFixed(2)}</td>`:''}
                 </tr>`;
               }).join('')}
             </tbody>
           </table>
           <hr style="border:1px dashed #000;margin:6px 0;">
           <div style="font-size:${f};color:#000;max-width:220px;margin-left:auto;">
-            ${bc.taxable?`<div style="display:flex;justify-content:space-between;"><span>Taxable Amount:</span><span>₹${totalTaxable.toFixed(2)}</span></div>`:''}
-            ${bc.cgst?`<div style="display:flex;justify-content:space-between;"><span>CGST (${cgst}%):</span><span>₹${totalCgst.toFixed(2)}</span></div>`:''}
-            ${bc.sgst?`<div style="display:flex;justify-content:space-between;"><span>SGST (${sgst}%):</span><span>₹${totalSgst.toFixed(2)}</span></div>`:''}
+            ${(cgst>0||sgst>0)?`<div style="display:flex;justify-content:space-between;"><span>Subtotal (Before Tax):</span><span>₹${totalTaxable.toFixed(2)}</span></div>`:''}
+            ${cgst>0?`<div style="display:flex;justify-content:space-between;"><span>CGST (${cgst}%):</span><span>₹${totalCgst.toFixed(2)}</span></div>`:''}
+            ${sgst>0?`<div style="display:flex;justify-content:space-between;"><span>SGST (${sgst}%):</span><span>₹${totalSgst.toFixed(2)}</span></div>`:''}
             ${addCharge>0?`<div style="display:flex;justify-content:space-between;"><span>${addChargeLabel}:</span><span>+₹${addCharge.toFixed(2)}</span></div>`:''}
             ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
             ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
@@ -5635,15 +5666,17 @@
       const awEl = document.getElementById('setAmountWords');
       if (awEl) awEl.checked = !!settings.enableAmountWords;
 
-      // Bill columns — always-on (Qty, Rate, Net) are disabled checkboxes shown greyed
+      // Bill columns — Qty & Rate stay always-on (a bill with no qty/rate makes
+      // no sense). CGST/SGST checkboxes here control ONLY the per-item table
+      // columns; the footer Subtotal/CGST/SGST lines are compulsory whenever
+      // CGST%/SGST% is set in Tax settings, regardless of these checkboxes.
       const COLS = [
         { id:'bcQty',      label:'Qty',         key:'qty',      alwaysOn: true },
         { id:'bcRate',     label:'Rate',         key:'rate',     alwaysOn: true },
         { id:'bcDiscount', label:'Discount %',   key:'discount', alwaysOn: false },
-        { id:'bcTaxable',  label:'Taxable Amt',  key:'taxable',  alwaysOn: false },
-        { id:'bcCgst',     label:'CGST',         key:'cgst',     alwaysOn: false },
-        { id:'bcSgst',     label:'SGST',         key:'sgst',     alwaysOn: false },
-        { id:'bcNet',      label:'Net Amount',   key:'net',      alwaysOn: true },
+        { id:'bcCgst',     label:'CGST (table column)', key:'cgst', alwaysOn: false },
+        { id:'bcSgst',     label:'SGST (table column)', key:'sgst', alwaysOn: false },
+        { id:'bcNet',      label:'Amount',       key:'net',      alwaysOn: false },
       ];
       const bc = settings.billCols || {};
       const grid = document.getElementById('billColsGrid');
@@ -5752,11 +5785,10 @@
       const bc = {
         qty:      1, // always on
         rate:     1, // always on
-        net:      1, // always on
         discount: document.getElementById('bcDiscount')?.checked ? 1 : 0,
-        taxable:  document.getElementById('bcTaxable')?.checked ? 1 : 0,
         cgst:     document.getElementById('bcCgst')?.checked ? 1 : 0,
         sgst:     document.getElementById('bcSgst')?.checked ? 1 : 0,
+        net:      document.getElementById('bcNet')?.checked ? 1 : 0,
       };
       const waiterList = Array.from(document.querySelectorAll('.waiter-input'))
         .map(i => i.value.trim()).filter(Boolean);
@@ -5794,7 +5826,7 @@
           cgst_percent: settings.cgstPercent, sgst_percent: settings.sgstPercent,
           bill_format: settings.billFormat, enable_amount_words: enableAmtWords,
           bill_col_qty: bc.qty, bill_col_rate: bc.rate, bill_col_discount: bc.discount,
-          bill_col_taxable: bc.taxable, bill_col_cgst: bc.cgst, bill_col_sgst: bc.sgst, bill_col_net: bc.net,
+          bill_col_cgst: bc.cgst, bill_col_sgst: bc.sgst, bill_col_net: bc.net,
           waiter_list: waiterList.join('\n'), table_list: tableList.join('\n'),
         })
       }).catch(() => {});
