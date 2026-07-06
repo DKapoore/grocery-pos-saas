@@ -76,6 +76,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Registering this via @app.exception_handler runs it INSIDE
+    # CORSMiddleware in the stack, so the response still gets proper
+    # Access-Control-Allow-Origin headers. Without this, an unhandled crash
+    # (like the datetime tz-aware/naive bug that caused the "Failed to fetch"
+    # mystery) bubbles all the way out to Starlette's ServerErrorMiddleware,
+    # which sits OUTSIDE CORSMiddleware — its fallback 500 response has no
+    # CORS headers, so the browser blocks it and shows a generic network
+    # error instead of the real 500, hiding the actual bug from both the
+    # user and the browser's Network tab.
+    print(f"[UNHANDLED EXCEPTION] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Server error — kripya thodi der baad try karein. Agar issue rahe toh support se contact karein."},
+    )
+
 security = HTTPBearer(auto_error=False)
 
 # ======================== DATABASE ========================
@@ -314,9 +331,14 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     if user["expiry_date"] and user["subscription_plan"] != "free":
         try:
             expiry = datetime.fromisoformat(user["expiry_date"])
+            # See google_auth.authenticate() for why this normalization is needed —
+            # some expiry_date values are timezone-aware, which crashes a naive
+            # datetime.utcnow() comparison with TypeError (not ValueError).
+            if expiry.tzinfo is not None:
+                expiry = expiry.replace(tzinfo=None)
             if datetime.utcnow() > expiry:
                 raise HTTPException(status_code=403, detail="Subscription expired")
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
     # Session validity check — if admin force-logged-out this token.
@@ -551,9 +573,9 @@ async def register(
     plan: str = Form(...),
     receipt: UploadFile = File(...)
 ):
-    existing = await run_in_threadpool(google_auth.get_user, username)
-    if existing:
-        raise HTTPException(status_code=400, detail="Username or email already exists")
+    # NOTE: signup() already checks for an existing username internally
+    # before creating the row, so there's no need to duplicate that check
+    # here — it was an extra, unnecessary Sheet round-trip on every signup.
 
     # Save receipt — this is a file, not credential data, so it's fine to keep
     # on the Render disk (referenced by path from the Sheet's receipt_path column).
