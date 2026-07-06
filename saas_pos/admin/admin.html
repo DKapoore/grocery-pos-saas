@@ -505,6 +505,20 @@ tr:hover td{background:rgba(255,255,255,.02);}
         </div>
 
       </div>
+
+      <!-- Section C: Free Trial Watermark Toggle -->
+      <div class="table-wrap" style="padding:22px;max-width:1100px;margin-top:20px;">
+        <h3 style="margin-bottom:4px;">🏷️ Free Trial Watermark</h3>
+        <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+          Free trial accounts ke bills par "⚠️ FREE TRIAL — Upgrade for Professional Bills" wala banner dikhta hai.
+          Default: <strong>ON</strong>. Yahan se globally OFF kar sakte hain.
+        </p>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600;">
+          <input type="checkbox" id="trialWatermarkToggle" style="width:18px;height:18px;accent-color:var(--accent);" onchange="saveTrialWatermarkSetting()">
+          Show free trial watermark on bills
+        </label>
+        <span id="trialWatermarkStatus" style="font-size:12px;color:var(--text2);margin-top:8px;display:block;"></span>
+      </div>
     </div>
 
   </main>
@@ -918,6 +932,46 @@ async function loadPreviewImagesAdmin() {
   }
 }
 
+// ── FREE TRIAL WATERMARK TOGGLE ──────────────────────────────
+async function loadTrialWatermarkAdmin() {
+  const cb = document.getElementById('trialWatermarkToggle');
+  if (!cb) return;
+  try {
+    const res = await fetch(`${API}/api/trial-watermark-status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    cb.checked = data.enabled !== false; // default ON
+  } catch (e) {
+    console.error('loadTrialWatermarkAdmin failed:', e);
+    cb.checked = true; // safe default
+  }
+}
+
+async function saveTrialWatermarkSetting() {
+  const cb = document.getElementById('trialWatermarkToggle');
+  const statusEl = document.getElementById('trialWatermarkStatus');
+  if (!cb) return;
+  const enabled = cb.checked;
+  if (statusEl) statusEl.textContent = 'Saving...';
+  try {
+    if (!adminToken) throw new Error('Session expired — please login again');
+    const res = await fetch(`${API}/api/admin/trial-watermark`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ enabled })
+    });
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (statusEl) statusEl.textContent = `✅ Saved — watermark ${enabled ? 'ON' : 'OFF'}`;
+    toast(`Free trial watermark turned ${enabled ? 'ON' : 'OFF'}`, 'success');
+  } catch (e) {
+    console.error('saveTrialWatermarkSetting failed:', e);
+    cb.checked = !enabled; // revert on failure
+    if (statusEl) statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
 function heroImageFieldHtml(url, i, prefix = 'hero') {
   const safeUrl = (url || '').replace(/"/g, '&quot;');
   const cls = prefix === 'preview' ? 'preview-img-input' : 'hero-img-input';
@@ -1027,7 +1081,7 @@ function showPage(name, el) {
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
-  if (name === 'landing') { loadHeroImagesAdmin(); loadPreviewImagesAdmin(); }
+  if (name === 'landing') { loadHeroImagesAdmin(); loadPreviewImagesAdmin(); loadTrialWatermarkAdmin(); }
 }
 
 // ── LOAD DATA ────────────────────────────────────────────────
