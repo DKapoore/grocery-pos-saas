@@ -91,14 +91,20 @@ function getUsersSheet() {
 // Returns -1 if not found. Username match is case-insensitive.
 function findUserRow(sheet, username) {
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return -1;
+  if (lastRow < 2) { Logger.log('findUserRow: sheet has no data rows (lastRow=' + lastRow + ')'); return -1; }
   const usernames = sheet.getRange(2, UCOL.username, lastRow - 1, 1).getValues();
   const target = String(username || '').trim().toLowerCase();
+  // TEMP DEBUG — remove once the DKapoore3 lookup issue is confirmed fixed.
+  Logger.log('findUserRow: searching for target=[' + target + '] (length=' + target.length + ')');
+  Logger.log('findUserRow: usernames in sheet = ' + JSON.stringify(usernames.map(r => String(r[0] || ''))));
   for (let i = 0; i < usernames.length; i++) {
-    if (String(usernames[i][0] || '').trim().toLowerCase() === target) {
+    const cellVal = String(usernames[i][0] || '').trim().toLowerCase();
+    if (cellVal === target) {
+      Logger.log('findUserRow: MATCH found at row ' + (i + 2));
       return i + 2; // +2 because data starts at row 2 and i is 0-based
     }
   }
+  Logger.log('findUserRow: NO MATCH for [' + target + ']');
   return -1;
 }
 
