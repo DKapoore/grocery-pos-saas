@@ -486,6 +486,9 @@ class AdminGenSettingsPassword(BaseModel):
 class HeroImagesUpdate(BaseModel):
     images: List[str]  # list of image URLs, 9:16 ratio recommended
 
+class TrialWatermarkUpdate(BaseModel):
+    enabled: bool  # whether free-trial bills show the "FREE TRIAL" watermark
+
 # ======================== UTILS ========================
 def send_email(to_email: str, subject: str, body: str):
     if not SMTP_USER or not SMTP_PASS:
@@ -1191,6 +1194,29 @@ async def update_preview_images(req: HeroImagesUpdate, admin = Depends(get_admin
     return {"success": True, "images": req.images}
 
 
+# ======================== FREE TRIAL WATERMARK (Admin managed) ========================
+# Controls whether the "⚠️ FREE TRIAL — Upgrade for Professional Bills" banner
+# shows on bills for free-trial accounts. Defaults to enabled (matches the
+# behaviour before this toggle existed) unless an admin explicitly turns it off.
+@app.get("/api/trial-watermark-status")
+async def get_trial_watermark_status():
+    """Public — read by every client to decide whether to render the free-trial watermark."""
+    conn = get_db()
+    row = conn.execute("SELECT value FROM app_config WHERE key='trial_watermark_enabled'").fetchone()
+    conn.close()
+    enabled = True if not row or row["value"] is None else row["value"] == "1"
+    return {"enabled": enabled}
+
+@app.put("/api/admin/trial-watermark")
+async def update_trial_watermark_status(req: TrialWatermarkUpdate, admin = Depends(get_admin)):
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('trial_watermark_enabled', ?)",
+                 ("1" if req.enabled else "0",))
+    conn.commit()
+    conn.close()
+    return {"success": True, "enabled": req.enabled}
+
+
 @app.post("/api/admin/block")
 async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
     if req.block:
@@ -1326,7 +1352,7 @@ async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
 # ======================== SERVE FRONTEND ========================
 @app.get("/")
 async def root():
-    return FileResponse("../frontend/index.html")
+    return FileResponse("../frontend/app.html")
 
 @app.get("/app")
 async def serve_app():
