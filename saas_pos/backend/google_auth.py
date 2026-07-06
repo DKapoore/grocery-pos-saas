@@ -174,12 +174,20 @@ def authenticate(username: str, password: str) -> Dict[str, Any]:
     if user["expiry_date"] and user["subscription_plan"] != "free":
         try:
             expiry = datetime.fromisoformat(user["expiry_date"])
+            # Some expiry_date values in the Sheet are timezone-aware (e.g. end
+            # with 'Z' or '+00:00') while others are naive — comparing a naive
+            # datetime.utcnow() against an aware one raises TypeError (not
+            # ValueError), which was crashing the whole request unhandled.
+            # Treat an aware value as already being UTC wall-clock time, same
+            # as utcnow(), by dropping the tzinfo before comparing.
+            if expiry.tzinfo is not None:
+                expiry = expiry.replace(tzinfo=None)
             if datetime.utcnow() > expiry:
                 return {"success": False, "message": "Subscription expired",
                         "plan": user["subscription_plan"], "expiry": user["expiry_date"],
                         "status": user["account_status"]}
-        except ValueError:
-            pass  # malformed date — don't block login over a data issue
+        except (ValueError, TypeError):
+            pass  # malformed/unexpected date — don't block login over a data issue
 
     try:
         sheets.update_last_login(username)
@@ -270,9 +278,11 @@ def extend_subscription(user_id: int, days: int) -> Dict[str, Any]:
     if user["expiry_date"]:
         try:
             base = datetime.fromisoformat(user["expiry_date"])
+            if base.tzinfo is not None:
+                base = base.replace(tzinfo=None)
             if base < datetime.utcnow():
                 base = datetime.utcnow()
-        except ValueError:
+        except (ValueError, TypeError):
             base = datetime.utcnow()
     else:
         base = datetime.utcnow()
