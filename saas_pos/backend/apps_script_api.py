@@ -46,6 +46,11 @@ def lookup_user(username: str) -> Optional[Dict[str, Any]]:
     except SheetManagerError:
         raise
     if not res.get("success"):
+        # Log the REAL reason Apps Script rejected this (e.g. "Unauthorized —
+        # invalid API secret" vs "User not found") instead of silently
+        # collapsing everything into None, which made every failure mode
+        # look identical to a genuine "user not found" in the logs.
+        print(f"[AUTH] Sheet lookup failed for {username!r}: {res.get('message') or res.get('error') or res}")
         return None
     return res.get("user")
 
