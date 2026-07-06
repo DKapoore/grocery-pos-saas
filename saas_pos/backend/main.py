@@ -1057,7 +1057,12 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
         conn.commit()
         conn.close()
 
-    login_url = os.getenv("APP_URL", "https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html")
+    _raw_url = os.getenv("APP_URL", "https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html")
+    # Normalise — remove trailing slash, avoid double /app.html
+    _raw_url = _raw_url.rstrip("/")
+    if not _raw_url.endswith("app.html"):
+        _raw_url = _raw_url.rstrip("/") + "/app.html"
+    login_url = _raw_url
 
     email_body = f"""
     <h2>🎉 Your POS Account is Ready!</h2>
