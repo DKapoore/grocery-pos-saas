@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -550,7 +551,7 @@ async def register(
     plan: str = Form(...),
     receipt: UploadFile = File(...)
 ):
-    existing = google_auth.get_user(username)
+    existing = await run_in_threadpool(google_auth.get_user, username)
     if existing:
         raise HTTPException(status_code=400, detail="Username or email already exists")
 
@@ -563,7 +564,8 @@ async def register(
 
     plan_amount = 299 if plan == "monthly" else 3200
 
-    res = google_auth.signup(
+    res = await run_in_threadpool(
+        google_auth.signup,
         username=username, password=None, full_name=full_name, email=email,
         whatsapp=whatsapp, city=city, store_type=store_type,
         subscription_plan=plan, plan_amount=plan_amount,
@@ -582,19 +584,24 @@ async def register(
 
     # Push to Google Sheets (legacy "Registrations" log tab — kept for the
     # existing admin notification workflow / WhatsApp+Email approval flow)
-    push_to_google_sheets({
+    await run_in_threadpool(push_to_google_sheets, {
         "action": "new_registration",
         "username": username, "full_name": full_name,
         "email": email, "whatsapp": whatsapp, "plan": plan,
         "plan_amount": plan_amount, "city": city, "store_type": store_type,
-        "upi_used": upi_used, "timestamp": datetime.utcnow().isoformat()
+        "upi_used": upi_used, "timestamp": datetime.utcnow().isoformat() + "Z"
     })
 
     return {"success": True, "message": "Registration submitted. Admin will verify and send login credentials within 24 hours."}
 
 @app.post("/api/auth/login")
 async def login(req: LoginRequest, request: Request):
-    auth_res = google_auth.authenticate(req.username, req.password)
+    # google_auth.authenticate() makes a blocking network call to Apps Script
+    # (up to ~36s worst-case with retries). Running it inline here would
+    # freeze this whole async server — every other user's request — for that
+    # entire duration, since there's only one worker. run_in_threadpool moves
+    # it off the event loop so other requests keep flowing while this waits.
+    auth_res = await run_in_threadpool(google_auth.authenticate, req.username, req.password)
     if not auth_res.get("success"):
         msg = auth_res.get("message", "Invalid credentials")
         status_code = 403 if "blocked" in msg.lower() or "expired" in msg.lower() or "not activated" in msg.lower() else 401
@@ -681,11 +688,12 @@ async def login(req: LoginRequest, request: Request):
 @app.post("/api/auth/free-trial")
 async def free_trial(req: LoginRequest):
     """Create or login free trial account — backed by the Google Sheet."""
-    user = google_auth.get_user(req.username)
+    user = await run_in_threadpool(google_auth.get_user, req.username)
 
     if not user:
         # Create free trial account directly with Active status (no approval needed)
-        res = google_auth.signup(
+        res = await run_in_threadpool(
+            google_auth.signup,
             username=req.username, password=None, full_name=req.username,
             subscription_plan="free", account_status="Active", payment_status="free",
         )
@@ -696,7 +704,7 @@ async def free_trial(req: LoginRequest):
                      (res["user_id"], req.username + "'s Shop"))
         conn.commit()
         conn.close()
-        user = google_auth.get_user(req.username)
+        user = await run_in_threadpool(google_auth.get_user, req.username)
 
     token = create_token({"username": user["username"]})
     return {
@@ -793,7 +801,10 @@ async def save_bill(bill: BillCreate, current_user: dict = Depends(get_current_u
     # Increment trial counter — this lives in the Sheet now, not SQLite
     if current_user["plan"] == "free":
         try:
-            google_auth.set_trial_bills_used(current_user["username"], current_user["trial_bills_used"] + 1)
+            await run_in_threadpool(
+                google_auth.set_trial_bills_used,
+                current_user["username"], current_user["trial_bills_used"] + 1
+            )
         except SheetManagerError:
             pass  # don't fail bill creation if the Sheet write hiccups
     
@@ -915,7 +926,7 @@ async def get_settings(current_user: dict = Depends(get_current_user)):
     # Settings-tab lock status now lives on the Sheet (account-management data),
     # not in this local table.
     try:
-        sheet_user = google_auth.get_user(current_user["username"])
+        sheet_user = await run_in_threadpool(google_auth.get_user, current_user["username"])
         data["settings_locked"] = bool(sheet_user and sheet_user.get("settings_password_hash"))
     except SheetManagerError:
         data["settings_locked"] = False
@@ -946,21 +957,21 @@ async def verify_settings_password(req: SettingsPasswordVerify, current_user: di
     """Unlock the settings tab — checks the per-user settings lock password
     (set only by admin), stored as settings_password_hash on the Sheet."""
     try:
-        sheet_user = google_auth.get_user(current_user["username"])
+        sheet_user = await run_in_threadpool(google_auth.get_user, current_user["username"])
     except SheetManagerError as e:
         raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
     stored_hash = (sheet_user or {}).get("settings_password_hash", "")
     if not stored_hash:
         # No lock set — settings are open to anyone logged into this account
         return {"success": True, "locked": False}
-    if not google_auth.verify_password(req.password, stored_hash):
+    if not await run_in_threadpool(google_auth.verify_password, req.password, stored_hash):
         raise HTTPException(status_code=401, detail="Galat password")
     return {"success": True, "locked": True}
 
 @app.get("/api/settings/lock-status")
 async def settings_lock_status(current_user: dict = Depends(get_current_user)):
     try:
-        sheet_user = google_auth.get_user(current_user["username"])
+        sheet_user = await run_in_threadpool(google_auth.get_user, current_user["username"])
     except SheetManagerError:
         return {"locked": False}
     return {"locked": bool(sheet_user and sheet_user.get("settings_password_hash"))}
@@ -984,7 +995,7 @@ Thank you for shopping with us! 🙏
 
 Pay via UPI or visit us again soon."""
     
-    send_whatsapp(mobile, message)
+    await run_in_threadpool(send_whatsapp, mobile, message)
     # Return WA link (fallback)
     wa_link = f"https://wa.me/91{mobile}?text={urllib.parse.quote(message)}"
     return {"success": True, "wa_link": wa_link}
@@ -1002,7 +1013,7 @@ async def admin_login(req: LoginRequest):
 @app.get("/api/admin/users")
 async def admin_get_users(admin = Depends(get_admin)):
     try:
-        users = google_auth.list_users()
+        users = await run_in_threadpool(google_auth.list_users)
     except SheetManagerError as e:
         raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
     # Shape each user to match what admin.html expects (same field names as
@@ -1036,7 +1047,8 @@ async def admin_get_users(admin = Depends(get_admin)):
 
 @app.post("/api/admin/approve")
 async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
-    res = google_auth.approve_user(
+    res = await run_in_threadpool(
+        google_auth.approve_user,
         user_id=req.user_id, new_username=req.username,
         password=req.password, plan_days=req.plan_days,
     )
@@ -1048,7 +1060,7 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
     expiry_str = res["expiry"]
     expiry = datetime.fromisoformat(expiry_str)
 
-    user = google_auth.get_user(req.username)
+    user = await run_in_threadpool(google_auth.get_user, req.username)
 
     # Optional per-shop "export bills to their own Google Sheet" config —
     # unrelated to the auth Sheet, stored locally (operational config, not credentials).
@@ -1090,16 +1102,20 @@ async def admin_approve(req: AdminApprove, admin = Depends(get_admin)):
 
 Keep this safe! 🙏"""
 
-    send_email(user["email"], "🎉 Your POS Login Credentials", email_body)
-    send_whatsapp(user["whatsapp"], wa_msg)
+    await run_in_threadpool(send_email, user["email"], "🎉 Your POS Login Credentials", email_body)
+    await run_in_threadpool(send_whatsapp, user["whatsapp"], wa_msg)
 
     # Push to Google Sheets (legacy notification log tab)
-    push_to_google_sheets({
+    # NOTE: 'Z' suffix makes this an unambiguous UTC timestamp — without it,
+    # Apps Script's `new Date(...)` parses the string as local time before
+    # converting to Asia/Kolkata, silently shifting the displayed time by
+    # several hours (this was the "wrong approval timing" bug).
+    await run_in_threadpool(push_to_google_sheets, {
         "action": "approved",
         "username": req.username,
         "plan": plan,
         "expiry": expiry_str,
-        "approved_at": datetime.utcnow().isoformat()
+        "approved_at": datetime.utcnow().isoformat() + "Z"
     })
 
     return {"success": True, "generated_password": password,
@@ -1110,12 +1126,12 @@ async def admin_generate_settings_password(req: AdminGenSettingsPassword, admin 
     """Admin generates (or regenerates) the per-user Settings-tab lock password.
     Only the shop owner (admin) can set/reset this — the user cannot change it themselves.
     Stored as settings_password_hash on the Sheet (account-management data)."""
-    user = google_auth.get_user_by_id(req.user_id)
+    user = await run_in_threadpool(google_auth.get_user_by_id, req.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     new_password = generate_password()
-    ok = google_auth.update_settings_password(user["username"], hash_password(new_password))
+    ok = await run_in_threadpool(google_auth.update_settings_password, user["username"], hash_password(new_password))
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to save settings password to Sheet")
 
@@ -1220,9 +1236,9 @@ async def update_trial_watermark_status(req: TrialWatermarkUpdate, admin = Depen
 @app.post("/api/admin/block")
 async def admin_block(req: AdminBlock, admin = Depends(get_admin)):
     if req.block:
-        ok = google_auth.set_account_status(req.user_id, blocked=True)
+        ok = await run_in_threadpool(google_auth.set_account_status, req.user_id, blocked=True)
     else:
-        ok = google_auth.set_account_status(req.user_id, blocked=False, active=True)
+        ok = await run_in_threadpool(google_auth.set_account_status, req.user_id, blocked=False, active=True)
     if not ok:
         raise HTTPException(status_code=400, detail="Failed to update account status")
     return {"success": True}
@@ -1233,10 +1249,10 @@ async def admin_delete_user(req: AdminDeleteUser, admin = Depends(get_admin)):
     (products/bills/customers tied to this user_id) is intentionally left
     untouched in SQLite, in case the admin needs to recover it later —
     only the login/account record is deleted."""
-    user = google_auth.get_user_by_id(req.user_id)
+    user = await run_in_threadpool(google_auth.get_user_by_id, req.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    ok = google_auth.delete_account(req.user_id)
+    ok = await run_in_threadpool(google_auth.delete_account, req.user_id)
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to delete user from Sheet")
     return {"success": True, "message": f"User '{user['username']}' deleted"}
@@ -1251,7 +1267,7 @@ async def admin_update_gas_url(req: UpdateGasUrl, admin = Depends(get_admin)):
     """Per-shop 'export bills to my own Google Sheet' config — unrelated to
     the auth Sheet. This is operational/billing config, so it stays in the
     local user_settings table, keyed by the Sheet's stable numeric user_id."""
-    user = google_auth.get_user_by_id(req.user_id)
+    user = await run_in_threadpool(google_auth.get_user_by_id, req.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     conn = get_db()
@@ -1264,7 +1280,7 @@ async def admin_update_gas_url(req: UpdateGasUrl, admin = Depends(get_admin)):
 
 @app.post("/api/admin/extend")
 async def admin_extend(req: ExtendSubscription, admin = Depends(get_admin)):
-    res = google_auth.extend_subscription(req.user_id, req.days)
+    res = await run_in_threadpool(google_auth.extend_subscription, req.user_id, req.days)
     if not res.get("success"):
         raise HTTPException(status_code=404, detail=res.get("message", "User not found"))
     return res
@@ -1278,7 +1294,7 @@ async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthoriz
     payload = decode_token(raw_token)
     if not payload or payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access only")
-    user = google_auth.get_user_by_id(user_id)
+    user = await run_in_threadpool(google_auth.get_user_by_id, user_id)
     if not user or not user["receipt_path"]:
         raise HTTPException(status_code=404, detail="Receipt not found")
     if not os.path.exists(user["receipt_path"]):
@@ -1288,7 +1304,7 @@ async def get_receipt(user_id: int, token: str = None, credentials: HTTPAuthoriz
 @app.get("/api/admin/stats")
 async def admin_stats(admin = Depends(get_admin)):
     try:
-        users = google_auth.list_users()
+        users = await run_in_threadpool(google_auth.list_users)
     except SheetManagerError as e:
         raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
     total = len(users)
@@ -1301,7 +1317,7 @@ async def admin_stats(admin = Depends(get_admin)):
 async def admin_update_device_limit(req: UpdateDeviceLimit, admin = Depends(get_admin)):
     """Set max devices and IP whitelist per user"""
     max_d = max(1, min(50, req.max_devices))
-    ok = google_auth.update_device_limit(req.user_id, max_d, req.allowed_ips)
+    ok = await run_in_threadpool(google_auth.update_device_limit, req.user_id, max_d, req.allowed_ips)
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
     return {"success": True, "max_devices": max_d}
