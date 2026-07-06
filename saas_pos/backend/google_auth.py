@@ -40,14 +40,29 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    if not password_hash:
+    if not password_hash or not password:
+        return False
+    # Strip any whitespace that Google Sheets may add to cell values
+    stored = password_hash.strip()
+    if not stored:
         return False
     try:
-        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
-    except (ValueError, TypeError):
-        # Stored hash is malformed / not a bcrypt hash (e.g. legacy data) —
-        # treat as no match rather than raising, so login just fails cleanly.
-        return False
+        # bcrypt hashes start with $2b$ or $2a$
+        if stored.startswith(("$2b$", "$2a$", "$2y$")):
+            return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
+        # Legacy fallback: SHA-256 (unsalted) — for accounts approved before the
+        # bcrypt migration. This allows existing users to keep logging in without
+        # needing admin to re-generate their password.
+        import hashlib
+        sha_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return sha_hash == stored
+    except (ValueError, TypeError, Exception):
+        # Malformed hash — try SHA-256 as last resort
+        try:
+            import hashlib
+            return hashlib.sha256(password.encode("utf-8")).hexdigest() == stored
+        except Exception:
+            return False
 
 
 def generate_password(length: int = 10) -> str:
@@ -137,9 +152,11 @@ def authenticate(username: str, password: str) -> Dict[str, Any]:
     Mirrors the JSON contract requested in the architecture spec."""
     raw = sheets.lookup_user(username)
     if not raw:
+        print(f"[AUTH] User not found in Sheet: {username!r}")
         return {"success": False, "message": "Invalid credentials"}
 
     user = _normalize_user(raw)
+    print(f"[AUTH] User found: {username!r} | status={user['account_status']!r} | plan={user['subscription_plan']!r} | hash_prefix={user['password_hash'][:8] if user['password_hash'] else 'EMPTY'!r}")
 
     if user["account_status"].strip().lower() == "blocked":
         return {"success": False, "message": "Account blocked. Contact support."}
