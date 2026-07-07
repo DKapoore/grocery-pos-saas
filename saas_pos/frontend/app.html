@@ -3056,10 +3056,11 @@
     .modal-handle { display: none; }
   }
 
-  /* Hide "Chat for Enquiry" floating button only while inside the
-     app on Free / Trial plan — landing page keeps it as-is.
-     Uses the existing #subBadge.free class the app already sets. */
-  body:has(#screen-app.active):has(#subBadge.free) .whatsapp-float {
+  /* Hide "Chat for Enquiry" floating button for every logged-in user
+     (Free or Paid) once inside the app — landing/public pages keep it as-is.
+     Previously this only checked #subBadge.free, so Paid users still saw
+     the button after logging in; now it hides for the whole app screen. */
+  body:has(#screen-app.active) .whatsapp-float {
     display: none !important;
   }
 
@@ -3572,6 +3573,12 @@
         <button onclick="showScreen('screen-landing')">Upgrade ↗</button>
       </div>
       <div class="tabs-bar" id="tabsBar"><button class="new-tab-btn" onclick="createNewBill()" title="New Bill (Ctrl+N)">＋</button></div>
+      <div class="bill-search-wrap" style="position:sticky;top:0;z-index:6;background:var(--bg);padding:8px 12px 6px;border-bottom:1px solid var(--border);">
+        <input id="billProductSearch" placeholder="🔍 Product search karo ya barcode scan karo..." autocomplete="off"
+          oninput="onBillSearchInput(this.value)" onkeydown="onBillSearchKeydown(event)"
+          style="width:100%;padding:12px 14px;font-size:15px;border:2px solid var(--border);border-radius:10px;background:var(--surface);color:inherit;">
+        <div id="billSearchResults" style="position:absolute;left:12px;right:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.15);display:none;z-index:7;"></div>
+      </div>
       <div class="cart-area" id="cartArea">
         <div class="cart-empty" id="cartEmpty"><div class="ei">🛒</div><div style="font-weight:600;">Cart is empty</div><div style="font-size:12px;margin-top:4px;">Scan barcode or tap ➕ Add below</div></div>
         <div id="cartItems"></div>
@@ -3956,6 +3963,7 @@
     loadHeroImages();
     loadPreviewImages();
     let trialWatermarkEnabled = true; // default ON until confirmed otherwise by backend
+    let pendingBillSearchAdd = false; // true while the product-add modal was opened from the billing search bar
     async function loadTrialWatermarkStatus() {
       try {
         const res = await fetch(`${API}/api/trial-watermark-status`);
@@ -4083,6 +4091,9 @@
         })});
         saveAuth(data.token, data.user);
         await initApp();
+        if (data.user?.must_change_password) {
+          showForceChangePasswordModal();
+        }
       } catch (e) {
         toast(e.message || 'Login failed — check username & password', 'error');
       } finally {
@@ -4108,7 +4119,8 @@
     function clearPerUserCache() {
       ['bill_sessions', 'active_bill_id', 'billCounter', 'pos_products', 'pos_settings',
        'sales_history', 'pos_customers', 'pos_pending_invoices', 'pos_notifs',
-       'pos_cloud_config', 'pos_last_backup'].forEach(k => localStorage.removeItem(k));
+       'pos_cloud_config', 'pos_last_backup',
+       'pos_expiry_reminder_day', 'pos_expiry_reminder_ts'].forEach(k => localStorage.removeItem(k));
     }
 
     async function doFreeTrial() {
@@ -4198,7 +4210,120 @@
       setupUSBScanner();
       if (cloudConfig.gasUrl) { startAutoSync(); if (isOnline) setTimeout(autoSyncNow, 2000); }
       checkDailyBackup();
+      checkSubscriptionExpiryReminders();
+      if (!expiryReminderInterval) {
+        // Re-check periodically while the app stays open so the "every 3
+        // hours on expiry day" cadence actually fires during a long session,
+        // not just once at login.
+        expiryReminderInterval = setInterval(checkSubscriptionExpiryReminders, 15 * 60 * 1000);
+      }
+      // Defensive re-check for page refreshes: if the account is still
+      // flagged must_change_password (e.g. admin reset it, then the user
+      // reloaded before finishing the change), show the modal again.
+      if (currentUser?.must_change_password) {
+        showForceChangePasswordModal();
+      }
       renderAll();
+    }
+
+    // ── FORCE PASSWORD CHANGE (after an admin reset with force_change=true) ──
+    function showForceChangePasswordModal() {
+      openModal(`
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="font-size:2rem;">🔑</div>
+          <h3 style="margin:6px 0 2px;">Naya Password Set Karein</h3>
+          <p style="font-size:12px;color:var(--text2);">Admin ne aapka password reset kiya hai. Aage badhne se pehle apna naya password set karein.</p>
+        </div>
+        <label>Current / Temporary Password</label>
+        <input id="fcpCurrent" type="password" placeholder="Abhi jo password use kiya login ke liye">
+        <label>Naya Password *</label>
+        <input id="fcpNew" type="password" placeholder="Kam se kam 6 characters">
+        <label>Naya Password Confirm Karein *</label>
+        <input id="fcpConfirm" type="password" placeholder="Dobara type karein">
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn-accent" style="width:100%;" onclick="submitForceChangePassword()">Password Set Karein ✅</button>
+        </div>
+      `);
+      // Intentionally no "Skip"/close button — this is a mandatory step.
+      // Temporarily disable backdrop-click-to-close for this one modal only;
+      // restored in submitForceChangePassword() once the change succeeds.
+      const overlay = document.getElementById('modalOverlay');
+      if (overlay) overlay.onclick = (e) => { e.stopPropagation(); };
+      setTimeout(() => { const el = document.getElementById('fcpCurrent'); if (el) el.focus(); }, 80);
+    }
+
+    async function submitForceChangePassword() {
+      const current = document.getElementById('fcpCurrent').value;
+      const next = document.getElementById('fcpNew').value;
+      const confirm2 = document.getElementById('fcpConfirm').value;
+      if (!current || !next) { toast('Sabhi fields bharein', 'error'); return; }
+      if (next.length < 6) { toast('Naya password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+      if (next !== confirm2) { toast('Naya password match nahi kar raha', 'error'); return; }
+      try {
+        await apiCall('/api/auth/change-password', {
+          method: 'POST',
+          body: JSON.stringify({ current_password: current, new_password: next })
+        });
+        if (currentUser) { currentUser.must_change_password = false;
+          localStorage.setItem('pos_user', JSON.stringify(currentUser)); }
+        toast('Password successfully set! ✅', 'success');
+        closeModal();
+        // Restore normal backdrop-click-to-close for every modal after this one.
+        const overlay = document.getElementById('modalOverlay');
+        if (overlay) overlay.onclick = () => closeModal();
+      } catch (e) {
+        toast(e.message || 'Password change failed', 'error');
+      }
+    }
+
+    // ── SUBSCRIPTION EXPIRY REMINDERS ──────────────────────────────────
+    // Starts nudging 3 days before expiry (once per day), then on the
+    // expiry day itself nags every 3 hours until the user upgrades or the
+    // session ends. Free-trial accounts are handled separately by the
+    // existing trial-lock banner, so this only applies to paid plans.
+    let expiryReminderInterval = null;
+
+    function checkSubscriptionExpiryReminders() {
+      if (trialStatus.plan === 'free' || !currentUser?.subscription_expiry) return;
+      const exp = new Date(currentUser.subscription_expiry);
+      if (isNaN(exp.getTime())) return;
+      const now = new Date();
+      const daysLeft = Math.ceil((exp - now) / 86400000);
+      if (daysLeft > 3) return; // too early — nothing to show yet
+
+      if (daysLeft >= 1) {
+        // 3 / 2 / 1 days before expiry — once per calendar day
+        const todayKey = now.toISOString().slice(0, 10);
+        if (localStorage.getItem('pos_expiry_reminder_day') === todayKey) return;
+        localStorage.setItem('pos_expiry_reminder_day', todayKey);
+        showExpiryReminderModal(daysLeft);
+      } else {
+        // Expiry day or already expired — every 3 hours
+        const THREE_HOURS = 3 * 60 * 60 * 1000;
+        const lastShown = parseInt(localStorage.getItem('pos_expiry_reminder_ts') || '0', 10);
+        if (now.getTime() - lastShown < THREE_HOURS) return;
+        localStorage.setItem('pos_expiry_reminder_ts', String(now.getTime()));
+        showExpiryReminderModal(daysLeft);
+      }
+    }
+
+    function showExpiryReminderModal(daysLeft) {
+      const expired = daysLeft <= 0;
+      const msg = expired
+        ? 'Aapka subscription expire ho chuka hai. Billing bina rukawat ke jaari rakhne ke liye abhi upgrade karein.'
+        : `Aapka subscription ${daysLeft} din${daysLeft > 1 ? 'o' : ''} me expire ho raha hai. Time rehte renew kar lein.`;
+      openModal(`
+        <div class="modal-handle"></div>
+        <div style="text-align:center;">
+          <div style="font-size:2.2rem;">${expired ? '⚠️' : '⏰'}</div>
+          <h3 style="margin:8px 0 4px;">${expired ? 'Subscription Expired' : 'Subscription Expiring Soon'}</h3>
+          <p style="color:var(--text2);font-size:14px;margin-bottom:16px;">${msg}</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-outline" onclick="closeModal()">Baad Mein</button>
+          <button class="btn-accent" onclick="closeModal();showScreen('screen-landing')">Upgrade Karein ⬆️</button>
+        </div>
+      `);
     }
 
     function toggleDark() {
@@ -4452,6 +4577,7 @@
       saveState();
       renderAll();
       if (navigator.vibrate) navigator.vibrate(30);
+      refocusBillSearch();
     }
 
     function changeQty(billId, idx, delta) {
@@ -4462,6 +4588,7 @@
           newQty; }
       saveState();
       renderAll();
+      refocusBillSearch();
     }
 
     function removeItem(billId, idx) {
@@ -4470,6 +4597,87 @@
       bill.cart.splice(idx, 1);
       saveState();
       renderAll();
+      refocusBillSearch();
+    }
+
+    // ── PERSISTENT PRODUCT SEARCH BAR (top of billing screen, all modes) ──
+    // Stays focused at all times so a cashier can keep scanning/typing
+    // without ever needing to click back into it.
+    function refocusBillSearch() {
+      const el = document.getElementById('billProductSearch');
+      if (!el) return;
+      // Small delay so this runs after any modal/render finishes and doesn't
+      // fight with other elements grabbing focus during the same tick.
+      setTimeout(() => { if (document.getElementById('billProductSearch')) el.focus(); }, 50);
+    }
+
+    function onBillSearchInput(q) {
+      const resultsEl = document.getElementById('billSearchResults');
+      if (!resultsEl) return;
+      const query = q.trim();
+      if (!query) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+
+      const matches = products.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        (p.barcode || '').toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 15);
+
+      let html = matches.map(p => `
+        <div onclick="pickBillSearchResult('${p.id}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-weight:600;font-size:14px;">${p.name}</div><div style="font-size:11px;color:var(--text2);">${p.barcode || 'No barcode'} • Stock: ${p.stock ?? '-'}</div></div>
+          <div style="font-weight:700;color:var(--accent);">₹${parseFloat(p.price).toFixed(2)}</div>
+        </div>`).join('');
+
+      // No exact/partial match at all — offer to add it as a brand new product
+      if (matches.length === 0) {
+        html = `<div onclick="addNewProductDirect('${query.replace(/'/g, "\\'")}')" style="padding:12px;cursor:pointer;color:var(--accent);font-weight:700;text-align:center;">
+          ➕ "${query}" — Add New Product
+        </div>`;
+      }
+      resultsEl.innerHTML = html;
+      resultsEl.style.display = 'block';
+    }
+
+    function pickBillSearchResult(productId) {
+      const p = products.find(x => x.id === productId);
+      if (!p) return;
+      addToCart(p);
+      toast(`${p.name} added ✅`, 'success');
+      const input = document.getElementById('billProductSearch');
+      const resultsEl = document.getElementById('billSearchResults');
+      if (input) input.value = '';
+      if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+      refocusBillSearch();
+    }
+
+    function onBillSearchKeydown(e) {
+      if (e.key !== 'Enter') return;
+      const query = e.target.value.trim();
+      if (!query) return;
+      // Exact barcode match (this is also how a USB/keyboard-wedge barcode
+      // scanner "typing then Enter" gets handled through this same box)
+      const exact = products.find(p => (p.barcode || '') === query);
+      if (exact) { pickBillSearchResult(exact.id); return; }
+      // Exactly one partial match — Enter adds it directly
+      const partial = products.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        (p.barcode || '').toLowerCase().includes(query.toLowerCase())
+      );
+      if (partial.length === 1) { pickBillSearchResult(partial[0].id); return; }
+      if (partial.length === 0) { addNewProductDirect(query); }
+      // If multiple matches, do nothing on Enter — user picks from the dropdown
+    }
+
+    // Opens the product form DIRECTLY at the manual-entry step — no
+    // Scan/Manual choice screen — prefilled with whatever was typed in the
+    // search bar, and set to auto-add-to-bill + refocus the search bar once saved.
+    function addNewProductDirect(prefillName) {
+      pendingBillSearchAdd = true;
+      showAddProduct();
+      // showAddProduct() renders the scan-choice step by default; skip it.
+      skipScan();
+      const nameEl = document.getElementById('pName');
+      if (nameEl) { nameEl.value = prefillName || ''; }
     }
 
     function setupUSBScanner() {
@@ -4489,6 +4697,7 @@
       if (p) { addToCart(p);
         toast(`${p.name} added ✅`, 'success'); } else { toast('Product not found — add manually', 'info');
         showManualEntry(code); }
+      refocusBillSearch();
     }
 
     function startScanner() {
@@ -6140,6 +6349,19 @@
           discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category,
           unit: p.unit, stock: p.stock })
       }).then(res => { if (res?.id) p.id = res.id; }).catch(() => {});
+      // Came from the billing search bar's "Add New Product" flow — the
+      // product is already live in the `products` array above (no reload
+      // needed), so add it straight to the current bill and hand focus
+      // back to the search bar to keep billing moving.
+      if (pendingBillSearchAdd) {
+        pendingBillSearchAdd = false;
+        addToCart(p);
+        const input = document.getElementById('billProductSearch');
+        if (input) input.value = '';
+        const resultsEl = document.getElementById('billSearchResults');
+        if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+        refocusBillSearch();
+      }
     }
 
     function showEditProduct(pid) {
