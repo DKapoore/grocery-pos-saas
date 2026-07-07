@@ -824,6 +824,57 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- ── RESET LOGIN PASSWORD MODAL ── -->
+<div class="modal-overlay" id="resetPwdModal" onclick="closeResetPwdModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>🔑 Reset Login Password</h3>
+      <button class="modal-close" onclick="closeResetPwdModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+        Ye user ka <strong>main login password</strong> reset karta hai (Settings-tab lock se alag). Naya password random generate ho sakta hai ya khud type kar sakte hain.
+      </p>
+
+      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">Password Type</label>
+      <div style="display:flex;gap:14px;margin-bottom:12px;">
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="resetPwdType" value="random" checked onchange="toggleResetPwdCustomInput()"> Random Generate
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="resetPwdType" value="custom" onchange="toggleResetPwdCustomInput()"> Custom Set Karein
+        </label>
+      </div>
+      <input id="resetPwdCustomInput" placeholder="Naya password type karein (min 6 characters)" style="display:none;width:100%;padding:9px;border-radius:8px;border:1px solid var(--border,#334155);background:#0f172a;color:#e2e8f0;margin-bottom:12px;">
+
+      <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:14px;">
+        <input type="checkbox" id="resetPwdForceChange" checked style="width:16px;height:16px;">
+        Agla login karte hi user ko naya password khud set karna padega
+      </label>
+
+      <button class="btn-accent" style="width:100%;padding:11px;" onclick="submitResetPwd()" id="submitResetPwdBtn">🔑 Reset Password</button>
+
+      <div id="resetPwdResult" class="hidden" style="margin-top:16px;">
+        <div style="background:#0f2a1e;border:1px solid #16a34a;border-radius:10px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:12px;color:#94a3b8;">New Password</div>
+          <div style="font-size:18px;font-weight:800;color:#4ade80;letter-spacing:1px;" id="resetPwdValue"></div>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;">📱 WhatsApp Message</label>
+        <textarea id="resetPwdWaMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn-copy btn-sm" onclick="copyTextarea('resetPwdWaMsg')">📋 Copy</button>
+          <button class="btn-copy btn-sm" id="resetPwdWaDirectBtn" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">📲 Send on WhatsApp</button>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;margin-top:14px;display:block;">📧 Email Message</label>
+        <textarea id="resetPwdEmailMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <button class="btn-copy btn-sm" style="margin-top:6px;" onclick="copyTextarea('resetPwdEmailMsg')">📋 Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── RECEIPT MODAL ── -->
 <div class="modal-overlay" id="receiptModal" onclick="closeReceiptModal()">
   <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px;text-align:center;">
@@ -1212,6 +1263,7 @@ function renderUsersTable(filtered = null) {
           <button class="btn-xs" onclick="openGasAssign(${u.id},'${u.username}','${u.gas_url||''}')" style="background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Assign Google Sheet">☁️</button>
           <button class="btn-xs" onclick="openDeviceModal(${u.id},'${u.username}',${u.max_devices||1},'${u.allowed_ips||''}')" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Device Limit & Sessions">📱</button>
           <button class="btn-xs" onclick="openSettingsPwdModal(${u.id})" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Settings Tab Lock Password">🔒</button>
+          <button class="btn-xs" onclick="openResetPwdModal(${u.id})" style="background:#ede9fe;color:#6d28d9;border:1px solid #8b5cf6;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Reset Login Password">🔑</button>
           <button class="btn-xs" onclick="confirmDeleteUser(${u.id},'${u.username}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Delete User">🗑️</button>
           ${!u.is_blocked
             ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
@@ -1711,6 +1763,63 @@ async function generateSettingsPwd() {
     toast('Error: ' + e.message, 'error');
   } finally {
     btn.textContent = '🔄 Generate New Settings Password'; btn.disabled = false;
+  }
+}
+
+let _resetPwdUserId = null;
+
+function openResetPwdModal(userId) {
+  _resetPwdUserId = userId;
+  document.getElementById('resetPwdResult').classList.add('hidden');
+  document.getElementById('resetPwdCustomInput').value = '';
+  document.getElementById('resetPwdCustomInput').style.display = 'none';
+  document.querySelector('input[name="resetPwdType"][value="random"]').checked = true;
+  document.getElementById('resetPwdForceChange').checked = true;
+  document.getElementById('resetPwdModal').classList.add('show');
+}
+
+function closeResetPwdModal() {
+  document.getElementById('resetPwdModal').classList.remove('show');
+  _resetPwdUserId = null;
+}
+
+function toggleResetPwdCustomInput() {
+  const isCustom = document.querySelector('input[name="resetPwdType"]:checked').value === 'custom';
+  document.getElementById('resetPwdCustomInput').style.display = isCustom ? 'block' : 'none';
+}
+
+async function submitResetPwd() {
+  if (!_resetPwdUserId) return;
+  const isCustom = document.querySelector('input[name="resetPwdType"]:checked').value === 'custom';
+  const customPwd = document.getElementById('resetPwdCustomInput').value.trim();
+  if (isCustom && customPwd.length < 6) {
+    toast('Custom password kam se kam 6 characters ka hona chahiye', 'error');
+    return;
+  }
+  const forceChange = document.getElementById('resetPwdForceChange').checked;
+  const btn = document.getElementById('submitResetPwdBtn');
+  btn.textContent = '⏳ Resetting...'; btn.disabled = true;
+  try {
+    const res = await api('/api/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: _resetPwdUserId,
+        custom_password: isCustom ? customPwd : null,
+        force_change: forceChange,
+      })
+    });
+    document.getElementById('resetPwdValue').textContent = res.password;
+    document.getElementById('resetPwdWaMsg').value = res.whatsapp_message;
+    document.getElementById('resetPwdEmailMsg').value = res.email_message;
+    const mobile = (res.whatsapp_number || '').replace(/\D/g, '');
+    const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(res.whatsapp_message)}`;
+    document.getElementById('resetPwdWaDirectBtn').onclick = () => window.open(waLink, '_blank');
+    document.getElementById('resetPwdResult').classList.remove('hidden');
+    toast('Password reset ho gaya!', 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🔑 Reset Password'; btn.disabled = false;
   }
 }
 
