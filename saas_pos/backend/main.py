@@ -506,6 +506,11 @@ class SettingsPasswordVerify(BaseModel):
 class AdminGenSettingsPassword(BaseModel):
     user_id: int
 
+class AdminResetPassword(BaseModel):
+    user_id: int
+    custom_password: Optional[str] = None  # if omitted, a random password is generated
+    force_change: bool = True  # if True, user must set their own password on next login
+
 class HeroImagesUpdate(BaseModel):
     images: List[str]  # list of image URLs, 9:16 ratio recommended
 
@@ -998,6 +1003,32 @@ async def settings_lock_status(current_user: dict = Depends(get_current_user)):
         return {"locked": False}
     return {"locked": bool(sheet_user and sheet_user.get("settings_password_hash"))}
 
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+@app.post("/api/auth/change-password")
+async def change_password(req: ChangePassword, current_user: dict = Depends(get_current_user)):
+    """User-initiated password change — used both for the mandatory
+    'set a new password' step after an admin reset (must_change_password),
+    and for voluntary password changes anytime."""
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Naya password kam se kam 6 characters ka hona chahiye")
+    try:
+        sheet_user = await run_in_threadpool(google_auth.get_user, current_user["username"])
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    if not sheet_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not await run_in_threadpool(google_auth.verify_password, req.current_password, sheet_user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password galat hai")
+
+    new_hash = hash_password(req.new_password)
+    ok = await run_in_threadpool(google_auth.reset_password, sheet_user["user_id"], new_hash, False)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Password update failed — dobara try karein")
+    return {"success": True, "message": "Password successfully changed"}
+
 # ======================== WHATSAPP BILL ========================
 @app.post("/api/bills/whatsapp")
 async def send_whatsapp_bill(
@@ -1188,6 +1219,69 @@ Team GroceryPOS"""
         "success": True,
         "password": new_password,
         "username": user["username"],
+        "whatsapp_message": wa_message,
+        "email_message": email_message,
+        "whatsapp_number": user["whatsapp"],
+        "email": user["email"]
+    }
+
+@app.post("/api/admin/reset-password")
+async def admin_reset_password(req: AdminResetPassword, admin = Depends(get_admin)):
+    """Admin regenerates a user's LOGIN password (not the Settings-tab lock —
+    see /api/admin/generate-settings-password for that). Either a random
+    password is generated, or the admin supplies a custom one. When
+    force_change is True the account is flagged so the user must set their
+    own new password the next time they log in."""
+    user = await run_in_threadpool(google_auth.get_user_by_id, req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if req.custom_password:
+        if len(req.custom_password) < 6:
+            raise HTTPException(status_code=400, detail="Password kam se kam 6 characters ka hona chahiye")
+        new_password = req.custom_password
+    else:
+        new_password = generate_password()
+
+    ok = await run_in_threadpool(
+        google_auth.reset_password, req.user_id, hash_password(new_password), req.force_change
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to reset password on Sheet")
+
+    shop_name = user["full_name"] or user["username"]
+    force_note_wa = "\n\n⚠️ Agla login karte hi aapko naya password khud set karna hoga." if req.force_change else ""
+    force_note_email = "\n\nNote: You will be asked to set your own new password the next time you log in." if req.force_change else ""
+
+    wa_message = f"""🔑 *Password Reset*
+
+Hello {shop_name}! 👋
+
+Aapke GroceryPOS account ka login password admin dwara reset kiya gaya hai.
+
+🔹 *Username:* {user['username']}
+🔹 *New Password:* {new_password}{force_note_wa}
+
+🙏 Team GroceryPOS"""
+
+    email_message = f"""Hello {shop_name},
+
+Your GroceryPOS login password has been reset by the admin.
+
+Username     : {user['username']}
+New Password : {new_password}{force_note_email}
+
+Thank you,
+Team GroceryPOS"""
+
+    await run_in_threadpool(send_email, user["email"], "🔑 Your GroceryPOS Password Was Reset", email_message)
+    await run_in_threadpool(send_whatsapp, user["whatsapp"], wa_message)
+
+    return {
+        "success": True,
+        "password": new_password,
+        "username": user["username"],
+        "force_change": req.force_change,
         "whatsapp_message": wa_message,
         "email_message": email_message,
         "whatsapp_number": user["whatsapp"],
