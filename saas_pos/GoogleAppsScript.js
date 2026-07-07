@@ -68,7 +68,7 @@ const USERS_HEADER = [
   "city", "store_type", "subscription_plan", "plan_amount", "expiry_date",
   "account_status", "device_limit", "allowed_ips", "trial_bills_used",
   "payment_status", "upi_used", "receipt_path", "settings_password_hash",
-  "created_date", "last_login"
+  "created_date", "last_login", "must_change_password"
 ];
 // Map column name -> 1-based index, built once from USERS_HEADER
 const UCOL = {};
