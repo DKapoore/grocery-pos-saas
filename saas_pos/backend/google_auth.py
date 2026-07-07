@@ -110,6 +110,7 @@ def _normalize_user(raw: Dict[str, Any]) -> Dict[str, Any]:
         "settings_password_hash": _str(raw.get("settings_password_hash")),
         "created_date": _str(raw.get("created_date")),
         "last_login": _str(raw.get("last_login")),
+        "must_change_password": _str(raw.get("must_change_password")).strip() in ("1", "true", "True", "TRUE"),
         # Convenience booleans mirroring the old SQLite `is_active` / `is_blocked` flags,
         # derived from account_status so callers don't need to know the Sheet's string values.
         "is_active": _str(raw.get("account_status")).strip().lower() == "active",
@@ -303,6 +304,21 @@ def update_device_limit(user_id: int, max_devices: int, allowed_ips: str = "") -
 
 def update_settings_password(username: str, new_password_hash: str) -> bool:
     res = sheets.update_account(username=username, fields={"settings_password_hash": new_password_hash})
+    return bool(res.get("success"))
+
+
+def reset_password(user_id: int, new_password_hash: str, force_change: bool = True) -> bool:
+    """Admin-triggered login password reset. Optionally flags the account so
+    the user is forced to set their own new password on next login."""
+    res = sheets.update_account(username=None, fields={
+        "password_hash": new_password_hash,
+        "must_change_password": "1" if force_change else "",
+    }, user_id=user_id)
+    return bool(res.get("success"))
+
+
+def clear_must_change_password(username: str) -> bool:
+    res = sheets.update_account(username=username, fields={"must_change_password": ""})
     return bool(res.get("success"))
 
 
