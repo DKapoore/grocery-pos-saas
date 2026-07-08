@@ -17,6 +17,20 @@ from typing import Optional, List, Dict, Any
 from sheet_manager import sheet_manager, SheetManagerError
 
 
+def send_email_via_gas(to: str, subject: str, body_html: str) -> bool:
+    """Sends an email via the Apps Script MailApp (runs on Google's own
+    infrastructure — not affected by the backend host's outbound network
+    restrictions, which is what silently broke OTP delivery before).
+    Returns True/False rather than raising, so callers can fall back to
+    SMTP without losing the original error context."""
+    try:
+        res = sheet_manager.call_action("send_email", to=to, subject=subject, body=body_html)
+        return bool(res.get("success"))
+    except SheetManagerError as e:
+        print(f"[EMAIL][GAS] send_email_via_gas failed for {to!r}: {e}")
+        return False
+
+
 def signup_user(username: str, password_hash: str, full_name: str = "", email: str = "",
                  whatsapp: str = "", city: str = "", store_type: str = "",
                  subscription_plan: str = "free", plan_amount: int = 0,
