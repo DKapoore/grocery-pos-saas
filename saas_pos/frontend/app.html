@@ -840,6 +840,11 @@
     .cart-item:hover {
       border-color: var(--accent);
     }
+    .cart-item-selected {
+      border-color: var(--accent) !important;
+      background: var(--accent2) !important;
+      box-shadow: 0 0 0 2px var(--accent);
+    }
     .item-info {
       flex: 1;
     }
@@ -3560,6 +3565,7 @@
               Doosre devices se bhi logout kar dein
             </label>
             <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="resetUserForgotPassword()" id="fpResetBtn">✅ Reset Password</button>
+            <button class="btn-outline" id="fpResendBtn" style="width:100%;margin-top:8px;padding:9px;font-size:12px;">🔁 Resend in 60s</button>
           </div>
           <div class="forgot-link" onclick="hideUserForgotPassword()" style="cursor:pointer;">← Back to Login</div>
         </div>
@@ -3577,6 +3583,7 @@
         </div>
         <div class="header-right">
           <button class="icon-btn" onclick="toggleDark()" id="darkBtn" title="Dark Mode">🌙<span class="icon-label">Dark Mode</span></button>
+          <button class="icon-btn" onclick="showShortcutsGuide()" title="Keyboard Shortcuts (F1)">⌨️<span class="icon-label">Shortcuts</span></button>
           <button class="icon-btn" onclick="showNotifications()" title="Notifications">🔔<span class="icon-label">Notifications</span></button>
           <div style="position:relative;display:inline-flex;" title="Sync status"><div id="syncStatusDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin:auto 2px;transition:.3s;"></div></div>
           <button class="icon-btn" onclick="showHistory()" title="History">📊<span class="icon-label">Sales History</span></button>
@@ -3983,6 +3990,14 @@
     loadPreviewImages();
     let trialWatermarkEnabled = true; // default ON until confirmed otherwise by backend
     let pendingBillSearchAdd = false; // true while the product-add modal was opened from the billing search bar
+    let selectedCartItem = null; // {billId, idx} — set by clicking a cart row; used by Delete/Ctrl+/- shortcuts
+
+    function selectCartItem(billId, idx) {
+      selectedCartItem = (selectedCartItem && selectedCartItem.billId === billId && selectedCartItem.idx === idx)
+        ? null // clicking the already-selected row deselects it
+        : { billId, idx };
+      renderActiveBill();
+    }
     async function loadTrialWatermarkStatus() {
       try {
         const res = await fetch(`${API}/api/trial-watermark-status`);
@@ -4202,11 +4217,33 @@
         toast(res.message, 'success');
         document.getElementById('fpStep1').classList.add('hidden');
         document.getElementById('fpStep2').classList.remove('hidden');
+        startOtpResendCooldown('fpResendBtn', () => sendUserForgotOtp());
       } catch (e) {
         toast(e.message || 'OTP bhejne me error', 'error');
-      } finally {
         btn.disabled = false; btn.textContent = '📧 Send OTP';
       }
+    }
+
+    // Shared 60-second visible cooldown for any "Resend OTP" button —
+    // mirrors the backend's own resend-cooldown enforcement so the person
+    // sees exactly when they're allowed to try again instead of guessing.
+    function startOtpResendCooldown(btnId, onResend, seconds = 60) {
+      let btn = document.getElementById(btnId);
+      if (!btn) return;
+      let remaining = seconds;
+      btn.disabled = true;
+      const tick = () => {
+        if (remaining <= 0) {
+          btn.textContent = '🔁 Resend OTP';
+          btn.disabled = false;
+          btn.onclick = onResend;
+          return;
+        }
+        btn.textContent = `🔁 Resend in ${remaining}s`;
+        remaining--;
+        setTimeout(tick, 1000);
+      };
+      tick();
     }
 
     async function resetUserForgotPassword() {
@@ -4611,18 +4648,18 @@
       emptyEl.style.display = 'none';
       sumBar.style.display = 'block';
       cartEl.innerHTML = bill.cart.map((item, idx) => `
-        <div class="cart-item">
+        <div class="cart-item${selectedCartItem && selectedCartItem.billId===bill.id && selectedCartItem.idx===idx ? ' cart-item-selected' : ''}" onclick="selectCartItem('${bill.id}',${idx})">
           <div class="item-info">
             <div class="item-name">${item.name}</div>
             <div class="item-meta">₹${parseFloat(item.price).toFixed(2)} each${item.tax>0?' | Tax:'+item.tax+'%':''}</div>
           </div>
           <div class="qty-ctrl">
-            <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},-1)">−</button>
+            <button class="qty-btn" onclick="event.stopPropagation();changeQty('${bill.id}',${idx},-1)">−</button>
             <span class="qty-num">${item.quantity}</span>
-            <button class="qty-btn" onclick="changeQty('${bill.id}',${idx},1)">+</button>
+            <button class="qty-btn" onclick="event.stopPropagation();changeQty('${bill.id}',${idx},1)">+</button>
           </div>
           <div class="item-price">₹${(parseFloat(item.price)*item.quantity).toFixed(2)}</div>
-          <button class="item-del" onclick="removeItem('${bill.id}',${idx})">✕</button>
+          <button class="item-del" onclick="event.stopPropagation();removeItem('${bill.id}',${idx})">✕</button>
         </div>
       `).join('');
       const { subtotal, tax, disc, loyaltyDisc, addCharge, final } = calcBill(bill);
@@ -4675,6 +4712,7 @@
       const bill = billSessions.find(b => b.id === billId);
       if (!bill) return;
       bill.cart.splice(idx, 1);
+      if (selectedCartItem && selectedCartItem.billId === billId) selectedCartItem = null;
       saveState();
       renderAll();
       refocusBillSearch();
@@ -4691,19 +4729,24 @@
       setTimeout(() => { if (document.getElementById('billProductSearch')) el.focus(); }, 50);
     }
 
+    let billSearchMatches = []; // current dropdown results, for ↑/↓ navigation
+    let billSearchHighlightIdx = -1; // -1 = nothing highlighted yet
+
     function onBillSearchInput(q) {
       const resultsEl = document.getElementById('billSearchResults');
       if (!resultsEl) return;
       const query = q.trim();
-      if (!query) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+      billSearchHighlightIdx = -1;
+      if (!query) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; billSearchMatches = []; return; }
 
       const matches = products.filter(p =>
         p.name.toLowerCase().includes(query.toLowerCase()) ||
         (p.barcode || '').toLowerCase().includes(query.toLowerCase())
       ).slice(0, 15);
+      billSearchMatches = matches;
 
-      let html = matches.map(p => `
-        <div onclick="pickBillSearchResult('${p.id}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      let html = matches.map((p, i) => `
+        <div data-idx="${i}" onclick="pickBillSearchResult('${p.id}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
           <div><div style="font-weight:600;font-size:14px;">${p.name}</div><div style="font-size:11px;color:var(--text2);">${p.barcode || 'No barcode'} • Stock: ${p.stock ?? '-'}</div></div>
           <div style="font-weight:700;color:var(--accent);">₹${parseFloat(p.price).toFixed(2)}</div>
         </div>`).join('');
@@ -4718,6 +4761,16 @@
       resultsEl.style.display = 'block';
     }
 
+    function updateBillSearchHighlight() {
+      const resultsEl = document.getElementById('billSearchResults');
+      if (!resultsEl) return;
+      resultsEl.querySelectorAll('[data-idx]').forEach(el => {
+        const isHi = parseInt(el.dataset.idx, 10) === billSearchHighlightIdx;
+        el.style.background = isHi ? 'var(--accent2)' : '';
+        if (isHi) el.scrollIntoView({ block: 'nearest' });
+      });
+    }
+
     function pickBillSearchResult(productId) {
       const p = products.find(x => x.id === productId);
       if (!p) return;
@@ -4727,11 +4780,27 @@
       const resultsEl = document.getElementById('billSearchResults');
       if (input) input.value = '';
       if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+      billSearchMatches = []; billSearchHighlightIdx = -1;
       refocusBillSearch();
     }
 
     function onBillSearchKeydown(e) {
+      // ↑ / ↓ — move the highlighted row in the results dropdown
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!billSearchMatches.length) return;
+        e.preventDefault();
+        if (e.key === 'ArrowDown') billSearchHighlightIdx = Math.min(billSearchHighlightIdx + 1, billSearchMatches.length - 1);
+        else billSearchHighlightIdx = Math.max(billSearchHighlightIdx - 1, 0);
+        updateBillSearchHighlight();
+        return;
+      }
       if (e.key !== 'Enter') return;
+      // A row is highlighted via ↑/↓ — Enter adds THAT one, regardless of
+      // how many total matches there are.
+      if (billSearchHighlightIdx >= 0 && billSearchMatches[billSearchHighlightIdx]) {
+        pickBillSearchResult(billSearchMatches[billSearchHighlightIdx].id);
+        return;
+      }
       const query = e.target.value.trim();
       if (!query) return;
       // Exact barcode match (this is also how a USB/keyboard-wedge barcode
@@ -4745,7 +4814,7 @@
       );
       if (partial.length === 1) { pickBillSearchResult(partial[0].id); return; }
       if (partial.length === 0) { addNewProductDirect(query); }
-      // If multiple matches, do nothing on Enter — user picks from the dropdown
+      // If multiple matches and none highlighted, do nothing — use ↑/↓ or click
     }
 
     // Opens the product form DIRECTLY at the manual-entry step — no
@@ -7213,12 +7282,100 @@
         btn.disabled = false; }
     }
 
+    // ── POS KEYBOARD SHORTCUTS ──────────────────────────────────────
+    // A cashier-facing shortcut guide is reachable via the ⌨️ button in the
+    // header (see showShortcutsGuide) or the F1 key itself.
+    const SHORTCUTS_LIST = [
+      ['F1', 'Shortcuts Guide (ye list)'],
+      ['F2', 'New Bill'],
+      ['F3', 'Customer Search / Add'],
+      ['F4', 'Product Search Focus'],
+      ['F5', 'Hold Bill'],
+      ['F6', 'Recall Held Bill (cycle tabs)'],
+      ['F7', 'Discount'],
+      ['F8', 'Payment'],
+      ['F9', 'Print Bill'],
+      ['F10', 'Save Bill'],
+      ['Esc', 'Cancel Dialog'],
+      ['Delete', 'Remove Selected Item'],
+      ['↑ / ↓', 'Navigate Search Results'],
+      ['Enter', 'Add Selected Product'],
+      ['Ctrl + +', 'Increase Qty (selected item)'],
+      ['Ctrl + −', 'Decrease Qty (selected item)'],
+      ['Ctrl + B', 'Barcode Search Focus'],
+      ['Ctrl + P', 'Print Bill'],
+      ['Ctrl + N', 'New Bill'],
+    ];
+
+    function showShortcutsGuide() {
+      openModal(`
+        <div class="modal-handle"></div>
+        <h3>⌨️ Keyboard Shortcuts</h3>
+        <div style="max-height:60vh;overflow-y:auto;margin-top:8px;">
+          ${SHORTCUTS_LIST.map(([key, desc]) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);">
+              <span style="font-size:13px;color:var(--text2);">${desc}</span>
+              <kbd style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:12px;font-weight:700;white-space:nowrap;">${key}</kbd>
+            </div>`).join('')}
+        </div>
+      `);
+    }
+
+    // Cycle through open bill tabs — used by F6 "Recall Held Bill". Every
+    // bill in billSessions already IS a held bill (auto-saved as you go),
+    // so "holding" needs no separate action — F5 simply starts a fresh tab.
+    function cycleToNextBillTab() {
+      const openBills = billSessions.filter(b => b.status !== 'completed');
+      if (openBills.length < 2) { toast('Koi aur held bill nahi hai', 'info'); return; }
+      const curIdx = openBills.findIndex(b => b.id === activeBillId);
+      const next = openBills[(curIdx + 1) % openBills.length];
+      switchToBill(next.id);
+      toast(`Switched to ${next.billNumber}`, 'info');
+    }
+
     document.addEventListener('keydown', e => {
-      if (e.ctrlKey && e.key === 'n') { e.preventDefault(); if (document.getElementById('screen-app').classList.contains(
-          'active')) createNewBill(); }
-      if (e.key === 'Escape') { closeModal();
-        closeDrawer();
-        stopScanner(); }
+      const inApp = document.getElementById('screen-app')?.classList.contains('active');
+
+      // Esc always works, everywhere — cancels whatever's open.
+      if (e.key === 'Escape') { closeModal(); closeDrawer(); stopScanner(); return; }
+
+      if (!inApp) return; // everything else only makes sense inside the billing app
+
+      // Ctrl-combinations
+      if (e.ctrlKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); createNewBill(); return; }
+      if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); printBillDirect(); return; }
+      if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); refocusBillSearch(); return; }
+      if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+        if (selectedCartItem) { e.preventDefault(); changeQty(selectedCartItem.billId, selectedCartItem.idx, 1); }
+        return;
+      }
+      if (e.ctrlKey && (e.key === '-' || e.key === '_')) {
+        if (selectedCartItem) { e.preventDefault(); changeQty(selectedCartItem.billId, selectedCartItem.idx, -1); }
+        return;
+      }
+      if (e.ctrlKey) return; // don't fall through to plain-key handling below
+
+      // Function keys + Delete (only when not typing in a text field, so
+      // typing a product name that happens to contain these doesn't misfire —
+      // exception: F-keys still work while the search bar itself is focused).
+      const typingElsewhere = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) &&
+        document.activeElement?.id !== 'billProductSearch';
+
+      switch (e.key) {
+        case 'F1': e.preventDefault(); showShortcutsGuide(); return;
+        case 'F2': e.preventDefault(); createNewBill(); return;
+        case 'F3': e.preventDefault(); if (typeof openCustomerPanel === 'function') openCustomerPanel(); return;
+        case 'F4': e.preventDefault(); refocusBillSearch(); return;
+        case 'F5': e.preventDefault(); createNewBill(); toast('Bill hold ho gaya, naya bill shuru', 'info'); return;
+        case 'F6': e.preventDefault(); cycleToNextBillTab(); return;
+        case 'F7': e.preventDefault(); if (typeof openDiscountPanel === 'function') openDiscountPanel(); return;
+        case 'F8': e.preventDefault(); completeBill(); return;
+        case 'F9': e.preventDefault(); printBillDirect(); return;
+        case 'F10': e.preventDefault(); completeBill(); return;
+        case 'Delete':
+          if (!typingElsewhere && selectedCartItem) { e.preventDefault(); removeItem(selectedCartItem.billId, selectedCartItem.idx); }
+          return;
+      }
     });
 
     window.addEventListener('load', async () => {
