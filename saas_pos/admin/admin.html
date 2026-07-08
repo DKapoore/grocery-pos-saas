@@ -306,6 +306,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
           Sabhi active sessions se sign out kar dein
         </label>
         <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;font-size:14px;" onclick="resetAdminForgotPassword()" id="afResetBtn">✅ Reset Password</button>
+        <button class="btn-outline" id="afResendBtn" style="width:100%;margin-top:8px;padding:9px;font-size:12px;">🔁 Resend in 60s</button>
       </div>
       <div style="text-align:center;margin-top:14px;">
         <a href="javascript:void(0)" onclick="hideAdminForgotPassword()" style="font-size:12px;color:var(--text2);text-decoration:underline;">← Back to Login</a>
@@ -1047,11 +1048,33 @@ async function sendAdminForgotOtp() {
     toast(data.message, 'success');
     document.getElementById('adminForgotStep1').classList.add('hidden');
     document.getElementById('adminForgotStep2').classList.remove('hidden');
+    startAdminOtpResendCooldown(() => sendAdminForgotOtp());
   } catch (e) {
     toast(e.message, 'error');
   } finally {
     btn.disabled = false; btn.textContent = '📧 Send OTP';
   }
+}
+
+// Shared 60-second visible cooldown, mirroring the backend's own
+// resend-cooldown enforcement — same pattern as app.html's forgot-password flow.
+function startAdminOtpResendCooldown(onResend, seconds = 60) {
+  const btn = document.getElementById('afResendBtn');
+  if (!btn) return;
+  let remaining = seconds;
+  btn.disabled = true;
+  const tick = () => {
+    if (remaining <= 0) {
+      btn.textContent = '🔁 Resend OTP';
+      btn.disabled = false;
+      btn.onclick = onResend;
+      return;
+    }
+    btn.textContent = `🔁 Resend in ${remaining}s`;
+    remaining--;
+    setTimeout(tick, 1000);
+  };
+  tick();
 }
 
 async function resetAdminForgotPassword() {
