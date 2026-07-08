@@ -3536,6 +3536,7 @@
           <label>Password</label><input id="loginPass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
           <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doLogin()" id="loginBtn">Login →</button>
           <div style="font-size:12px;color:var(--text2);text-align:center;margin-top:8px;">New user? <span style="color:var(--accent);cursor:pointer;font-weight:600;" onclick="switchLoginTab('trial')">Start Free Trial</span></div>
+          <div class="forgot-link" onclick="showUserForgotPassword()" style="cursor:pointer;">Forgot Password?</div>
           <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
         </div>
         <div id="trialForm" class="hidden">
@@ -3543,6 +3544,24 @@
           <label>Choose Username</label><input id="trialUser" placeholder="e.g. myshop123">
           <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="doFreeTrial()">Start Free Trial →</button>
           <div class="forgot-link" onclick="showScreen('screen-landing')">← Back to Home</div>
+        </div>
+        <div id="forgotPassForm" class="hidden">
+          <div id="fpStep1">
+            <label>Username</label><input id="fpUsername" placeholder="Apna username daalein" onkeydown="if(event.key==='Enter')sendUserForgotOtp()">
+            <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="sendUserForgotOtp()" id="fpSendBtn">📧 Send OTP</button>
+          </div>
+          <div id="fpStep2" class="hidden">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Agar username sahi hai, OTP registered email par bheja gaya hai (10 minute valid).</p>
+            <label>OTP</label><input id="fpOtp" placeholder="6-digit OTP" maxlength="6">
+            <label>Naya Password</label><input id="fpNewPass" type="password" placeholder="Kam se kam 6 characters">
+            <label>Confirm Password</label><input id="fpConfirmPass" type="password" placeholder="Dobara type karein">
+            <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
+              <input type="checkbox" id="fpLogoutOthers" style="width:15px;height:15px;">
+              Doosre devices se bhi logout kar dein
+            </label>
+            <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;" onclick="resetUserForgotPassword()" id="fpResetBtn">✅ Reset Password</button>
+          </div>
+          <div class="forgot-link" onclick="hideUserForgotPassword()" style="cursor:pointer;">← Back to Login</div>
         </div>
       </div>
     </div>
@@ -4154,6 +4173,67 @@
       document.getElementById('trialForm').classList.toggle('hidden', tab !== 'trial');
       document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
       document.getElementById('tabTrial').classList.toggle('active', tab === 'trial');
+    }
+
+    // ── USER FORGOT PASSWORD ────────────────────────────────────
+    function showUserForgotPassword() {
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('trialForm').classList.add('hidden');
+      document.getElementById('forgotPassForm').classList.remove('hidden');
+      document.getElementById('fpStep1').classList.remove('hidden');
+      document.getElementById('fpStep2').classList.add('hidden');
+      document.getElementById('fpUsername').value = document.getElementById('loginUser').value || '';
+    }
+
+    function hideUserForgotPassword() {
+      document.getElementById('forgotPassForm').classList.add('hidden');
+      document.getElementById('loginForm').classList.remove('hidden');
+    }
+
+    async function sendUserForgotOtp() {
+      const username = document.getElementById('fpUsername').value.trim();
+      if (!username) { toast('Username daalein', 'error'); return; }
+      const btn = document.getElementById('fpSendBtn');
+      btn.disabled = true; btn.textContent = '⏳ Sending...';
+      try {
+        const res = await apiCall('/api/auth/forgot-password/request-otp', {
+          method: 'POST', body: JSON.stringify({ username })
+        });
+        toast(res.message, 'success');
+        document.getElementById('fpStep1').classList.add('hidden');
+        document.getElementById('fpStep2').classList.remove('hidden');
+      } catch (e) {
+        toast(e.message || 'OTP bhejne me error', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = '📧 Send OTP';
+      }
+    }
+
+    async function resetUserForgotPassword() {
+      const username = document.getElementById('fpUsername').value.trim();
+      const otp = document.getElementById('fpOtp').value.trim();
+      const newPass = document.getElementById('fpNewPass').value;
+      const confirmPass = document.getElementById('fpConfirmPass').value;
+      const logoutOthers = document.getElementById('fpLogoutOthers').checked;
+      if (!otp || !newPass) { toast('Sabhi fields bharein', 'error'); return; }
+      if (newPass.length < 6) { toast('Password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+      if (newPass !== confirmPass) { toast('Password match nahi kar raha', 'error'); return; }
+      const btn = document.getElementById('fpResetBtn');
+      btn.disabled = true; btn.textContent = '⏳ Resetting...';
+      try {
+        await apiCall('/api/auth/forgot-password/reset', {
+          method: 'POST',
+          body: JSON.stringify({ username, otp, new_password: newPass, logout_other_devices: logoutOthers })
+        });
+        toast('Password reset ho gaya! Ab login karein.', 'success');
+        hideUserForgotPassword();
+        document.getElementById('loginUser').value = username;
+        document.getElementById('loginPass').value = '';
+      } catch (e) {
+        toast(e.message || 'Reset failed', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = '✅ Reset Password';
+      }
     }
 
     async function initApp() {
@@ -5011,9 +5091,11 @@
       const isHotel  = settings.billFormat === 'hotel';
       const bc = settings.billCols || { qty:1, rate:1, discount:1, cgst:1, sgst:1, net:1 };
       const extraLines = (settings.extraHeaderLines || []).filter(Boolean);
-      const upiStr = settings.upi
-        ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${final.toFixed(2)}&cu=INR`
-        : '';
+      // NOTE: upiStr used to be built here using the Standard format's `final`
+      // and then reused as-is inside the Hotel branch below — but Hotel bills
+      // compute a different total (hotelFinal), so the QR amount silently
+      // didn't match the printed NET AMOUNT for Hotel-format bills. Each
+      // branch now builds its own upiStr from its own (rounded) final total.
 
       // ── Shared header ──────────────────────────────────────────────────
       const headerHTML = `
@@ -5050,13 +5132,18 @@
 
         // For hotel, total = taxable+CGST+SGST - discount + addCharge
         const hotelFinal = Math.max(0, netBeforeDisc + addCharge - disc - loyaltyDisc);
+        const hotelRounded = Math.round(hotelFinal);
+        const hotelRoundOff = hotelRounded - hotelFinal;
+        const upiStr = settings.upi
+          ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${hotelRounded.toFixed(2)}&cu=INR`
+          : '';
 
         const thStyle  = `padding:4px 3px;text-align:right;border:1px solid #999;font-size:${size==='thermal'?'9px':f};background:#eee;`;
         const thStyleL = `padding:4px 3px;text-align:left;border:1px solid #999;font-size:${size==='thermal'?'9px':f};background:#eee;`;
         const tdStyle  = `padding:3px;text-align:right;border:1px solid #ddd;font-size:${size==='thermal'?'9px':f};`;
         const tdStyleL = `padding:3px;text-align:left;border:1px solid #ddd;font-size:${size==='thermal'?'9px':f};`;
 
-        return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+        return `<div id="billContent" data-final-amount="${hotelRounded.toFixed(2)}" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
           ${headerHTML}
           <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:${f};color:#000;margin:6px 0;">
             <div>
@@ -5092,7 +5179,7 @@
                   <td style="${tdStyleL}">${i.name}</td>
                   ${bc.qty     ?`<td style="${tdStyle}">${i.qty}</td>`:''}
                   ${bc.rate    ?`<td style="${tdStyle}">₹${i.rate.toFixed(2)}</td>`:''}
-                  ${bc.discount?`<td style="${tdStyle}">${discPct?discPct+'%':'-'}</td>`:''}
+                  ${bc.discount?`<td style="${tdStyle}">${discPct}%</td>`:''}
                   ${bc.cgst    ?`<td style="${tdStyle}">₹${i.cgstAmt.toFixed(2)}</td>`:''}
                   ${bc.sgst    ?`<td style="${tdStyle}">₹${i.sgstAmt.toFixed(2)}</td>`:''}
                   ${bc.net     ?`<td style="${tdStyle};font-weight:600;">₹${taxableAfterDisc.toFixed(2)}</td>`:''}
@@ -5108,11 +5195,12 @@
             ${addCharge>0?`<div style="display:flex;justify-content:space-between;"><span>${addChargeLabel}:</span><span>+₹${addCharge.toFixed(2)}</span></div>`:''}
             ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
             ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
+            ${Math.abs(hotelRoundOff)>=0.005?`<div style="display:flex;justify-content:space-between;"><span>Round Off:</span><span>${hotelRoundOff>=0?'+':'-'}₹${Math.abs(hotelRoundOff).toFixed(2)}</span></div>`:''}
           </div>
           <div style="display:flex;justify-content:space-between;font-size:${totSize};font-weight:900;color:#000;border-top:2px solid #000;padding-top:6px;margin-top:4px;">
-            <span>NET AMOUNT:</span><span>₹${hotelFinal.toFixed(2)}</span>
+            <span>NET AMOUNT:</span><span>₹${hotelRounded.toFixed(2)}</span>
           </div>
-          ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(hotelFinal)}</div>`:''}
+          ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(hotelRounded)}</div>`:''}
           ${bill.notes?`<div style="font-size:${f};color:#555;margin-top:6px;"><b>Note:</b> ${bill.notes}</div>`:''}
           ${upiStr?`
           <div style="text-align:center;margin:12px 0;">
@@ -5127,7 +5215,21 @@
       }
 
       // ── Standard format (Grocery / Retail / Pharmacy) ─────────────────
-      return `<div id="billContent" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
+      // GST billing figures: item Amount = taxable (pre-tax) only, GST shown
+      // once in the summary as CGST+SGST (split evenly — standard intra-state
+      // GST practice), and rounding applied only to the final payable amount.
+      const grossAmount = bill.cart.reduce((s, i) => s + (parseFloat(i.price) || 0) * (i.quantity || 1), 0);
+      const taxableAmount = subtotal - (disc || 0) - (loyaltyDisc || 0);
+      const totalDiscount = grossAmount - taxableAmount;
+      const cgstAmt = tax / 2;
+      const sgstAmt = tax / 2;
+      const roundedFinal = Math.round(final);
+      const roundOff = roundedFinal - final;
+      const upiStr = settings.upi
+        ? `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${roundedFinal.toFixed(2)}&cu=INR`
+        : '';
+
+      return `<div id="billContent" data-final-amount="${roundedFinal.toFixed(2)}" style="width:${w};padding:16px;font-family:Arial,sans-serif;background:#fff;color:#000;margin:0 auto;">
         ${headerHTML}
         <div style="display:flex;justify-content:space-between;font-size:${f};color:#000;">
           <b>Bill# ${bill.billNumber}</b><span>${date} ${time}</span>
@@ -5138,6 +5240,7 @@
         <table style="width:100%;border-collapse:collapse;font-size:${f};color:#000;">
           <thead><tr style="background:#eee;">
             <th style="padding:4px 3px;text-align:left;border-bottom:1px solid #000;">Description</th>
+            <th style="padding:4px 3px;text-align:center;border-bottom:1px solid #000;">HSN</th>
             ${bc.qty ?`<th style="padding:4px 3px;text-align:center;border-bottom:1px solid #000;">Qty</th>`:''}
             ${bc.rate?`<th style="padding:4px 3px;text-align:right;border-bottom:1px solid #000;">Rate</th>`:''}
             ${bc.discount?`<th style="padding:4px 3px;text-align:right;border-bottom:1px solid #000;">Disc%</th>`:''}
@@ -5147,29 +5250,32 @@
             const qty = i.quantity||1;
             const rate = parseFloat(i.price)||0;
             const discPct = i.discount_percent||0;
-            const lineTotal = rate * qty * (1 - discPct/100);
+            const lineTotal = rate * qty * (1 - discPct/100); // taxable amount only — GST is never added into this column
             return `
             <tr>
               <td style="padding:3px;color:#000;border-bottom:1px solid #ddd;">${i.name}</td>
+              <td style="padding:3px;text-align:center;color:#000;border-bottom:1px solid #ddd;">${i.hsn || '-'}</td>
               ${bc.qty ?`<td style="padding:3px;text-align:center;color:#000;border-bottom:1px solid #ddd;">${qty}</td>`:''}
               ${bc.rate?`<td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">₹${rate.toFixed(2)}</td>`:''}
-              ${bc.discount?`<td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">${discPct?discPct+'%':'-'}</td>`:''}
+              ${bc.discount?`<td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">${discPct}%</td>`:''}
               ${bc.net?`<td style="padding:3px;text-align:right;color:#000;border-bottom:1px solid #ddd;">₹${lineTotal.toFixed(2)}</td>`:''}
             </tr>`}).join('')}
           </tbody>
         </table>
         <hr style="border:1px dashed #000;margin:6px 0;">
         <div style="font-size:${f};color:#000;">
-          <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>₹${(subtotal+(disc||0)+(loyaltyDisc||0)).toFixed(2)}</span></div>
-          ${tax>0?`<div style="display:flex;justify-content:space-between;"><span>Tax:</span><span>₹${tax.toFixed(2)}</span></div>`:''}
-          ${disc>0?`<div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:#c00;">-₹${disc.toFixed(2)}</span></div>`:''}
-          ${loyaltyDisc>0?`<div style="display:flex;justify-content:space-between;"><span>Loyalty:</span><span style="color:#c00;">-₹${loyaltyDisc.toFixed(2)}</span></div>`:''}
+          <div style="display:flex;justify-content:space-between;"><span>Gross Amount:</span><span>₹${grossAmount.toFixed(2)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Discount:</span><span style="color:${totalDiscount>0?'#c00':'#000'};">${totalDiscount>0?'-':''}₹${totalDiscount.toFixed(2)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Taxable Amount:</span><span>₹${taxableAmount.toFixed(2)}</span></div>
+          ${tax>0?`<div style="display:flex;justify-content:space-between;"><span>CGST:</span><span>₹${cgstAmt.toFixed(2)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>SGST:</span><span>₹${sgstAmt.toFixed(2)}</span></div>`:''}
           ${addCharge>0?`<div style="display:flex;justify-content:space-between;"><span>${addChargeLabel}:</span><span>+₹${addCharge.toFixed(2)}</span></div>`:''}
+          ${Math.abs(roundOff)>=0.005?`<div style="display:flex;justify-content:space-between;"><span>Round Off:</span><span>${roundOff>=0?'+':'-'}₹${Math.abs(roundOff).toFixed(2)}</span></div>`:''}
         </div>
         <div style="display:flex;justify-content:space-between;font-size:${totSize};font-weight:900;color:#000;border-top:2px solid #000;padding-top:6px;margin-top:4px;">
-          <span>TOTAL:</span><span>₹${final.toFixed(2)}</span>
+          <span>NET AMOUNT:</span><span>₹${roundedFinal.toFixed(2)}</span>
         </div>
-        ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(final)}</div>`:''}
+        ${showAmtWords?`<div style="font-size:${size==='thermal'?'9px':'11px'};color:#333;font-style:italic;margin-top:3px;border-bottom:1px dashed #000;padding-bottom:6px;">${numberToWords(roundedFinal)}</div>`:''}
         ${bill.notes?`<div style="font-size:${f};color:#555;margin-top:6px;"><b>Note:</b> ${bill.notes}</div>`:''}
         ${upiStr?`
         <div style="text-align:center;margin:14px 0;">
@@ -5178,10 +5284,10 @@
             <div id="billQR" style="display:inline-block;background:#fff;padding:6px;border:2px solid #000;border-radius:6px;"></div>
           </div>
           <div style="margin-top:6px;">
-            <div style="font-size:${size==='thermal'?'13px':'16px'};font-weight:900;color:#000;background:#f0f0f0;display:inline-block;padding:4px 12px;border-radius:6px;border:1px solid #ccc;">₹${final.toFixed(2)}</div>
+            <div style="font-size:${size==='thermal'?'13px':'16px'};font-weight:900;color:#000;background:#f0f0f0;display:inline-block;padding:4px 12px;border-radius:6px;border:1px solid #ccc;">₹${roundedFinal.toFixed(2)}</div>
           </div>
           <div style="font-size:${f};font-weight:bold;color:#000;margin-top:4px;">${settings.upi}</div>
-          <div style="font-size:${size==='thermal'?'9px':'11px'};color:#555;margin-top:3px;font-style:italic;">Scan QR se seedha ₹${final.toFixed(2)} pay karein</div>
+          <div style="font-size:${size==='thermal'?'9px':'11px'};color:#555;margin-top:3px;font-style:italic;">Scan QR se seedha ₹${roundedFinal.toFixed(2)} pay karein</div>
         </div>`:''}
         <hr style="border:1px dashed #000;margin:8px 0;">
         <div style="text-align:center;font-size:${f};color:#000;font-style:italic;">${settings.footer||'Thank you! 🙏'}</div>
@@ -5194,9 +5300,15 @@
       pa.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;background:#fff;';
       await new Promise(r => setTimeout(r, 200));
       const qrDiv = document.getElementById('billQR');
+      const billContentEl = document.getElementById('billContent');
       if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
+        // Read the exact rounded final amount that generateBillHTML already
+        // computed and printed on the bill — never recompute independently,
+        // or the QR amount can silently drift from what's shown (this was a
+        // real bug for Hotel-format bills before).
+        const finalAmt = billContentEl?.dataset.finalAmount || calcBill(bill).final.toFixed(2);
         const upiStr =
-          `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${calcBill(bill).final.toFixed(2)}&cu=INR`;
+          `upi://pay?pa=${encodeURIComponent(settings.upi)}&pn=${encodeURIComponent(settings.shopName)}&am=${finalAmt}&cu=INR`;
         new QRCode(qrDiv, { text: upiStr, width: 100, height: 100, correctLevel: QRCode.CorrectLevel.M });
         await new Promise(r => setTimeout(r, 600));
       }
@@ -5256,8 +5368,10 @@
       pa.style.display = 'block';
       setTimeout(() => {
         const qrDiv = document.getElementById('billQR');
+        const billContentEl = document.getElementById('billContent');
         if (qrDiv && settings.upi && typeof QRCode !== 'undefined') {
-          new QRCode(qrDiv, { text: `upi://pay?pa=${encodeURIComponent(settings.upi)}&am=${calcBill(bill).final.toFixed(2)}&cu=INR`,
+          const finalAmt = billContentEl?.dataset.finalAmount || calcBill(bill).final.toFixed(2);
+          new QRCode(qrDiv, { text: `upi://pay?pa=${encodeURIComponent(settings.upi)}&am=${finalAmt}&cu=INR`,
             width: 90, height: 90 });
         }
         setTimeout(() => { window.print();
@@ -5322,11 +5436,20 @@
         disc > 0 ? `🏷️ Discount: -₹${disc.toFixed(2)}` : '',
         addCharge > 0 ? `➕ ${bill.additionalChargeLabel||'Additional Charge'}: +₹${addCharge.toFixed(2)}` : ''
       ].filter(Boolean).join('\n');
-      const msg =
+      // Fallback amount (unrounded/non-Hotel-aware) in case renderBillWithQR
+      // fails before we can read the real printed amount below — msg needs
+      // to exist in both the try and catch paths.
+      let msg =
         `🛒 *${settings.shopName}*\n📋 Bill: *${bill.billNumber}*\n📅 ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}\n\n${lines}${extraLines?'\n\n'+extraLines:''}\n\n💰 *Total: ₹${final.toFixed(2)}*\n${bill.paymentMode?'💳 Payment: '+bill.paymentMode:''}\n${settings.upi?'\n📱 UPI: '+settings.upi:''}\n\n${settings.footer||'Thank you! Visit Again 🙏'}`;
       try {
         const size = getBillSize() || 'thermal';
         const target = await renderBillWithQR(bill, size);
+        // Read the same rounded final amount actually printed on the bill —
+        // keeps the WhatsApp caption text consistent with the bill image
+        // (was previously reading calcBill's raw, unrounded, non-Hotel-aware total).
+        const finalAmt = target?.dataset.finalAmount || final.toFixed(2);
+        msg =
+          `🛒 *${settings.shopName}*\n📋 Bill: *${bill.billNumber}*\n📅 ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}\n\n${lines}${extraLines?'\n\n'+extraLines:''}\n\n💰 *Total: ₹${finalAmt}*\n${bill.paymentMode?'💳 Payment: '+bill.paymentMode:''}\n${settings.upi?'\n📱 UPI: '+settings.upi:''}\n\n${settings.footer||'Thank you! Visit Again 🙏'}`;
         const pa = document.getElementById('printArea');
         const canvas = await html2canvas(target, { scale: 3, backgroundColor: '#ffffff', useCORS: true,
           allowTaint: true, logging: false });
@@ -6198,6 +6321,7 @@
             <div><label>Category</label><input id="pCat" placeholder="e.g. Grocery" value="General"></div>
             <div><label>Unit</label><select id="pUnit">${unitOptions}</select></div>
           </div>
+          <div><label>HSN/SAC Code (GST bill ke liye, optional)</label><input id="pHsn" placeholder="e.g. 1905"></div>
           <div class="modal-actions">
             <button class="btn-outline" onclick="closeModal()">Cancel</button>
             <button class="btn-accent" onclick="addProduct()">Save Product</button>
@@ -6336,6 +6460,7 @@
         tax: parseFloat(document.getElementById('pTax').value) || 0,
         category: document.getElementById('pCat').value || 'General',
         unit: document.getElementById('pUnit').value || 'piece',
+        hsn: document.getElementById('pHsn')?.value.trim() || '',
         stock: parseInt(document.getElementById('pStock')?.value || 0) || 0 };
       products.push(p);
       localStorage.setItem('pos_products', JSON.stringify(products));
@@ -6347,7 +6472,7 @@
         method: 'POST',
         body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
           discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category,
-          unit: p.unit, stock: p.stock })
+          unit: p.unit, hsn: p.hsn, stock: p.stock })
       }).then(res => { if (res?.id) p.id = res.id; }).catch(() => {});
       // Came from the billing search bar's "Add New Product" flow — the
       // product is already live in the `products` array above (no reload
@@ -6381,6 +6506,7 @@
           <div><label>Stock</label><input id="epStock" type="number" value="${p.stock||0}"></div>
         </div>
         <label>Category</label><input id="epCat" value="${p.category||''}">
+        <label>HSN/SAC Code</label><input id="epHsn" value="${p.hsn||''}" placeholder="e.g. 1905">
         <div class="modal-actions">
           <button class="btn-outline" onclick="closeModal()">Cancel</button>
           <button class="btn-accent" onclick="updateProduct(${pid})">Update ✅</button>
@@ -6398,6 +6524,7 @@
       p.tax      = parseFloat(document.getElementById('epTax').value) || 0;
       p.stock    = parseInt(document.getElementById('epStock')?.value) || 0;
       p.category = document.getElementById('epCat').value;
+      p.hsn      = document.getElementById('epHsn')?.value.trim() || '';
       localStorage.setItem('pos_products', JSON.stringify(products));
       closeModal();
       toast(`${p.name} updated ✅`, 'success');
@@ -6406,7 +6533,7 @@
       apiCall(`/api/products/${pid}`, {
         method: 'PUT',
         body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
-          discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category, stock: p.stock })
+          discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category, hsn: p.hsn, stock: p.stock })
       }).catch(() => {});
     }
 
