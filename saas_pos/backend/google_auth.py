@@ -32,6 +32,8 @@ import bcrypt
 import apps_script_api as sheets
 from sheet_manager import SheetManagerError
 
+send_email_via_gas = sheets.send_email_via_gas
+
 
 # ======================== PASSWORD HASHING ========================
 def hash_password(password: str) -> str:
