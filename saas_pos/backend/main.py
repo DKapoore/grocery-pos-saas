@@ -605,6 +605,23 @@ def send_email(to_email: str, subject: str, body: str):
         print(f"Email error: {e}")
         return False
 
+def send_otp_email(to_email: str, subject: str, body: str) -> bool:
+    """Used specifically for OTP delivery (Phase 3 patch). Tries Google Apps
+    Script's MailApp first — it runs on Google's infrastructure so it isn't
+    affected by the backend host blocking outbound SMTP ports, which was the
+    actual root cause of OTP emails silently never arriving. Falls back to
+    direct SMTP only if GAS delivery fails or isn't configured, and logs
+    exactly which path succeeded/failed either way."""
+    if google_auth.send_email_via_gas(to_email, subject, body):
+        print(f"[OTP EMAIL] Sent via Apps Script MailApp to {to_email}")
+        return True
+    print(f"[OTP EMAIL] Apps Script delivery failed for {to_email} — falling back to SMTP")
+    if send_email(to_email, subject, body):
+        print(f"[OTP EMAIL] Sent via SMTP fallback to {to_email}")
+        return True
+    print(f"[OTP EMAIL] FAILED on both Apps Script and SMTP for {to_email} — OTP was NOT delivered")
+    return False
+
 def send_whatsapp(mobile: str, message: str):
     # Opens WA link - for production use Twilio/Wati API
     print(f"[WHATSAPP] To: {mobile} | {message[:50]}...")
@@ -1213,13 +1230,16 @@ async def user_forgot_password_request_otp(req: ForgotPasswordRequest, request: 
     if limit_err:
         raise HTTPException(status_code=429, detail=limit_err)
     otp = create_otp(user["email"], "user_forgot_password", {"username": user["username"]})
-    await run_in_threadpool(send_email, user["email"], "🔑 GroceryPOS Password Reset OTP", f"""Hello {user['full_name'] or user['username']},
+    sent = await run_in_threadpool(send_otp_email, user["email"], "🔑 GroceryPOS Password Reset OTP", f"""Hello {user['full_name'] or user['username']},
 
 Aapka password reset OTP hai: {otp}
 
 Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, is email ko ignore karein.
 
 Team GroceryPOS""")
+    if not sent:
+        log_audit(req.username, "user_forgot_password_otp_send_failed", request)
+        raise HTTPException(status_code=502, detail="OTP email bhejne me error aaya — kripya thodi der baad try karein ya support se contact karein")
     log_audit(req.username, "user_forgot_password_otp_requested", request)
     return generic_msg
 
@@ -1329,7 +1349,7 @@ async def admin_credentials_request_otp(req: AdminCredentialOtpRequest, request:
     if limit_err:
         raise HTTPException(status_code=429, detail=limit_err)
     otp = create_otp(row["email"], "admin_credential_change", {"field": req.field, "new_value": req.new_value})
-    await run_in_threadpool(send_email, row["email"], "🔐 GroceryPOS Admin — Confirm Credential Change", f"""Admin,
+    sent = await run_in_threadpool(send_otp_email, row["email"], "🔐 GroceryPOS Admin — Confirm Credential Change", f"""Admin,
 
 Aapne apna {req.field} change karne ki request ki hai.
 Verification OTP: {otp}
@@ -1337,6 +1357,9 @@ Verification OTP: {otp}
 Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, turant apna password change karein.
 
 Team GroceryPOS""")
+    if not sent:
+        log_audit("admin", "admin_credential_otp_send_failed", request, f"field={req.field}")
+        raise HTTPException(status_code=502, detail="OTP email bhejne me error aaya — kripya thodi der baad try karein")
     log_audit("admin", "admin_credential_otp_requested", request, f"field={req.field}")
     return {"success": True, "message": f"OTP bhej diya gaya hai registered email par"}
 
@@ -1386,13 +1409,16 @@ async def admin_forgot_password_request_otp(req: AdminForgotPasswordRequest, req
     if limit_err:
         raise HTTPException(status_code=429, detail=limit_err)
     otp = create_otp(row["email"], "admin_forgot_password", {})
-    await run_in_threadpool(send_email, row["email"], "🔐 GroceryPOS Admin — Password Reset OTP", f"""Admin,
+    sent = await run_in_threadpool(send_otp_email, row["email"], "🔐 GroceryPOS Admin — Password Reset OTP", f"""Admin,
 
 Aapka admin password reset OTP hai: {otp}
 
 Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, is email ko ignore karein.
 
 Team GroceryPOS""")
+    if not sent:
+        log_audit("admin", "admin_forgot_password_otp_send_failed", request)
+        raise HTTPException(status_code=502, detail="OTP email bhejne me error aaya — kripya thodi der baad try karein")
     log_audit("admin", "admin_forgot_password_otp_requested", request)
     return generic_msg
 
