@@ -154,12 +154,15 @@ function doPost(e) {
 
     // ── Cloud Auth actions require the shared secret ──────────────────────
     const AUTH_ACTIONS = ['signup', 'login_lookup', 'get_user', 'get_user_by_id', 'list_users',
-                           'update_account', 'delete_user', 'update_last_login'];
+                           'update_account', 'delete_user', 'update_last_login', 'send_email'];
     if (AUTH_ACTIONS.indexOf(action) !== -1) {
       if (!checkAuth(data)) {
         return ContentService
           .createTextOutput(JSON.stringify({ success: false, message: "Unauthorized — invalid API secret" }))
           .setMimeType(ContentService.MimeType.JSON);
+      }
+      if (action === 'send_email') {
+        return handleSendEmail(data);
       }
       return handleAuthAction(action, data);
     }
@@ -182,6 +185,34 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ============================================================
+// EMAIL DELIVERY (Phase 3 patch) — used for OTP emails specifically.
+// Runs via MailApp on Google's own infrastructure, so it works even when
+// the backend host (Render, etc.) blocks outbound SMTP ports — which was
+// the actual root cause of OTP emails silently never arriving before.
+// This function ONLY sends email; OTP generation/hashing/expiry/validation
+// all still happen in Python — Apps Script never decides whether a code
+// is valid, it just delivers whatever message Python asks it to send.
+// ============================================================
+function handleSendEmail(data) {
+  const out = (obj) => ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    if (!data.to || !data.subject || !data.body) {
+      return out({ success: false, message: "Missing to/subject/body" });
+    }
+    MailApp.sendEmail({
+      to: data.to,
+      subject: data.subject,
+      htmlBody: data.body,
+      name: "GroceryPOS"
+    });
+    return out({ success: true });
+  } catch (err) {
+    return out({ success: false, message: "MailApp error: " + err.message });
   }
 }
 
