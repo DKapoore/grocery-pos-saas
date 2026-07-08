@@ -270,16 +270,47 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <div class="logo-text">Grocery<span>POS</span></div>
       <p>Admin Control Panel</p>
     </div>
-    <label class="field-label">Username</label>
-    <input id="adminUser" value="admin" placeholder="admin" onkeydown="if(event.key==='Enter')adminLogin()">
-    <label class="field-label">Password</label>
-    <div class="pass-wrap">
-      <input id="adminPass" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')adminLogin()">
-      <button class="pass-eye" onclick="togglePass('adminPass',this)">👁</button>
+    <div id="adminLoginFields">
+      <label class="field-label">Username</label>
+      <input id="adminUser" value="admin" placeholder="admin" onkeydown="if(event.key==='Enter')adminLogin()">
+      <label class="field-label">Password</label>
+      <div class="pass-wrap">
+        <input id="adminPass" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')adminLogin()">
+        <button class="pass-eye" onclick="togglePass('adminPass',this)">👁</button>
+      </div>
+      <button class="btn-accent" style="width:100%;margin-top:18px;padding:13px;font-size:14px;" onclick="adminLogin()">
+        🔐 Login to Admin Panel
+      </button>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="javascript:void(0)" onclick="showAdminForgotPassword()" style="font-size:12px;color:var(--text2);text-decoration:underline;">Forgot Password?</a>
+      </div>
     </div>
-    <button class="btn-accent" style="width:100%;margin-top:18px;padding:13px;font-size:14px;" onclick="adminLogin()">
-      🔐 Login to Admin Panel
-    </button>
+
+    <!-- ── FORGOT PASSWORD FLOW (Step 1: request OTP → Step 2: reset) ── -->
+    <div id="adminForgotFields" class="hidden">
+      <div id="adminForgotStep1">
+        <label class="field-label">Admin Username</label>
+        <input id="afUsername" placeholder="admin" onkeydown="if(event.key==='Enter')sendAdminForgotOtp()">
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;font-size:14px;" onclick="sendAdminForgotOtp()" id="afSendOtpBtn">📧 Send OTP</button>
+      </div>
+      <div id="adminForgotStep2" class="hidden">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">OTP registered email par bheja gaya hai (agar username sahi hai). 10 minute me expire ho jayega.</p>
+        <label class="field-label">OTP</label>
+        <input id="afOtp" placeholder="6-digit OTP" maxlength="6">
+        <label class="field-label">Naya Password</label>
+        <input id="afNewPass" type="password" placeholder="Kam se kam 6 characters">
+        <label class="field-label">Confirm Password</label>
+        <input id="afConfirmPass" type="password" placeholder="Dobara type karein">
+        <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
+          <input type="checkbox" id="afSignOutAll" checked style="width:15px;height:15px;">
+          Sabhi active sessions se sign out kar dein
+        </label>
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;font-size:14px;" onclick="resetAdminForgotPassword()" id="afResetBtn">✅ Reset Password</button>
+      </div>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="javascript:void(0)" onclick="hideAdminForgotPassword()" style="font-size:12px;color:var(--text2);text-decoration:underline;">← Back to Login</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -321,6 +352,13 @@ tr:hover td{background:rgba(255,255,255,.02);}
       </div>
       <div class="nav-item" data-page="landing" onclick="showPage('landing',this)">
         <span class="nav-icon">🖼️</span> Landing Page
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Security</div>
+      <div class="nav-item" data-page="security" onclick="showPage('security',this)">
+        <span class="nav-icon">🔐</span> Admin Credentials
       </div>
     </div>
 
@@ -518,6 +556,56 @@ tr:hover td{background:rgba(255,255,255,.02);}
           Show free trial watermark on bills
         </label>
         <span id="trialWatermarkStatus" style="font-size:12px;color:var(--text2);margin-top:8px;display:block;"></span>
+      </div>
+    </div>
+
+    <!-- ════════════════ SECURITY / ADMIN CREDENTIALS PAGE ════════════════ -->
+    <div class="page" id="page-security">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🔐 Admin Credentials</div>
+          <div class="page-sub">Apna admin username, email, aur password OTP verification ke saath change karein</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;">
+        <!-- Current credentials + change form -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">Current Credentials</h3>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">
+            <div>Username: <strong id="curAdminUsername" style="color:#e2e8f0;">—</strong></div>
+            <div>Email: <strong id="curAdminEmail" style="color:#e2e8f0;">—</strong></div>
+          </div>
+
+          <div id="credChangeStep1">
+            <label class="field-label">Kya change karna hai?</label>
+            <select id="credField" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border,#334155);background:#0f172a;color:#e2e8f0;margin-bottom:10px;" onchange="toggleCredNewValueField()">
+              <option value="username">Username</option>
+              <option value="email">Email</option>
+              <option value="password">Password</option>
+            </select>
+            <label class="field-label" id="credNewValueLabel">New Username</label>
+            <input id="credNewValue" placeholder="Naya username" style="margin-bottom:10px;">
+            <label class="field-label">Current Password (verify karne ke liye)</label>
+            <input id="credCurrentPass" type="password" placeholder="Abhi ka password" style="margin-bottom:10px;">
+            <button class="btn-accent" style="width:100%;padding:11px;" onclick="requestCredOtp()" id="credOtpBtn">📧 Send OTP to Verify</button>
+          </div>
+
+          <div id="credChangeStep2" class="hidden">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">OTP registered email par bheja gaya hai.</p>
+            <label class="field-label">OTP</label>
+            <input id="credOtp" placeholder="6-digit OTP" maxlength="6" style="margin-bottom:10px;">
+            <button class="btn-accent" style="width:100%;padding:11px;" onclick="verifyCredOtp()" id="credVerifyBtn">✅ Verify & Update</button>
+            <button class="btn-outline" style="width:100%;padding:9px;margin-top:8px;" onclick="cancelCredChange()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Audit log -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">📜 Audit Log</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">Recent credential changes aur password resets (user, action, IP, time)</p>
+          <div id="auditLogList" style="max-height:420px;overflow-y:auto;font-size:12px;"></div>
+        </div>
       </div>
     </div>
 
@@ -930,6 +1018,71 @@ async function adminLogin() {
   } catch(e) { toast(e.message, 'error'); }
 }
 
+// ── ADMIN FORGOT PASSWORD ────────────────────────────────────
+function showAdminForgotPassword() {
+  document.getElementById('adminLoginFields').classList.add('hidden');
+  document.getElementById('adminForgotFields').classList.remove('hidden');
+  document.getElementById('adminForgotStep1').classList.remove('hidden');
+  document.getElementById('adminForgotStep2').classList.add('hidden');
+  document.getElementById('afUsername').value = document.getElementById('adminUser').value || '';
+}
+
+function hideAdminForgotPassword() {
+  document.getElementById('adminForgotFields').classList.add('hidden');
+  document.getElementById('adminLoginFields').classList.remove('hidden');
+}
+
+async function sendAdminForgotOtp() {
+  const username = document.getElementById('afUsername').value.trim();
+  if (!username) { toast('Username daalein', 'error'); return; }
+  const btn = document.getElementById('afSendOtpBtn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  try {
+    const res = await fetch(`${API}/api/admin/forgot-password/request-otp`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to send OTP');
+    toast(data.message, 'success');
+    document.getElementById('adminForgotStep1').classList.add('hidden');
+    document.getElementById('adminForgotStep2').classList.remove('hidden');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Send OTP';
+  }
+}
+
+async function resetAdminForgotPassword() {
+  const username = document.getElementById('afUsername').value.trim();
+  const otp = document.getElementById('afOtp').value.trim();
+  const newPass = document.getElementById('afNewPass').value;
+  const confirmPass = document.getElementById('afConfirmPass').value;
+  const signOutAll = document.getElementById('afSignOutAll').checked;
+  if (!otp || !newPass) { toast('Sabhi fields bharein', 'error'); return; }
+  if (newPass.length < 6) { toast('Password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+  if (newPass !== confirmPass) { toast('Password match nahi kar raha', 'error'); return; }
+  const btn = document.getElementById('afResetBtn');
+  btn.disabled = true; btn.textContent = '⏳ Resetting...';
+  try {
+    const res = await fetch(`${API}/api/admin/forgot-password/reset`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, otp, new_password: newPass, sign_out_all_sessions: signOutAll })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Reset failed');
+    toast('Password reset ho gaya! Login karein.', 'success');
+    hideAdminForgotPassword();
+    document.getElementById('adminUser').value = username;
+    document.getElementById('adminPass').value = '';
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Reset Password';
+  }
+}
+
 function adminLogout() {
   adminToken = null;
   localStorage.removeItem('admin_token');
@@ -945,6 +1098,15 @@ async function api(endpoint, options={}) {
   };
   const res = await fetch(`${API}${endpoint}`, { ...options, headers });
   const data = await res.json();
+  if (res.status === 401 && adminToken) {
+    // Token invalidated (e.g. admin used "sign out all sessions" during a
+    // password reset from another device/tab) — force back to login.
+    adminToken = null;
+    localStorage.removeItem('admin_token');
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    toast('Session ended — dobara login karein', 'error');
+  }
   if (!res.ok) throw new Error(data.detail || 'API Error');
   return data;
 }
@@ -1133,6 +1295,7 @@ function showPage(name, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
   if (name === 'landing') { loadHeroImagesAdmin(); loadPreviewImagesAdmin(); loadTrialWatermarkAdmin(); }
+  if (name === 'security') { loadAdminCredentials(); loadAuditLog(); }
 }
 
 // ── LOAD DATA ────────────────────────────────────────────────
@@ -1820,6 +1983,94 @@ async function submitResetPwd() {
     toast('Error: ' + e.message, 'error');
   } finally {
     btn.textContent = '🔑 Reset Password'; btn.disabled = false;
+  }
+}
+
+// ── ADMIN CREDENTIALS (Security page) ────────────────────────
+function toggleCredNewValueField() {
+  const field = document.getElementById('credField').value;
+  const input = document.getElementById('credNewValue');
+  const label = document.getElementById('credNewValueLabel');
+  if (field === 'username') { label.textContent = 'New Username'; input.type = 'text'; input.placeholder = 'Naya username'; }
+  else if (field === 'email') { label.textContent = 'New Email'; input.type = 'email'; input.placeholder = 'naya@email.com'; }
+  else { label.textContent = 'New Password'; input.type = 'password'; input.placeholder = 'Kam se kam 6 characters'; }
+}
+
+async function loadAdminCredentials() {
+  try {
+    const data = await api('/api/admin/credentials');
+    document.getElementById('curAdminUsername').textContent = data.username;
+    document.getElementById('curAdminEmail').textContent = data.email;
+  } catch (e) {
+    toast('Credentials load nahi ho payi: ' + e.message, 'error');
+  }
+}
+
+async function requestCredOtp() {
+  const field = document.getElementById('credField').value;
+  const newValue = document.getElementById('credNewValue').value.trim();
+  const currentPassword = document.getElementById('credCurrentPass').value;
+  if (!newValue || !currentPassword) { toast('Sabhi fields bharein', 'error'); return; }
+  if (field === 'password' && newValue.length < 6) { toast('Password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+  const btn = document.getElementById('credOtpBtn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  try {
+    const res = await api('/api/admin/credentials/request-otp', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, field, new_value: newValue })
+    });
+    toast(res.message, 'success');
+    document.getElementById('credChangeStep1').classList.add('hidden');
+    document.getElementById('credChangeStep2').classList.remove('hidden');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Send OTP to Verify';
+  }
+}
+
+async function verifyCredOtp() {
+  const otp = document.getElementById('credOtp').value.trim();
+  if (!otp) { toast('OTP daalein', 'error'); return; }
+  const btn = document.getElementById('credVerifyBtn');
+  btn.disabled = true; btn.textContent = '⏳ Verifying...';
+  try {
+    const res = await api('/api/admin/credentials/verify-otp', {
+      method: 'POST', body: JSON.stringify({ otp })
+    });
+    toast(res.message, 'success');
+    cancelCredChange();
+    loadAdminCredentials();
+    loadAuditLog();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Verify & Update';
+  }
+}
+
+function cancelCredChange() {
+  document.getElementById('credChangeStep2').classList.add('hidden');
+  document.getElementById('credChangeStep1').classList.remove('hidden');
+  document.getElementById('credNewValue').value = '';
+  document.getElementById('credCurrentPass').value = '';
+  document.getElementById('credOtp').value = '';
+}
+
+async function loadAuditLog() {
+  const el = document.getElementById('auditLogList');
+  el.innerHTML = '<div style="color:var(--text2);padding:8px 0;">Loading...</div>';
+  try {
+    const res = await api('/api/admin/audit-log?limit=100');
+    if (!res.entries.length) { el.innerHTML = '<div style="color:var(--text2);">Koi entries nahi hain</div>'; return; }
+    el.innerHTML = res.entries.map(e => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border,#334155);">
+        <div style="font-weight:700;color:#e2e8f0;">${e.action.replace(/_/g,' ')}</div>
+        <div style="color:var(--text2);">👤 ${e.actor} • 🌐 ${e.ip_address || '-'} • ${new Date(e.created_at + 'Z').toLocaleString('en-IN')}</div>
+        ${e.details ? `<div style="color:var(--text2);font-style:italic;">${e.details}</div>` : ''}
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:#f87171;">Error: ${e.message}</div>`;
   }
 }
 
