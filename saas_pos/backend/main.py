@@ -47,6 +47,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 print(f"[DB] Using path: {DB_PATH}")
 ADMIN_USERNAME = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASS", "Admin@POS2024")
+DEFAULT_ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "dkapoore@gmail.com")
 
 # Email config (set env vars in production)
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
@@ -132,6 +133,61 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         is_active INTEGER DEFAULT 1
     )""")
+
+    # ── Phase 3: OTP-based credential management ──────────────────────
+    # OTP codes are stored as a SHA-256 hash (not the raw code) — same
+    # principle as password hashing, so a DB read alone can't leak a
+    # usable code. Codes are short-lived (10 min) and single-use.
+    c.execute("""CREATE TABLE IF NOT EXISTS otp_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purpose TEXT NOT NULL,
+        target TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        payload TEXT DEFAULT '',
+        expires_at TEXT NOT NULL,
+        used INTEGER DEFAULT 0,
+        attempts INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+
+    # Separate lightweight log of just request timestamps, for resend
+    # cooldown + rate limiting (kept even after the OTP itself is used/expired).
+    c.execute("""CREATE TABLE IF NOT EXISTS otp_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        requested_at TEXT DEFAULT (datetime('now'))
+    )""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        details TEXT DEFAULT '',
+        ip_address TEXT DEFAULT '',
+        user_agent TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+
+    # Admin credentials used to be fixed env vars (ADMIN_USER/ADMIN_PASS) —
+    # can't be changed by the running app. This table makes them editable
+    # from Settings, with the env vars now only used to SEED the first row.
+    c.execute("""CREATE TABLE IF NOT EXISTS admin_account (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        email TEXT NOT NULL,
+        token_version INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+    existing_admin = c.execute("SELECT id FROM admin_account WHERE id=1").fetchone()
+    if not existing_admin:
+        c.execute(
+            "INSERT INTO admin_account (id, username, password_hash, email, token_version) VALUES (1, ?, ?, ?, 0)",
+            (ADMIN_USERNAME, google_auth.hash_password(ADMIN_PASSWORD), DEFAULT_ADMIN_EMAIL)
+        )
+        conn.commit()
 
     # Admin sessions
     c.execute("""CREATE TABLE IF NOT EXISTS admin_sessions (
@@ -271,6 +327,8 @@ def migrate_db():
         "ALTER TABLE bills ADD COLUMN table_no TEXT DEFAULT ''",
         "ALTER TABLE bills ADD COLUMN waiter TEXT DEFAULT ''",
         "ALTER TABLE products ADD COLUMN discount_percent REAL DEFAULT 0",
+        "ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'piece'",
+        "ALTER TABLE products ADD COLUMN hsn TEXT DEFAULT ''",
     ]
     for sql in migrations:
         try:
@@ -394,6 +452,14 @@ def get_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     payload = decode_token(credentials.credentials)
     if not payload or payload.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access only")
+    # "tv" (token_version) lets a password reset instantly invalidate every
+    # previously issued admin token — bumped in admin_account whenever the
+    # admin explicitly asks to sign out of all sessions.
+    conn = get_db()
+    row = conn.execute("SELECT token_version FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    if row and payload.get("tv", 0) != row["token_version"]:
+        raise HTTPException(status_code=401, detail="Session ended — kripya dobara login karein")
     return payload
 
 # ======================== PYDANTIC MODELS ========================
@@ -420,6 +486,8 @@ class ProductCreate(BaseModel):
     discount_percent: Optional[float] = 0
     category: Optional[str] = "General"
     tax_percent: Optional[float] = 0
+    unit: Optional[str] = "piece"
+    hsn: Optional[str] = ""
     stock: Optional[int] = 0
 
 class BillCreate(BaseModel):
@@ -564,6 +632,96 @@ def row_to_dict(row):
     if row is None:
         return None
     return dict(row)
+
+# ======================== OTP & AUDIT LOG (Phase 3: Credential Management) ========================
+OTP_TTL_MINUTES = 10
+OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_MAX_REQUESTS_PER_HOUR = 5
+OTP_MAX_VERIFY_ATTEMPTS = 5
+
+def _hash_otp(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+def generate_otp() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+def check_otp_rate_limit(target: str, purpose: str) -> Optional[str]:
+    """Returns an error message if the caller should be blocked, else None."""
+    conn = get_db()
+    last = conn.execute(
+        "SELECT requested_at FROM otp_requests WHERE target=? AND purpose=? ORDER BY id DESC LIMIT 1",
+        (target, purpose)
+    ).fetchone()
+    if last:
+        last_dt = datetime.fromisoformat(last["requested_at"])
+        if (datetime.utcnow() - last_dt).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+            conn.close()
+            return f"Kripya {OTP_RESEND_COOLDOWN_SECONDS} second wait karke dobara try karein"
+    hour_ago = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+    count = conn.execute(
+        "SELECT COUNT(*) c FROM otp_requests WHERE target=? AND purpose=? AND requested_at > ?",
+        (target, purpose, hour_ago)
+    ).fetchone()["c"]
+    conn.close()
+    if count >= OTP_MAX_REQUESTS_PER_HOUR:
+        return "Bahut zyada OTP requests ho gayi hain — 1 ghante baad try karein"
+    return None
+
+def create_otp(target: str, purpose: str, payload: dict = None) -> str:
+    """Generates, stores (hashed), and returns a fresh OTP. Caller is
+    responsible for emailing it and for rate-limit checking beforehand."""
+    code = generate_otp()
+    expires_at = (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat()
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO otp_codes (purpose, target, code_hash, payload, expires_at) VALUES (?,?,?,?,?)",
+        (purpose, target, _hash_otp(code), json.dumps(payload or {}), expires_at)
+    )
+    conn.execute("INSERT INTO otp_requests (target, purpose) VALUES (?,?)", (target, purpose))
+    conn.commit()
+    conn.close()
+    return code
+
+def verify_otp(target: str, purpose: str, code: str) -> dict:
+    """Returns {"success": True, "payload": {...}} or {"success": False, "message": "..."}."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM otp_codes WHERE target=? AND purpose=? AND used=0 ORDER BY id DESC LIMIT 1",
+        (target, purpose)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return {"success": False, "message": "OTP nahi mila — pehle naya OTP request karein"}
+    if datetime.fromisoformat(row["expires_at"]) < datetime.utcnow():
+        conn.close()
+        return {"success": False, "message": "OTP expire ho chuka hai — naya OTP request karein"}
+    if row["attempts"] >= OTP_MAX_VERIFY_ATTEMPTS:
+        conn.close()
+        return {"success": False, "message": "Bahut zyada galat attempts — naya OTP request karein"}
+    if _hash_otp(code) != row["code_hash"]:
+        conn.execute("UPDATE otp_codes SET attempts=attempts+1 WHERE id=?", (row["id"],))
+        conn.commit()
+        conn.close()
+        return {"success": False, "message": "Galat OTP"}
+    conn.execute("UPDATE otp_codes SET used=1 WHERE id=?", (row["id"],))
+    conn.commit()
+    conn.close()
+    return {"success": True, "payload": json.loads(row["payload"] or "{}")}
+
+def get_client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+def log_audit(actor: str, action: str, request: Request, details: str = ""):
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO audit_log (actor, action, details, ip_address, user_agent) VALUES (?,?,?,?,?)",
+        (actor, action, details, get_client_ip(request), request.headers.get("user-agent", ""))
+    )
+    conn.commit()
+    conn.close()
 
 # ======================== AUTH ROUTES ========================
 @app.post("/api/auth/register")
@@ -772,10 +930,10 @@ async def get_products(current_user: dict = Depends(get_current_user)):
 @app.post("/api/products")
 async def add_product(p: ProductCreate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
-    conn.execute("""INSERT INTO products (user_id, barcode, name, price, discount_percent, category, tax_percent, stock)
-                    VALUES (?,?,?,?,?,?,?,?)""",
+    conn.execute("""INSERT INTO products (user_id, barcode, name, price, discount_percent, category, tax_percent, unit, hsn, stock)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                  (current_user["id"], p.barcode, p.name, p.price, p.discount_percent or 0,
-                  p.category, p.tax_percent, p.stock))
+                  p.category, p.tax_percent, p.unit or 'piece', p.hsn or '', p.stock))
     pid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     conn.commit()
     conn.close()
@@ -784,10 +942,10 @@ async def add_product(p: ProductCreate, current_user: dict = Depends(get_current
 @app.put("/api/products/{pid}")
 async def update_product(pid: int, p: ProductCreate, current_user: dict = Depends(get_current_user)):
     conn = get_db()
-    conn.execute("""UPDATE products SET barcode=?, name=?, price=?, discount_percent=?, category=?, tax_percent=?, stock=?
+    conn.execute("""UPDATE products SET barcode=?, name=?, price=?, discount_percent=?, category=?, tax_percent=?, unit=?, hsn=?, stock=?
                     WHERE id=? AND user_id=?""",
                  (p.barcode, p.name, p.price, p.discount_percent or 0,
-                  p.category, p.tax_percent, p.stock, pid, current_user["id"]))
+                  p.category, p.tax_percent, p.unit or 'piece', p.hsn or '', p.stock, pid, current_user["id"]))
     conn.commit()
     conn.close()
     return {"success": True}
@@ -1008,7 +1166,7 @@ class ChangePassword(BaseModel):
     new_password: str
 
 @app.post("/api/auth/change-password")
-async def change_password(req: ChangePassword, current_user: dict = Depends(get_current_user)):
+async def change_password(req: ChangePassword, request: Request, current_user: dict = Depends(get_current_user)):
     """User-initiated password change — used both for the mandatory
     'set a new password' step after an admin reset (must_change_password),
     and for voluntary password changes anytime."""
@@ -1023,11 +1181,77 @@ async def change_password(req: ChangePassword, current_user: dict = Depends(get_
     if not await run_in_threadpool(google_auth.verify_password, req.current_password, sheet_user["password_hash"]):
         raise HTTPException(status_code=401, detail="Current password galat hai")
 
-    new_hash = hash_password(req.new_password)
+    new_hash = await run_in_threadpool(hash_password, req.new_password)
     ok = await run_in_threadpool(google_auth.reset_password, sheet_user["user_id"], new_hash, False)
     if not ok:
         raise HTTPException(status_code=500, detail="Password update failed — dobara try karein")
+    log_audit(current_user["username"], "user_password_changed", request)
     return {"success": True, "message": "Password successfully changed"}
+
+# ── USER FORGOT PASSWORD (OTP via registered email, no admin needed) ──
+class ForgotPasswordRequest(BaseModel):
+    username: str
+
+class ForgotPasswordReset(BaseModel):
+    username: str
+    otp: str
+    new_password: str
+    logout_other_devices: bool = False
+
+@app.post("/api/auth/forgot-password/request-otp")
+async def user_forgot_password_request_otp(req: ForgotPasswordRequest, request: Request):
+    try:
+        user = await run_in_threadpool(google_auth.get_user, req.username)
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    # Same generic response whether or not the username exists — avoids
+    # leaking which usernames are registered.
+    generic_msg = {"success": True, "message": "Agar ye username registered hai, toh OTP uske email par bhej diya gaya hai"}
+    if not user or not user.get("email"):
+        return generic_msg
+    limit_err = check_otp_rate_limit(user["email"], "user_forgot_password")
+    if limit_err:
+        raise HTTPException(status_code=429, detail=limit_err)
+    otp = create_otp(user["email"], "user_forgot_password", {"username": user["username"]})
+    await run_in_threadpool(send_email, user["email"], "🔑 GroceryPOS Password Reset OTP", f"""Hello {user['full_name'] or user['username']},
+
+Aapka password reset OTP hai: {otp}
+
+Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, is email ko ignore karein.
+
+Team GroceryPOS""")
+    log_audit(req.username, "user_forgot_password_otp_requested", request)
+    return generic_msg
+
+@app.post("/api/auth/forgot-password/reset")
+async def user_forgot_password_reset(req: ForgotPasswordReset, request: Request):
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Naya password kam se kam 6 characters ka hona chahiye")
+    try:
+        user = await run_in_threadpool(google_auth.get_user, req.username)
+    except SheetManagerError as e:
+        raise HTTPException(status_code=503, detail=f"Cloud auth unavailable: {e}")
+    if not user or not user.get("email"):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = verify_otp(user["email"], "user_forgot_password", req.otp)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    new_hash = await run_in_threadpool(hash_password, req.new_password)
+    ok = await run_in_threadpool(google_auth.reset_password, user["user_id"], new_hash, False)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Password update failed — dobara try karein")
+
+    if req.logout_other_devices:
+        conn = get_db()
+        conn.execute("UPDATE user_sessions SET is_active=0 WHERE user_id=?", (user["user_id"],))
+        conn.commit()
+        conn.close()
+
+    log_audit(req.username, "user_password_reset_via_otp", request,
+              f"logout_other_devices={req.logout_other_devices}")
+    return {"success": True, "message": "Password successfully reset — ab naye password se login karein"}
 
 # ======================== WHATSAPP BILL ========================
 @app.post("/api/bills/whatsapp")
@@ -1056,11 +1280,157 @@ Pay via UPI or visit us again soon."""
 # ======================== ADMIN LOGIN ========================
 @app.post("/api/admin/login")
 async def admin_login(req: LoginRequest):
-    if req.username != ADMIN_USERNAME or req.password != ADMIN_PASSWORD:
+    conn = get_db()
+    admin_row = conn.execute("SELECT * FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    valid = admin_row and req.username == admin_row["username"] and \
+        await run_in_threadpool(google_auth.verify_password, req.password, admin_row["password_hash"])
+    if not valid:
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
-    
-    token = create_token({"role": "admin", "username": "admin"}, expires_delta=timedelta(days=1))
+
+    token = create_token(
+        {"role": "admin", "username": admin_row["username"], "tv": admin_row["token_version"]},
+        expires_delta=timedelta(days=1)
+    )
     return {"token": token}
+
+# ── ADMIN CREDENTIALS (Settings — change username/email/password, OTP-verified) ──
+@app.get("/api/admin/credentials")
+async def get_admin_credentials(admin = Depends(get_admin)):
+    conn = get_db()
+    row = conn.execute("SELECT username, email, updated_at FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    return dict(row)
+
+class AdminCredentialOtpRequest(BaseModel):
+    current_password: str
+    field: str  # 'username' | 'email' | 'password'
+    new_value: str
+
+@app.post("/api/admin/credentials/request-otp")
+async def admin_credentials_request_otp(req: AdminCredentialOtpRequest, request: Request, admin = Depends(get_admin)):
+    if req.field not in ("username", "email", "password"):
+        raise HTTPException(status_code=400, detail="Invalid field")
+    if req.field == "password" and len(req.new_value) < 6:
+        raise HTTPException(status_code=400, detail="Naya password kam se kam 6 characters ka hona chahiye")
+    if req.field == "username" and len(req.new_value.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username kam se kam 3 characters ka hona chahiye")
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    if not row or not await run_in_threadpool(google_auth.verify_password, req.current_password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password galat hai")
+
+    # OTP always goes to the CURRENTLY registered email — even when the
+    # change being verified IS the email address, so an attacker who
+    # only guessed/knows the new email can't hijack the account.
+    limit_err = check_otp_rate_limit(row["email"], "admin_credential_change")
+    if limit_err:
+        raise HTTPException(status_code=429, detail=limit_err)
+    otp = create_otp(row["email"], "admin_credential_change", {"field": req.field, "new_value": req.new_value})
+    await run_in_threadpool(send_email, row["email"], "🔐 GroceryPOS Admin — Confirm Credential Change", f"""Admin,
+
+Aapne apna {req.field} change karne ki request ki hai.
+Verification OTP: {otp}
+
+Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, turant apna password change karein.
+
+Team GroceryPOS""")
+    log_audit("admin", "admin_credential_otp_requested", request, f"field={req.field}")
+    return {"success": True, "message": f"OTP bhej diya gaya hai registered email par"}
+
+class AdminCredentialOtpVerify(BaseModel):
+    otp: str
+
+@app.post("/api/admin/credentials/verify-otp")
+async def admin_credentials_verify_otp(req: AdminCredentialOtpVerify, request: Request, admin = Depends(get_admin)):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM admin_account WHERE id=1").fetchone()
+    email = row["email"]
+    conn.close()
+
+    result = verify_otp(email, "admin_credential_change", req.otp)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    field = result["payload"]["field"]
+    new_value = result["payload"]["new_value"]
+    conn = get_db()
+    if field == "password":
+        new_hash = await run_in_threadpool(hash_password, new_value)
+        conn.execute("UPDATE admin_account SET password_hash=?, updated_at=datetime('now') WHERE id=1",
+                     (new_hash,))
+    elif field == "username":
+        conn.execute("UPDATE admin_account SET username=?, updated_at=datetime('now') WHERE id=1", (new_value.strip(),))
+    elif field == "email":
+        conn.execute("UPDATE admin_account SET email=?, updated_at=datetime('now') WHERE id=1", (new_value.strip(),))
+    conn.commit()
+    conn.close()
+    log_audit("admin", f"admin_{field}_changed", request)
+    return {"success": True, "message": f"{field.title()} successfully updated"}
+
+# ── ADMIN FORGOT PASSWORD (Admin Login page, OTP via registered email) ──
+class AdminForgotPasswordRequest(BaseModel):
+    username: str
+
+@app.post("/api/admin/forgot-password/request-otp")
+async def admin_forgot_password_request_otp(req: AdminForgotPasswordRequest, request: Request):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    generic_msg = {"success": True, "message": "Agar username sahi hai, OTP registered email par bhej diya gaya hai"}
+    if not row or req.username != row["username"]:
+        return generic_msg  # don't reveal whether the username matched
+    limit_err = check_otp_rate_limit(row["email"], "admin_forgot_password")
+    if limit_err:
+        raise HTTPException(status_code=429, detail=limit_err)
+    otp = create_otp(row["email"], "admin_forgot_password", {})
+    await run_in_threadpool(send_email, row["email"], "🔐 GroceryPOS Admin — Password Reset OTP", f"""Admin,
+
+Aapka admin password reset OTP hai: {otp}
+
+Ye OTP {OTP_TTL_MINUTES} minute me expire ho jayega. Agar aapne ye request nahi ki, is email ko ignore karein.
+
+Team GroceryPOS""")
+    log_audit("admin", "admin_forgot_password_otp_requested", request)
+    return generic_msg
+
+class AdminForgotPasswordReset(BaseModel):
+    username: str
+    otp: str
+    new_password: str
+    sign_out_all_sessions: bool = True
+
+@app.post("/api/admin/forgot-password/reset")
+async def admin_forgot_password_reset(req: AdminForgotPasswordReset, request: Request):
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Naya password kam se kam 6 characters ka hona chahiye")
+    conn = get_db()
+    row = conn.execute("SELECT * FROM admin_account WHERE id=1").fetchone()
+    conn.close()
+    if not row or req.username != row["username"]:
+        raise HTTPException(status_code=400, detail="Invalid request")
+
+    result = verify_otp(row["email"], "admin_forgot_password", req.otp)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    new_hash = await run_in_threadpool(hash_password, req.new_password)
+    conn = get_db()
+    if req.sign_out_all_sessions:
+        conn.execute(
+            "UPDATE admin_account SET password_hash=?, token_version=token_version+1, updated_at=datetime('now') WHERE id=1",
+            (new_hash,)
+        )
+    else:
+        conn.execute("UPDATE admin_account SET password_hash=?, updated_at=datetime('now') WHERE id=1",
+                     (new_hash,))
+    conn.commit()
+    conn.close()
+    log_audit("admin", "admin_password_reset_via_otp", request,
+              f"sign_out_all_sessions={req.sign_out_all_sessions}")
+    return {"success": True, "message": "Password successfully reset — ab naye password se login karein"}
 
 # ======================== ADMIN ROUTES ========================
 @app.get("/api/admin/users")
@@ -1184,7 +1554,8 @@ async def admin_generate_settings_password(req: AdminGenSettingsPassword, admin 
         raise HTTPException(status_code=404, detail="User not found")
 
     new_password = generate_password()
-    ok = await run_in_threadpool(google_auth.update_settings_password, user["username"], hash_password(new_password))
+    new_hash = await run_in_threadpool(hash_password, new_password)
+    ok = await run_in_threadpool(google_auth.update_settings_password, user["username"], new_hash)
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to save settings password to Sheet")
 
@@ -1226,7 +1597,7 @@ Team GroceryPOS"""
     }
 
 @app.post("/api/admin/reset-password")
-async def admin_reset_password(req: AdminResetPassword, admin = Depends(get_admin)):
+async def admin_reset_password(req: AdminResetPassword, request: Request, admin = Depends(get_admin)):
     """Admin regenerates a user's LOGIN password (not the Settings-tab lock —
     see /api/admin/generate-settings-password for that). Either a random
     password is generated, or the admin supplies a custom one. When
@@ -1243,8 +1614,9 @@ async def admin_reset_password(req: AdminResetPassword, admin = Depends(get_admi
     else:
         new_password = generate_password()
 
+    new_hash = await run_in_threadpool(hash_password, new_password)
     ok = await run_in_threadpool(
-        google_auth.reset_password, req.user_id, hash_password(new_password), req.force_change
+        google_auth.reset_password, req.user_id, new_hash, req.force_change
     )
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to reset password on Sheet")
@@ -1276,6 +1648,7 @@ Team GroceryPOS"""
 
     await run_in_threadpool(send_email, user["email"], "🔑 Your GroceryPOS Password Was Reset", email_message)
     await run_in_threadpool(send_whatsapp, user["whatsapp"], wa_message)
+    log_audit("admin", "admin_reset_user_password", request, f"user={user['username']}, force_change={req.force_change}")
 
     return {
         "success": True,
@@ -1428,6 +1801,17 @@ async def admin_stats(admin = Depends(get_admin)):
     pending = sum(1 for u in users if u["payment_status"] == "pending")
     blocked = sum(1 for u in users if u["is_blocked"])
     return {"total": total, "active": active, "pending_verification": pending, "blocked": blocked}
+
+@app.get("/api/admin/audit-log")
+async def get_audit_log(admin = Depends(get_admin), limit: int = 100):
+    limit = max(1, min(500, limit))
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT actor, action, details, ip_address, user_agent, created_at FROM audit_log ORDER BY id DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    conn.close()
+    return {"entries": [dict(r) for r in rows]}
 
 @app.post("/api/admin/update-device-limit")
 async def admin_update_device_limit(req: UpdateDeviceLimit, admin = Depends(get_admin)):
