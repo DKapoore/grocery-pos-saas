@@ -1046,11 +1046,31 @@ async def get_bills(current_user: dict = Depends(get_current_user)):
 async def get_bills_history(current_user: dict = Depends(get_current_user)):
     """Alias for get_bills — used by frontend showHistory()"""
     conn = get_db()
-    rows = conn.execute("""SELECT id, bill_number, customer_name, customer_mobile, 
+    rows = conn.execute("""SELECT id, bill_number, customer_name, customer_mobile,
+                           cart_json, subtotal, tax_total, discount, additional_charge,
+                           table_no, waiter, notes,
                            final_amount, payment_mode, status, completed_at as completedAt,
                            created_at as date
                            FROM bills WHERE user_id=? ORDER BY completed_at DESC LIMIT 200""",
                        (current_user["id"],)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/bills/export")
+async def export_bills(from_date: str, to_date: str, current_user: dict = Depends(get_current_user)):
+    """Returns ALL bills between from_date and to_date (inclusive, YYYY-MM-DD),
+    unlike /api/bills/history which caps at 200 for the drawer's quick view.
+    Used by the Sales History → Export CSV date-picker."""
+    conn = get_db()
+    rows = conn.execute("""SELECT id, bill_number, customer_name, customer_mobile,
+                           cart_json, subtotal, tax_total, discount, additional_charge,
+                           table_no, waiter, notes,
+                           final_amount, payment_mode, status, completed_at as completedAt,
+                           created_at as date
+                           FROM bills
+                           WHERE user_id=? AND date(COALESCE(completed_at, created_at)) BETWEEN date(?) AND date(?)
+                           ORDER BY completed_at ASC""",
+                       (current_user["id"], from_date, to_date)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
