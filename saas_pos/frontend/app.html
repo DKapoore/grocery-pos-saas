@@ -6291,6 +6291,104 @@
       toast('Data exported! ✅', 'success');
     }
 
+    // ── EXPORT SALES TO EXCEL (CSV), BY DATE RANGE ──────────────────────
+    function openExportCsvPanel() {
+      const today = new Date().toISOString().slice(0, 10);
+      const monthStart = today.slice(0, 8) + '01';
+      const yearStart = today.slice(0, 4) + '-01-01';
+      openModal(`
+        <div class="modal-handle"></div>
+        <h3>📅 Export Sales to Excel (CSV)</h3>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Calendar se date range choose karo — us period ka poora sales data CSV file me export hoga (Excel me seedha khul jaayegi).</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <button class="btn-outline btn-sm" onclick="setCsvExportRange('${today}','${today}')">Today</button>
+          <button class="btn-outline btn-sm" onclick="setCsvExportRange('${monthStart}','${today}')">This Month</button>
+          <button class="btn-outline btn-sm" onclick="setCsvExportRange('${yearStart}','${today}')">This Year</button>
+          <button class="btn-outline btn-sm" onclick="setCsvExportRange('','')">Custom</button>
+        </div>
+        <label>From Date</label>
+        <input id="csvFromDate" type="date" value="${monthStart}" max="${today}">
+        <label>To Date</label>
+        <input id="csvToDate" type="date" value="${today}" max="${today}">
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:12px;" onclick="runExportSalesCsv()" id="csvExportBtn">📤 Export CSV</button>
+      `);
+    }
+
+    function setCsvExportRange(from, to) {
+      if (from) document.getElementById('csvFromDate').value = from;
+      if (to) document.getElementById('csvToDate').value = to;
+    }
+
+    // Wraps a value for safe CSV embedding — quotes it whenever it contains
+    // a comma, quote, or newline, doubling any inner quotes (standard CSV
+    // escaping so the file opens correctly in Excel/Sheets).
+    function csvCell(val) {
+      const s = (val === null || val === undefined) ? '' : String(val);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+
+    async function runExportSalesCsv() {
+      const fromDate = document.getElementById('csvFromDate').value;
+      const toDate = document.getElementById('csvToDate').value;
+      if (!fromDate || !toDate) { toast('Dono dates select karein', 'error'); return; }
+      if (fromDate > toDate) { toast('From date, To date ke baad nahi ho sakti', 'error'); return; }
+
+      const btn = document.getElementById('csvExportBtn');
+      btn.disabled = true; btn.textContent = '⏳ Exporting...';
+      try {
+        let bills;
+        try {
+          bills = await apiCall(`/api/bills/export?from_date=${fromDate}&to_date=${toDate}`);
+        } catch (e) {
+          // Offline fallback — filter the locally cached sales_history the
+          // same way, so export still works without a live connection.
+          const hist = JSON.parse(localStorage.getItem('sales_history') || '[]');
+          bills = hist.filter(b => {
+            const d = (b.completedAt || b.date || b.created_at || '').slice(0, 10);
+            return d >= fromDate && d <= toDate;
+          });
+        }
+
+        if (!bills.length) { toast('Is date range me koi bill nahi mila', 'info'); return; }
+
+        const headers = ['Date', 'Bill Number', 'Customer Name', 'Customer Mobile', 'Items',
+          'Subtotal', 'Tax', 'Discount', 'Additional Charge', 'Final Amount', 'Payment Mode',
+          'Table No', 'Waiter', 'Notes'];
+        const rows = bills.map(b => {
+          let itemsStr = '';
+          try {
+            const cart = JSON.parse(b.cart_json || '[]');
+            itemsStr = cart.map(i => `${i.name || i.n}${i.hsn ? ' (HSN:' + i.hsn + ')' : ''} x${i.quantity || i.qty || i.q || 1}`).join('; ');
+          } catch (e) {}
+          const dateStr = new Date(b.completedAt || b.date || b.created_at).toLocaleString('en-IN');
+          return [
+            dateStr, b.bill_number || b.billNumber || '', b.customer_name || b.customer?.name || '',
+            b.customer_mobile || b.customer?.mobile || '', itemsStr,
+            (parseFloat(b.subtotal) || 0).toFixed(2), (parseFloat(b.tax_total ?? b.tax) || 0).toFixed(2),
+            (parseFloat(b.discount) || 0).toFixed(2), (parseFloat(b.additional_charge) || 0).toFixed(2),
+            (parseFloat(b.final_amount ?? b.final) || 0).toFixed(2), b.payment_mode || b.paymentMode || '',
+            b.table_no || '', b.waiter || '', b.notes || ''
+          ];
+        });
+
+        const csvLines = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))];
+        // \ufeff BOM — makes Excel correctly detect UTF-8 (₹ symbol, Hindi names etc.)
+        const csvContent = '\ufeff' + csvLines.join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.download = `GroceryPOS_Sales_${fromDate}_to_${toDate}.csv`;
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        toast(`${bills.length} bills export ho gaye! ✅`, 'success');
+        closeModal();
+      } catch (e) {
+        toast('Export failed: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = '📤 Export CSV';
+      }
+    }
+
     function showProducts() {
       openDrawer(`
         <div class="modal-handle"></div>
@@ -6543,6 +6641,14 @@
           discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category,
           unit: p.unit, hsn: p.hsn, stock: p.stock })
       }).then(res => { if (res?.id) p.id = res.id; }).catch(() => {});
+      // Also push to the per-shop Google Sheet (if the shop has one
+      // configured) so this product exists there for stock matching on
+      // future sales — without this, a product added only in the app would
+      // never be findable by saveSale() in Google Apps Script.
+      if (cloudConfig.gasUrl && isOnline) {
+        gasRequest('add_product', { name: p.name, barcode: p.barcode, price: p.price,
+          tax: p.tax, category: p.category, unit: p.unit, sku: p.hsn || '', stock: p.stock }).catch(() => {});
+      }
       // Came from the billing search bar's "Add New Product" flow — the
       // product is already live in the `products` array above (no reload
       // needed), so add it straight to the current bill and hand focus
@@ -6604,6 +6710,11 @@
         body: JSON.stringify({ name: p.name, barcode: p.barcode, price: p.price,
           discount_percent: p.discount_percent, tax_percent: p.tax, category: p.category, hsn: p.hsn, stock: p.stock })
       }).catch(() => {});
+      // Keep the per-shop Google Sheet in sync too (see addProduct for why)
+      if (cloudConfig.gasUrl && isOnline) {
+        gasRequest('update_product', { name: p.name, barcode: p.barcode, price: p.price,
+          tax: p.tax, category: p.category, stock: p.stock, sku: p.hsn || '' }).catch(() => {});
+      }
     }
 
     async function deleteProduct(pid) {
@@ -6749,10 +6860,11 @@
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
           <button class="btn-outline" style="padding:10px;font-size:12px;" onclick="exportAllData()">📤 Export JSON</button>
           <button class="btn-outline" style="padding:10px;font-size:12px;" onclick="importAllData()">📥 Import JSON</button>
         </div>
+        <button class="btn-accent" style="width:100%;padding:10px;font-size:12px;margin-bottom:12px;" onclick="openExportCsvPanel()">📅 Export Sales to Excel (CSV) — Choose Dates</button>
 
         <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">Recent Bills (${hist.length})</div>
 
