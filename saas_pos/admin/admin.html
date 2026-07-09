@@ -1,0 +1,2225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroceryPOS — Admin Panel</title>
+<style>
+:root {
+  --bg:#0f172a; --surface:#1e293b; --surface2:#263347; --card:#1a2436;
+  --text:#f1f5f9; --text2:#94a3b8; --text3:#64748b;
+  --border:#2d3f55; --border2:#334155;
+  --accent:#16a34a; --accent2:#064e3b; --accent3:#4ade80;
+  --danger:#ef4444; --danger2:#7f1d1d;
+  --warn:#f59e0b; --warn2:#78350f;
+  --info:#3b82f6; --info2:#1e3a5f;
+  --purple:#8b5cf6; --purple2:#2e1065;
+  --r:12px; --r2:8px;
+  --shadow:0 4px 16px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+button,a,select{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+a{color:var(--accent3);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* ── inputs ── */
+input,select,textarea{
+  width:100%;padding:10px 13px;border:2px solid var(--border2);
+  border-radius:var(--r2);background:var(--surface2);color:var(--text);
+  font-size:14px;outline:none;transition:.2s;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+textarea{resize:vertical;line-height:1.6;}
+label{font-size:12px;color:var(--text2);font-weight:600;display:block;margin:10px 0 4px;}
+
+/* ── buttons ── */
+button{cursor:pointer;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;padding:9px 16px;transition:.2s;font-family:inherit;display:inline-flex;align-items:center;gap:6px;justify-content:center;}
+.btn-accent{background:var(--accent);color:#fff;}
+.btn-accent:hover{background:#15803d;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#b91c1c;}
+.btn-info{background:var(--info);color:#fff;}
+.btn-info:hover{background:#2563eb;}
+.btn-warn{background:var(--warn);color:#0f172a;}
+.btn-warn:hover{background:#d97706;}
+.btn-purple{background:var(--purple);color:#fff;}
+.btn-purple:hover{background:#7c3aed;}
+.btn-outline{background:transparent;border:1.5px solid var(--border2);color:var(--text2);}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent3);}
+.btn-ghost{background:transparent;color:var(--text2);padding:6px 10px;}
+.btn-ghost:hover{color:var(--text);background:var(--surface2);}
+.btn-sm{padding:6px 11px;font-size:12px;}
+.btn-xs{padding:4px 8px;font-size:11px;}
+.btn-copy{background:var(--surface2);border:1.5px solid var(--border2);color:var(--accent3);padding:7px 13px;font-size:12px;}
+.btn-copy:hover{background:var(--accent2);border-color:var(--accent);}
+.btn-copy.copied{background:var(--accent2);border-color:var(--accent);color:var(--accent3);}
+
+/* ── utils ── */
+.hidden{display:none!important;}
+.flex{display:flex;}
+.gap-6{gap:6px;}
+.gap-8{gap:8px;}
+.gap-12{gap:12px;}
+.flex-1{flex:1;}
+.items-center{align-items:center;}
+.justify-between{justify-content:space-between;}
+.wrap{flex-wrap:wrap;}
+
+/* ── badges ── */
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
+.badge-pending{background:var(--warn2);color:#fbbf24;}
+.badge-approved{background:var(--accent2);color:#4ade80;}
+.badge-blocked{background:var(--danger2);color:#f87171;}
+.badge-free{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.badge-expired{background:#3b0764;color:#c084fc;}
+
+/* ── layout ── */
+.admin-wrap{display:flex;min-height:100vh;}
+.sidebar{
+  width:230px;background:var(--surface);border-right:1px solid var(--border);
+  padding:0;flex-shrink:0;display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sidebar-logo{padding:20px 18px;border-bottom:1px solid var(--border);}
+.logo-text{font-size:1.25rem;font-weight:800;letter-spacing:-.5px;}
+.logo-text span{color:var(--accent3);}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:3px;}
+.nav-section{padding:12px 0 4px;}
+.nav-section-label{padding:4px 18px 6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 18px;
+  color:var(--text2);cursor:pointer;font-size:13.5px;font-weight:500;
+  transition:.15s;border-left:3px solid transparent;position:relative;
+}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:rgba(22,163,74,.12);color:var(--accent3);border-left-color:var(--accent);}
+.nav-item .nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--warn);color:#0f172a;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;}
+.nav-badge.red{background:var(--danger);}
+.sidebar-footer{margin-top:auto;padding:16px 18px;border-top:1px solid var(--border);}
+.admin-info{font-size:12px;color:var(--text3);margin-bottom:10px;}
+.admin-info strong{color:var(--text2);display:block;}
+
+.main{flex:1;padding:24px 28px;overflow-y:auto;max-width:1200px;}
+
+/* ── page ── */
+.page{display:none;}
+.page.active{display:block;}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+.page-title{font-size:1.25rem;font-weight:700;}
+.page-sub{font-size:13px;color:var(--text2);margin-top:2px;}
+
+/* ── stat cards ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--card-color,var(--accent));}
+.stat-val{font-size:1.9rem;font-weight:800;line-height:1;}
+.stat-label{font-size:11px;color:var(--text2);margin-top:5px;font-weight:500;}
+.stat-card.blue{--card-color:var(--info);}  .stat-card.blue .stat-val{color:#60a5fa;}
+.stat-card.green{--card-color:var(--accent);} .stat-card.green .stat-val{color:#4ade80;}
+.stat-card.yellow{--card-color:var(--warn);}  .stat-card.yellow .stat-val{color:#fbbf24;}
+.stat-card.red{--card-color:var(--danger);}   .stat-card.red .stat-val{color:#f87171;}
+.stat-card.purple{--card-color:var(--purple);} .stat-card.purple .stat-val{color:#a78bfa;}
+
+/* ── tables ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.table-header{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.table-header h3{font-size:.95rem;font-weight:700;}
+.tbl-filters{display:flex;gap:8px;flex-wrap:wrap;}
+.tbl-filters input,.tbl-filters select{width:auto;padding:7px 11px;font-size:13px;}
+table{width:100%;border-collapse:collapse;}
+th{padding:9px 14px;text-align:left;font-size:11px;color:var(--text2);font-weight:700;border-bottom:1px solid var(--border);background:var(--surface2);text-transform:uppercase;letter-spacing:.4px;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.td-primary{font-weight:600;color:var(--text);}
+.td-secondary{font-size:11px;color:var(--text2);margin-top:2px;}
+.action-btns{display:flex;gap:5px;flex-wrap:wrap;}
+.empty-row td{text-align:center;color:var(--text3);padding:32px!important;}
+
+/* ── modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);}
+.modal-overlay.show{display:flex;}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:16px;padding:0;width:100%;max-width:680px;
+  max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg);
+}
+.modal-header{padding:18px 22px 0;display:flex;justify-content:space-between;align-items:flex-start;}
+.modal-header h3{font-size:1.05rem;font-weight:700;}
+.modal-close{background:var(--surface2);border:none;color:var(--text2);width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{background:var(--danger2);color:var(--danger);}
+.modal-body{padding:16px 22px 22px;}
+
+/* ── credential generator ── */
+.cred-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface2);border-radius:10px;padding:3px;}
+.cred-step{flex:1;padding:8px 12px;border-radius:8px;text-align:center;font-size:12px;font-weight:600;color:var(--text2);cursor:default;}
+.cred-step.done{background:var(--accent2);color:var(--accent3);}
+.cred-step.active{background:var(--accent);color:#fff;}
+
+.user-info-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.info-row:last-child{border:none;}
+.info-key{font-size:12px;color:var(--text2);font-weight:500;}
+.info-val{font-size:13px;font-weight:600;text-align:right;}
+
+.cred-inputs{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;}
+.cred-inputs h4{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pass-wrap{position:relative;}
+.pass-wrap input{padding-right:36px;}
+.pass-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:15px;padding:0;}
+.gen-btn{margin-top:6px;width:100%;}
+
+.expiry-picker{margin-bottom:14px;}
+.expiry-picker h4{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;}
+.expiry-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.chip{padding:8px 14px;border-radius:8px;border:2px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:.2s;}
+.chip:hover{border-color:var(--accent);color:var(--accent3);}
+.chip.active{border-color:var(--accent);background:var(--accent2);color:var(--accent3);}
+.expiry-preview{background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.expiry-preview .date{color:var(--accent3);font-weight:700;font-size:14px;}
+
+/* ── message templates ── */
+.templates-section{display:flex;flex-direction:column;gap:14px;}
+.template-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.template-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.template-header-left{display:flex;align-items:center;gap:8px;}
+.template-icon{font-size:18px;}
+.template-title{font-size:13px;font-weight:700;}
+.template-sub{font-size:11px;color:var(--text2);}
+.template-copy-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.template-body{padding:14px 16px;}
+.template-meta{margin-bottom:10px;}
+.meta-field{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+.meta-field label{margin:0;min-width:70px;font-size:11px;}
+.meta-field input{flex:1;font-size:13px;padding:7px 10px;}
+.meta-copy{flex-shrink:0;}
+.msg-box{
+  width:100%;min-height:140px;padding:12px;
+  background:var(--surface2);border:2px solid var(--border2);
+  border-radius:8px;font-family:'Courier New',monospace;font-size:12.5px;
+  color:var(--text);line-height:1.7;resize:vertical;
+}
+.msg-box:focus{border-color:var(--accent);}
+.msg-footer{padding:10px 16px 14px;display:flex;justify-content:flex-end;}
+
+/* ── approve section divider ── */
+.section-divider{display:flex;align-items:center;gap:10px;margin:18px 0;}
+.section-divider::before,.section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.section-divider span{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ── receipt modal ── */
+.receipt-img{max-width:100%;border-radius:8px;border:1px solid var(--border);}
+
+/* ── toast ── */
+.toast-container{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{
+  padding:10px 16px;border-radius:10px;color:#fff;font-size:13px;font-weight:600;
+  box-shadow:var(--shadow-lg);animation:toastIn .3s ease;pointer-events:all;
+  display:flex;align-items:center;gap:8px;max-width:320px;
+}
+.toast.success{background:#16a34a;}
+.toast.error{background:#ef4444;}
+.toast.info{background:#3b82f6;}
+.toast.warn{background:#f59e0b;color:#0f172a;}
+@keyframes toastIn{from{transform:translateX(110px);opacity:0}to{transform:none;opacity:1}}
+
+/* ── login ── */
+#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 50%,rgba(22,163,74,.08),transparent 60%),radial-gradient(ellipse at 70% 50%,rgba(59,130,246,.06),transparent 60%);}
+.login-box{background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:36px;width:360px;box-shadow:var(--shadow-lg);}
+.login-logo{text-align:center;margin-bottom:28px;}
+.login-logo .logo-text{font-size:1.6rem;}
+.login-logo p{font-size:12px;color:var(--text3);margin-top:6px;}
+.login-box .field-label{font-size:12px;color:var(--text2);font-weight:600;display:block;margin:12px 0 5px;}
+
+/* ── whatsapp link ── */
+.wa-link{color:#25d366;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.wa-link:hover{color:#22c55e;}
+
+/* ── scrollbar ── */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+/* ── responsive ── */
+@media(max-width:900px){
+  .sidebar{display:none;}
+  .main{padding:16px;}
+  .input-row{grid-template-columns:1fr;}
+  .info-grid{grid-template-columns:1fr;}
+  th,td{padding:8px 10px;}
+}
+@media(max-width:600px){
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .modal-box{max-width:100%;margin:0;}
+}
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ════════════════ LOGIN ════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-text">Grocery<span>POS</span></div>
+      <p>Admin Control Panel</p>
+    </div>
+    <div id="adminLoginFields">
+      <label class="field-label">Username</label>
+      <input id="adminUser" value="admin" placeholder="admin" onkeydown="if(event.key==='Enter')adminLogin()">
+      <label class="field-label">Password</label>
+      <div class="pass-wrap">
+        <input id="adminPass" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')adminLogin()">
+        <button class="pass-eye" onclick="togglePass('adminPass',this)">👁</button>
+      </div>
+      <button class="btn-accent" style="width:100%;margin-top:18px;padding:13px;font-size:14px;" onclick="adminLogin()">
+        🔐 Login to Admin Panel
+      </button>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="javascript:void(0)" onclick="showAdminForgotPassword()" style="font-size:12px;color:var(--text2);text-decoration:underline;">Forgot Password?</a>
+      </div>
+    </div>
+
+    <!-- ── FORGOT PASSWORD FLOW (Step 1: request OTP → Step 2: reset) ── -->
+    <div id="adminForgotFields" class="hidden">
+      <div id="adminForgotStep1">
+        <label class="field-label">Admin Username</label>
+        <input id="afUsername" placeholder="admin" onkeydown="if(event.key==='Enter')sendAdminForgotOtp()">
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;font-size:14px;" onclick="sendAdminForgotOtp()" id="afSendOtpBtn">📧 Send OTP</button>
+      </div>
+      <div id="adminForgotStep2" class="hidden">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">OTP registered email par bheja gaya hai (agar username sahi hai). 10 minute me expire ho jayega.</p>
+        <label class="field-label">OTP</label>
+        <input id="afOtp" placeholder="6-digit OTP" maxlength="6">
+        <label class="field-label">Naya Password</label>
+        <input id="afNewPass" type="password" placeholder="Kam se kam 6 characters">
+        <label class="field-label">Confirm Password</label>
+        <input id="afConfirmPass" type="password" placeholder="Dobara type karein">
+        <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
+          <input type="checkbox" id="afSignOutAll" checked style="width:15px;height:15px;">
+          Sabhi active sessions se sign out kar dein
+        </label>
+        <button class="btn-accent" style="width:100%;margin-top:14px;padding:13px;font-size:14px;" onclick="resetAdminForgotPassword()" id="afResetBtn">✅ Reset Password</button>
+        <button class="btn-outline" id="afResendBtn" style="width:100%;margin-top:8px;padding:9px;font-size:12px;">🔁 Resend in 60s</button>
+      </div>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="javascript:void(0)" onclick="hideAdminForgotPassword()" style="font-size:12px;color:var(--text2);text-decoration:underline;">← Back to Login</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ ADMIN LAYOUT ════════════════ -->
+<div id="adminPanel" class="admin-wrap hidden">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">Grocery<span>POS</span></div>
+      <div class="logo-sub">Admin Control Panel</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Users</div>
+      <div class="nav-item" data-page="pending" onclick="showPage('pending',this)">
+        <span class="nav-icon">⏳</span> Pending
+        <span class="nav-badge" id="pendingCount"></span>
+      </div>
+      <div class="nav-item" data-page="users" onclick="showPage('users',this)">
+        <span class="nav-icon">👥</span> All Users
+      </div>
+      <div class="nav-item" data-page="subscriptions" onclick="showPage('subscriptions',this)">
+        <span class="nav-icon">💳</span> Subscriptions
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Tools</div>
+      <div class="nav-item" data-page="sheets" onclick="showPage('sheets',this)">
+        <span class="nav-icon">📋</span> Google Sheets
+      </div>
+      <div class="nav-item" data-page="landing" onclick="showPage('landing',this)">
+        <span class="nav-icon">🖼️</span> Landing Page
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Security</div>
+      <div class="nav-item" data-page="security" onclick="showPage('security',this)">
+        <span class="nav-icon">🔐</span> Admin Credentials
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="admin-info">
+        <strong>Administrator</strong>
+        Logged in
+      </div>
+      <button class="btn-outline" style="width:100%;padding:8px;" onclick="adminLogout()">🚪 Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📊 Dashboard</div>
+          <div class="page-sub">Overview of all users and subscriptions</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="loadAll()">🔄 Refresh</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card blue"><div class="stat-val" id="statTotal">—</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card green"><div class="stat-val" id="statActive">—</div><div class="stat-label">Active Subscriptions</div></div>
+        <div class="stat-card yellow"><div class="stat-val" id="statPending">—</div><div class="stat-label">Pending Verification</div></div>
+        <div class="stat-card red"><div class="stat-val" id="statBlocked">—</div><div class="stat-label">Blocked Users</div></div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3>📥 Recent Registrations</h3>
+          <button class="btn-outline btn-sm" onclick="showPage('pending',document.querySelector('[data-page=pending]'))">View All Pending →</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name / Username</th><th>Plan</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
+            <tbody id="recentTable"><tr class="empty-row"><td colspan="5">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PENDING ── -->
+    <div class="page" id="page-pending">
+      <div class="page-header">
+        <div>
+          <div class="page-title">⏳ Pending Verification</div>
+          <div class="page-sub">Verify payment receipt and approve users</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="loadAll()">🔄 Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>WhatsApp</th><th>Email</th><th>Plan</th><th>UPI Used</th><th>Date</th><th>Actions</th></tr></thead>
+            <tbody id="pendingTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ALL USERS ── -->
+    <div class="page" id="page-users">
+      <div class="page-header">
+        <div><div class="page-title">👥 All Users</div></div>
+        <div class="tbl-filters">
+          <input placeholder="🔍 Search name, email, mobile..." id="userSearch" oninput="filterUsers()" style="width:220px;">
+          <select id="userFilter" onchange="filterUsers()">
+            <option value="">All Status</option>
+            <option value="approved">✅ Active</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="blocked">🚫 Blocked</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>City / Store</th><th>Plan</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="usersTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUBSCRIPTIONS ── -->
+    <div class="page" id="page-subscriptions">
+      <div class="page-header">
+        <div><div class="page-title">💳 Active Subscriptions</div></div>
+      </div>
+      <div class="table-wrap">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>Plan</th><th>Start</th><th>Expiry</th><th>Days Left</th><th>Actions</th></tr></thead>
+            <tbody id="subTable"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── GOOGLE SHEETS ── -->
+    <div class="page" id="page-sheets">
+      <div class="page-header"><div class="page-title">📋 Google Sheets Integration</div></div>
+      <div style="max-width:640px;">
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:8px;">🔗 Webhook Setup</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:14px;">Automatically push registration data to Google Sheets on every new signup.</p>
+          <label>Google Apps Script Web App URL</label>
+          <div style="display:flex;gap:8px;">
+            <input id="gasUrl" placeholder="https://script.google.com/macros/s/..." style="flex:1;">
+            <button class="btn-accent" onclick="saveGasUrl()">Save</button>
+          </div>
+          <div class="section-divider"><span>Apps Script Code</span></div>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:10px;">Create Google Apps Script project → paste → Deploy as Web App → Anyone access</p>
+          <textarea class="msg-box" readonly rows="18" style="font-size:11px;">function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Timestamp','Action','Username','Full Name',
+      'Email','WhatsApp','Plan','Amount','City','Store Type','UPI Used','Status']);
+  }
+  sheet.appendRow([
+    new Date().toLocaleString(), data.action||'',
+    data.username||'', data.full_name||'', data.email||'',
+    data.whatsapp||'', data.plan||'', data.plan_amount||'',
+    data.city||'', data.store_type||'', data.upi_used||'',
+    data.payment_status||'pending'
+  ]);
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}</textarea>
+          <div class="section-divider"><span>Export</span></div>
+          <button class="btn-accent" onclick="exportToCSV()" style="padding:10px 20px;">
+            📥 Download All Users CSV
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LANDING PAGE — HERO CAROUSEL IMAGES ── -->
+    <div class="page" id="page-landing">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🖼️ Landing Page — Carousel Management</div>
+          <div class="page-sub">Home page ke dono carousels ke liye alag-alag image URLs manage karein</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;">
+
+        <!-- Section A: Mobile Mockup Carousel (9:16 portrait) -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">📱 Mobile Mockup Carousel</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+            Home hero section ke floating mobile frame ke andar dikhne wali images.<br>
+            <strong>9:16 portrait ratio</strong> (e.g. 1080×1920px)
+          </p>
+          <div id="heroImageList"></div>
+          <button class="btn-outline" style="width:100%;margin-top:8px;padding:9px;" onclick="addHeroImageField()">➕ Add Image URL</button>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn-accent" id="saveHeroImagesBtn" style="padding:10px 20px;" onclick="saveHeroImages()">💾 Save</button>
+            <span id="heroImagesStatus" style="font-size:12px;color:var(--text2);"></span>
+          </div>
+        </div>
+
+        <!-- Section B: "See Software In Action" Carousel (3:2 landscape) -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">🖥️ "See Software In Action" Carousel</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+            "See Software In Action" section ke gallery slider mein dikhne wali images.<br>
+            <strong>3:2 landscape ratio</strong> (e.g. 1200×800px)
+          </p>
+          <div id="previewImageList"></div>
+          <button class="btn-outline" style="width:100%;margin-top:8px;padding:9px;" onclick="addPreviewImageField()">➕ Add Image URL</button>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn-accent" id="savePreviewImagesBtn" style="padding:10px 20px;" onclick="savePreviewImages()">💾 Save</button>
+            <span id="previewImagesStatus" style="font-size:12px;color:var(--text2);"></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Section C: Free Trial Watermark Toggle -->
+      <div class="table-wrap" style="padding:22px;max-width:1100px;margin-top:20px;">
+        <h3 style="margin-bottom:4px;">🏷️ Free Trial Watermark</h3>
+        <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">
+          Free trial accounts ke bills par "⚠️ FREE TRIAL — Upgrade for Professional Bills" wala banner dikhta hai.
+          Default: <strong>ON</strong>. Yahan se globally OFF kar sakte hain.
+        </p>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600;">
+          <input type="checkbox" id="trialWatermarkToggle" style="width:18px;height:18px;accent-color:var(--accent);" onchange="saveTrialWatermarkSetting()">
+          Show free trial watermark on bills
+        </label>
+        <span id="trialWatermarkStatus" style="font-size:12px;color:var(--text2);margin-top:8px;display:block;"></span>
+      </div>
+    </div>
+
+    <!-- ════════════════ SECURITY / ADMIN CREDENTIALS PAGE ════════════════ -->
+    <div class="page" id="page-security">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🔐 Admin Credentials</div>
+          <div class="page-sub">Apna admin username, email, aur password OTP verification ke saath change karein</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;">
+        <!-- Current credentials + change form -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">Current Credentials</h3>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">
+            <div>Username: <strong id="curAdminUsername" style="color:#e2e8f0;">—</strong></div>
+            <div>Email: <strong id="curAdminEmail" style="color:#e2e8f0;">—</strong></div>
+          </div>
+
+          <div id="credChangeStep1">
+            <label class="field-label">Kya change karna hai?</label>
+            <select id="credField" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border,#334155);background:#0f172a;color:#e2e8f0;margin-bottom:10px;" onchange="toggleCredNewValueField()">
+              <option value="username">Username</option>
+              <option value="email">Email</option>
+              <option value="password">Password</option>
+            </select>
+            <label class="field-label" id="credNewValueLabel">New Username</label>
+            <input id="credNewValue" placeholder="Naya username" style="margin-bottom:10px;">
+            <label class="field-label">Current Password (verify karne ke liye)</label>
+            <input id="credCurrentPass" type="password" placeholder="Abhi ka password" style="margin-bottom:10px;">
+            <button class="btn-accent" style="width:100%;padding:11px;" onclick="requestCredOtp()" id="credOtpBtn">📧 Send OTP to Verify</button>
+          </div>
+
+          <div id="credChangeStep2" class="hidden">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">OTP registered email par bheja gaya hai.</p>
+            <label class="field-label">OTP</label>
+            <input id="credOtp" placeholder="6-digit OTP" maxlength="6" style="margin-bottom:10px;">
+            <button class="btn-accent" style="width:100%;padding:11px;" onclick="verifyCredOtp()" id="credVerifyBtn">✅ Verify & Update</button>
+            <button class="btn-outline" style="width:100%;padding:9px;margin-top:8px;" onclick="cancelCredChange()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Audit log -->
+        <div class="table-wrap" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">📜 Audit Log</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:14px;">Recent credential changes aur password resets (user, action, IP, time)</p>
+          <div id="auditLogList" style="max-height:420px;overflow-y:auto;font-size:12px;"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════════════════ APPROVE MODAL — CREDENTIAL GENERATOR ════════════════ -->
+<div class="modal-overlay" id="approveModal">
+  <div class="modal-box" style="max-width:720px;">
+    <div class="modal-header">
+      <div>
+        <h3>✅ Approve User &amp; Generate Credentials</h3>
+        <p style="font-size:12px;color:var(--text2);margin-top:3px;">Manually create credentials and copy messages to send</p>
+      </div>
+      <button class="modal-close" onclick="closeApproveModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Steps indicator -->
+      <div class="cred-stepper" id="credStepper">
+        <div class="cred-step active" id="step1">1 · User Info</div>
+        <div class="cred-step" id="step2">2 · Set Credentials</div>
+        <div class="cred-step" id="step3">3 · Copy &amp; Send</div>
+      </div>
+
+      <!-- ── Step 1: User Info ── -->
+      <div id="credStep1">
+        <div class="user-info-card" id="approveUserInfo"></div>
+        <!-- Receipt preview -->
+        <div id="receiptPreviewWrap" class="hidden" style="margin-bottom:12px;">
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">📎 Payment Receipt</div>
+          <img id="receiptPreviewImg" class="receipt-img" src="" alt="Receipt" style="max-height:200px;object-fit:contain;">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button class="btn-accent flex-1" onclick="goToStep(2)" style="padding:11px;">Next: Set Credentials →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Credential Setup ── -->
+      <div id="credStep2" class="hidden">
+        <div class="cred-inputs">
+          <h4>🔑 Login Credentials</h4>
+          <div class="input-row">
+            <div>
+              <label>Username</label>
+              <input id="cred_username" placeholder="e.g. ramesh_kirana">
+            </div>
+            <div>
+              <label>Password</label>
+              <div class="pass-wrap">
+                <input id="cred_password" type="text" placeholder="Password">
+                <button class="pass-eye" onclick="togglePass('cred_password',this)">👁</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn-outline gen-btn btn-sm" onclick="generatePassword()">
+            🔀 Auto-Generate Strong Password
+          </button>
+        </div>
+
+        <div class="expiry-picker">
+          <h4>📅 Subscription Duration</h4>
+          <div class="expiry-chips">
+            <button class="chip" onclick="setDays(30,this)">30 Days</button>
+            <button class="chip" onclick="setDays(60,this)">60 Days</button>
+            <button class="chip" onclick="setDays(90,this)">90 Days</button>
+            <button class="chip active" onclick="setDays(365,this)">1 Year</button>
+            <button class="chip" onclick="setDays(730,this)">2 Years</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <input id="customDays" type="number" placeholder="Custom days" min="1" style="width:140px;" oninput="setDaysCustom(this.value)">
+            <span style="font-size:12px;color:var(--text2);">or enter custom days</span>
+          </div>
+          <div class="expiry-preview">
+            <span style="font-size:12px;color:var(--text2);">Expiry Date:</span>
+            <span class="date" id="expiryDateDisplay">—</span>
+          </div>
+        </div>
+
+        <!-- ☁️ Google Sheet Assignment -->
+        <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:16px;margin-bottom:14px;">
+          <h4 style="color:#15803d;margin-bottom:10px;">☁️ Google Sheet Assignment <span style="font-weight:400;font-size:12px;color:#6b7280;">(Har user ka alag sheet)</span></h4>
+          <div style="background:#dcfce7;border-radius:8px;padding:10px;font-size:12px;color:#166534;margin-bottom:10px;">
+            💡 <strong>Aap (admin) ek Google Sheet banao</strong> is user ke liye → GAS deploy karo → URL yahan paste karo.<br>
+            User ko kuch karna nahi — login karte hi uska data us sheet mein automatically jaayega.
+          </div>
+          <label style="font-size:12px;font-weight:600;color:#374151;">Google Apps Script URL (User's Sheet)</label>
+          <input id="cred_gas_url" placeholder="https://script.google.com/macros/s/.../exec" style="margin-bottom:8px;font-size:13px;">
+          <label style="font-size:12px;font-weight:600;color:#374151;">Google Sheet ID (Optional)</label>
+          <input id="cred_sheet_id" placeholder="Sheet ID from URL" style="margin-bottom:8px;font-size:13px;">
+          <div style="display:flex;gap:8px;">
+            <button onclick="testGasUrl()" style="background:#16a34a;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔌 Test URL</button>
+            <button onclick="openGasGuide()" style="background:transparent;color:#16a34a;border:1px solid #16a34a;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📖 How to get GAS URL?</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="btn-outline flex-1" onclick="goToStep(1)" style="padding:11px;">← Back</button>
+          <button class="btn-accent flex-1" onclick="goToStep(3)" style="padding:11px;">Next: Preview Messages →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Copy & Send Messages ── -->
+      <div id="credStep3" class="hidden">
+
+        <!-- Approve button -->
+        <div style="background:var(--accent2);border:1px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-weight:700;color:var(--accent3);font-size:14px;">✅ Credentials Ready</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">Save credentials to database, then copy messages below to send manually</div>
+          </div>
+          <button class="btn-accent" id="finalApproveBtn" onclick="confirmApprove()" style="padding:10px 20px;">
+            💾 Save &amp; Activate User
+          </button>
+        </div>
+
+        <div class="templates-section">
+
+          <!-- EMAIL Template -->
+          <div class="template-card">
+            <div class="template-header">
+              <div class="template-header-left">
+                <span class="template-icon">📧</span>
+                <div>
+                  <div class="template-title">Email Template</div>
+                  <div class="template-sub">Open Gmail/Outlook and send manually</div>
+                </div>
+              </div>
+              <div class="template-copy-btns">
+                <button class="btn-copy btn-sm" onclick="copyField('emailTo','Copy Email')">📋 Copy Email</button>
+                <button class="btn-copy btn-sm" onclick="copyField('emailSubject','Copy Subject')">📋 Copy Subject</button>
+                <button class="btn-copy btn-sm" onclick="copyTextarea('emailMsg','Copy Message')">📋 Copy Message</button>
+              </div>
+            </div>
+            <div class="template-body">
+              <div class="template-meta">
+                <div class="meta-field">
+                  <label>EMAIL TO:</label>
+                  <input id="emailTo" readonly style="background:var(--surface2);">
+                  <button class="btn-copy btn-xs meta-copy" onclick="copyField('emailTo','')">📋</button>
+                </div>
+                <div class="meta-field">
+                  <label>SUBJECT:</label>
+                  <input id="emailSubject" value="POS Billing App — Login Details" style="background:var(--surface2);">
+                  <button class="btn-copy btn-xs meta-copy" onclick="copyField('emailSubject','')">📋</button>
+                </div>
+              </div>
+              <label>MESSAGE:</label>
+              <textarea class="msg-box" id="emailMsg" rows="12"></textarea>
+            </div>
+            <div class="msg-footer">
+              <button class="btn-copy" style="padding:9px 18px;" onclick="copyTextarea('emailMsg','Email message copied!')">
+                📋 COPY EMAIL MESSAGE
+              </button>
+            </div>
+          </div>
+
+          <!-- WHATSAPP Template -->
+          <div class="template-card">
+            <div class="template-header">
+              <div class="template-header-left">
+                <span class="template-icon">💬</span>
+                <div>
+                  <div class="template-title">WhatsApp Template</div>
+                  <div class="template-sub">Click WA link or copy message to send manually</div>
+                </div>
+              </div>
+              <div class="template-copy-btns">
+                <button class="btn-copy btn-sm" id="waDirectBtn" onclick="openWhatsApp()" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">
+                  💬 Open WhatsApp
+                </button>
+                <button class="btn-copy btn-sm" onclick="copyTextarea('waMsg','WhatsApp message copied!')">📋 Copy Message</button>
+              </div>
+            </div>
+            <div class="template-body">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                <span style="font-size:12px;color:var(--text2);">Send to:</span>
+                <strong id="waMobileDisplay" style="color:#25d366;font-size:13px;">—</strong>
+                <a id="waDirectLink" href="#" target="_blank" class="wa-link btn-xs" style="margin-left:auto;padding:5px 10px;background:rgba(37,211,102,.1);border-radius:6px;">
+                  📱 Open WA →
+                </a>
+              </div>
+              <label>MESSAGE:</label>
+              <textarea class="msg-box" id="waMsg" rows="14"></textarea>
+            </div>
+            <div class="msg-footer">
+              <button class="btn-copy" style="padding:9px 18px;background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25d366;" onclick="copyTextarea('waMsg','WhatsApp message copied!')">
+                📋 COPY WHATSAPP MESSAGE
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:16px;">
+          <button class="btn-outline" style="width:100%;padding:10px;" onclick="closeApproveModal()">✓ Done — Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── EXTEND MODAL ── -->
+<div class="modal-overlay" id="extendModal">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>📅 Extend Subscription</h3>
+      <button class="modal-close" onclick="closeExtendModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-info-card" id="extendUserInfo"></div>
+      <div class="expiry-picker">
+        <h4>Extend by</h4>
+        <div class="expiry-chips" id="extendChips">
+          <button class="chip" onclick="setExtendDays(30,this)">+30 Days</button>
+          <button class="chip active" onclick="setExtendDays(90,this)">+90 Days</button>
+          <button class="chip" onclick="setExtendDays(180,this)">+180 Days</button>
+          <button class="chip" onclick="setExtendDays(365,this)">+1 Year</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-outline flex-1" onclick="closeExtendModal()">Cancel</button>
+        <button class="btn-accent flex-1" onclick="confirmExtend()" style="padding:11px;">Extend Subscription</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DEVICE / SESSION MODAL ── -->
+<div class="modal-overlay" id="deviceModal" onclick="closeDeviceModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:540px;">
+    <div class="modal-header">
+      <h3 id="deviceModalTitle">📱 Device Limit</h3>
+      <button class="modal-close" onclick="closeDeviceModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;">
+
+      <!-- Device Limit Setting -->
+      <div style="background:#0f2a1e;border:1px solid #16a34a;border-radius:12px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;">⚙️ Access Limits</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;">
+          <div>
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px;">Max Devices Allowed</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <button onclick="document.getElementById('deviceMaxInput').value=Math.max(1,parseInt(document.getElementById('deviceMaxInput').value)-1)" style="background:#1e293b;color:#fff;border:1px solid #334155;border-radius:6px;width:30px;height:34px;cursor:pointer;font-size:16px;font-weight:700;">−</button>
+              <input id="deviceMaxInput" type="number" min="1" max="50" value="1" style="width:54px;text-align:center;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:6px;font-size:14px;font-weight:700;">
+              <button onclick="document.getElementById('deviceMaxInput').value=Math.min(50,parseInt(document.getElementById('deviceMaxInput').value)+1)" style="background:#16a34a;color:#fff;border:none;border-radius:6px;width:30px;height:34px;cursor:pointer;font-size:16px;font-weight:700;">+</button>
+            </div>
+            <div style="font-size:10px;color:#64748b;margin-top:4px;">1 = 1 device only | 3200/yr = unlimited</div>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px;">IP Whitelist (optional)</label>
+            <input id="deviceIpInput" placeholder="e.g. 192.168.1.1, 103.x.x.x" style="width:100%;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:8px;font-size:12px;box-sizing:border-box;">
+            <div style="font-size:10px;color:#64748b;margin-top:4px;">Comma separated. Blank = any IP allowed</div>
+          </div>
+        </div>
+        <button onclick="saveDeviceLimit()" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#16a34a,#0d9488);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">💾 Save Device Limit & IP Settings</button>
+      </div>
+
+      <!-- Active Sessions -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:#94a3b8;">📋 Active Sessions</div>
+        <button onclick="revokeAllSessions()" style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">🚫 Logout All Devices</button>
+      </div>
+      <div id="sessionsList" style="max-height:280px;overflow-y:auto;"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── SETTINGS LOCK PASSWORD MODAL ── -->
+<div class="modal-overlay" id="settingsPwdModal" onclick="closeSettingsPwdModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>🔒 Settings Tab Lock Password</h3>
+      <button class="modal-close" onclick="closeSettingsPwdModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+        Ye password user ke <strong>Settings tab</strong> ko lock karta hai — sirf yahi (admin) password generate ya reset kar sakta hai.
+        User khud ye password change nahi kar sakta. Agar user bhool jaaye, naya password yahin se generate karein.
+      </p>
+      <button class="btn-accent" style="width:100%;padding:11px;" onclick="generateSettingsPwd()" id="genSettingsPwdBtn">🔄 Generate New Settings Password</button>
+
+      <div id="settingsPwdResult" class="hidden" style="margin-top:16px;">
+        <div style="background:#0f2a1e;border:1px solid #16a34a;border-radius:10px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:12px;color:#94a3b8;">New Password</div>
+          <div style="font-size:18px;font-weight:800;color:#4ade80;letter-spacing:1px;" id="settingsPwdValue"></div>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;">📱 WhatsApp Message</label>
+        <textarea id="settingsPwdWaMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn-copy btn-sm" onclick="copyTextarea('settingsPwdWaMsg')">📋 Copy</button>
+          <button class="btn-copy btn-sm" id="settingsPwdWaDirectBtn" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">📲 Send on WhatsApp</button>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;margin-top:14px;display:block;">📧 Email Message</label>
+        <textarea id="settingsPwdEmailMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <button class="btn-copy btn-sm" style="margin-top:6px;" onclick="copyTextarea('settingsPwdEmailMsg')">📋 Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RESET LOGIN PASSWORD MODAL ── -->
+<div class="modal-overlay" id="resetPwdModal" onclick="closeResetPwdModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>🔑 Reset Login Password</h3>
+      <button class="modal-close" onclick="closeResetPwdModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+        Ye user ka <strong>main login password</strong> reset karta hai (Settings-tab lock se alag). Naya password random generate ho sakta hai ya khud type kar sakte hain.
+      </p>
+
+      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">Password Type</label>
+      <div style="display:flex;gap:14px;margin-bottom:12px;">
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="resetPwdType" value="random" checked onchange="toggleResetPwdCustomInput()"> Random Generate
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="resetPwdType" value="custom" onchange="toggleResetPwdCustomInput()"> Custom Set Karein
+        </label>
+      </div>
+      <input id="resetPwdCustomInput" placeholder="Naya password type karein (min 6 characters)" style="display:none;width:100%;padding:9px;border-radius:8px;border:1px solid var(--border,#334155);background:#0f172a;color:#e2e8f0;margin-bottom:12px;">
+
+      <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:14px;">
+        <input type="checkbox" id="resetPwdForceChange" checked style="width:16px;height:16px;">
+        Agla login karte hi user ko naya password khud set karna padega
+      </label>
+
+      <button class="btn-accent" style="width:100%;padding:11px;" onclick="submitResetPwd()" id="submitResetPwdBtn">🔑 Reset Password</button>
+
+      <div id="resetPwdResult" class="hidden" style="margin-top:16px;">
+        <div style="background:#0f2a1e;border:1px solid #16a34a;border-radius:10px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:12px;color:#94a3b8;">New Password</div>
+          <div style="font-size:18px;font-weight:800;color:#4ade80;letter-spacing:1px;" id="resetPwdValue"></div>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;">📱 WhatsApp Message</label>
+        <textarea id="resetPwdWaMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn-copy btn-sm" onclick="copyTextarea('resetPwdWaMsg')">📋 Copy</button>
+          <button class="btn-copy btn-sm" id="resetPwdWaDirectBtn" style="background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.4);color:#25d366;">📲 Send on WhatsApp</button>
+        </div>
+
+        <label style="font-size:12px;font-weight:700;margin-top:14px;display:block;">📧 Email Message</label>
+        <textarea id="resetPwdEmailMsg" class="msg-box" readonly rows="8" style="font-size:12px;"></textarea>
+        <button class="btn-copy btn-sm" style="margin-top:6px;" onclick="copyTextarea('resetPwdEmailMsg')">📋 Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RECEIPT MODAL ── -->
+<div class="modal-overlay" id="receiptModal" onclick="closeReceiptModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px;text-align:center;">
+    <div class="modal-header">
+      <h3>📎 Payment Receipt</h3>
+      <button class="modal-close" onclick="closeReceiptModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <img id="receiptFullImg" class="receipt-img" src="" alt="Receipt">
+      <div style="margin-top:12px;">
+        <a id="receiptDownload" href="#" download="receipt.jpg" class="btn-info btn-sm" style="text-decoration:none;">⬇ Download</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ SCRIPT ════════════════ -->
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://grocery-pos-backend-lwfh.onrender.com';
+
+const APP_URL = 'https://dkapoore.github.io/grocery-pos-saas/saas_pos/frontend/app.html';
+
+// ── STATE ────────────────────────────────────────────────────
+let adminToken = null;
+let allUsers   = [];
+let currentUserId    = null;
+let currentExtendId  = null;
+let selectedDays     = 365;
+let selectedExtDays  = 90;
+
+// ── AUTH ─────────────────────────────────────────────────────
+async function adminLogin() {
+  const username = document.getElementById('adminUser').value.trim();
+  const password = document.getElementById('adminPass').value;
+  if (!password) { toast('Enter password', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/api/admin/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    adminToken = data.token;
+    localStorage.setItem('admin_token', adminToken);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    loadAll();
+    toast('Welcome back, Admin!', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── ADMIN FORGOT PASSWORD ────────────────────────────────────
+function showAdminForgotPassword() {
+  document.getElementById('adminLoginFields').classList.add('hidden');
+  document.getElementById('adminForgotFields').classList.remove('hidden');
+  document.getElementById('adminForgotStep1').classList.remove('hidden');
+  document.getElementById('adminForgotStep2').classList.add('hidden');
+  document.getElementById('afUsername').value = document.getElementById('adminUser').value || '';
+}
+
+function hideAdminForgotPassword() {
+  document.getElementById('adminForgotFields').classList.add('hidden');
+  document.getElementById('adminLoginFields').classList.remove('hidden');
+}
+
+async function sendAdminForgotOtp() {
+  const username = document.getElementById('afUsername').value.trim();
+  if (!username) { toast('Username daalein', 'error'); return; }
+  const btn = document.getElementById('afSendOtpBtn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  try {
+    const res = await fetch(`${API}/api/admin/forgot-password/request-otp`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to send OTP');
+    toast(data.message, 'success');
+    document.getElementById('adminForgotStep1').classList.add('hidden');
+    document.getElementById('adminForgotStep2').classList.remove('hidden');
+    startAdminOtpResendCooldown(() => sendAdminForgotOtp());
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Send OTP';
+  }
+}
+
+// Shared 60-second visible cooldown, mirroring the backend's own
+// resend-cooldown enforcement — same pattern as app.html's forgot-password flow.
+function startAdminOtpResendCooldown(onResend, seconds = 60) {
+  const btn = document.getElementById('afResendBtn');
+  if (!btn) return;
+  let remaining = seconds;
+  btn.disabled = true;
+  const tick = () => {
+    if (remaining <= 0) {
+      btn.textContent = '🔁 Resend OTP';
+      btn.disabled = false;
+      btn.onclick = onResend;
+      return;
+    }
+    btn.textContent = `🔁 Resend in ${remaining}s`;
+    remaining--;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+async function resetAdminForgotPassword() {
+  const username = document.getElementById('afUsername').value.trim();
+  const otp = document.getElementById('afOtp').value.trim();
+  const newPass = document.getElementById('afNewPass').value;
+  const confirmPass = document.getElementById('afConfirmPass').value;
+  const signOutAll = document.getElementById('afSignOutAll').checked;
+  if (!otp || !newPass) { toast('Sabhi fields bharein', 'error'); return; }
+  if (newPass.length < 6) { toast('Password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+  if (newPass !== confirmPass) { toast('Password match nahi kar raha', 'error'); return; }
+  const btn = document.getElementById('afResetBtn');
+  btn.disabled = true; btn.textContent = '⏳ Resetting...';
+  try {
+    const res = await fetch(`${API}/api/admin/forgot-password/reset`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, otp, new_password: newPass, sign_out_all_sessions: signOutAll })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Reset failed');
+    toast('Password reset ho gaya! Login karein.', 'success');
+    hideAdminForgotPassword();
+    document.getElementById('adminUser').value = username;
+    document.getElementById('adminPass').value = '';
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Reset Password';
+  }
+}
+
+function adminLogout() {
+  adminToken = null;
+  localStorage.removeItem('admin_token');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('adminPanel').classList.add('hidden');
+}
+
+async function api(endpoint, options={}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${adminToken}`,
+    ...(options.headers || {})
+  };
+  const res = await fetch(`${API}${endpoint}`, { ...options, headers });
+  const data = await res.json();
+  if (res.status === 401 && adminToken) {
+    // Token invalidated (e.g. admin used "sign out all sessions" during a
+    // password reset from another device/tab) — force back to login.
+    adminToken = null;
+    localStorage.removeItem('admin_token');
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    toast('Session ended — dobara login karein', 'error');
+  }
+  if (!res.ok) throw new Error(data.detail || 'API Error');
+  return data;
+}
+
+// ── LANDING PAGE HERO CAROUSEL ──────────────────────────────
+async function loadHeroImagesAdmin() {
+  const list = document.getElementById('heroImageList');
+  list.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0;">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/api/hero-images`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const images = (data.images && data.images.length) ? data.images : [''];
+    list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i)).join('');
+  } catch (e) {
+    console.error('loadHeroImagesAdmin failed:', e);
+    list.innerHTML = heroImageFieldHtml('', 0);
+    toast('Could not load hero images: ' + e.message, 'error');
+  }
+}
+
+async function loadPreviewImagesAdmin() {
+  const list = document.getElementById('previewImageList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0;">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/api/preview-images`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const images = (data.images && data.images.length) ? data.images : [''];
+    list.innerHTML = images.map((url, i) => heroImageFieldHtml(url, i, 'preview')).join('');
+  } catch (e) {
+    console.error('loadPreviewImagesAdmin failed:', e);
+    list.innerHTML = heroImageFieldHtml('', 0, 'preview');
+    toast('Could not load preview images: ' + e.message, 'error');
+  }
+}
+
+// ── FREE TRIAL WATERMARK TOGGLE ──────────────────────────────
+async function loadTrialWatermarkAdmin() {
+  const cb = document.getElementById('trialWatermarkToggle');
+  if (!cb) return;
+  try {
+    const res = await fetch(`${API}/api/trial-watermark-status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    cb.checked = data.enabled !== false; // default ON
+  } catch (e) {
+    console.error('loadTrialWatermarkAdmin failed:', e);
+    cb.checked = true; // safe default
+  }
+}
+
+async function saveTrialWatermarkSetting() {
+  const cb = document.getElementById('trialWatermarkToggle');
+  const statusEl = document.getElementById('trialWatermarkStatus');
+  if (!cb) return;
+  const enabled = cb.checked;
+  if (statusEl) statusEl.textContent = 'Saving...';
+  try {
+    if (!adminToken) throw new Error('Session expired — please login again');
+    const res = await fetch(`${API}/api/admin/trial-watermark`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ enabled })
+    });
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (statusEl) statusEl.textContent = `✅ Saved — watermark ${enabled ? 'ON' : 'OFF'}`;
+    toast(`Free trial watermark turned ${enabled ? 'ON' : 'OFF'}`, 'success');
+  } catch (e) {
+    console.error('saveTrialWatermarkSetting failed:', e);
+    cb.checked = !enabled; // revert on failure
+    if (statusEl) statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+function heroImageFieldHtml(url, i, prefix = 'hero') {
+  const safeUrl = (url || '').replace(/"/g, '&quot;');
+  const cls = prefix === 'preview' ? 'preview-img-input' : 'hero-img-input';
+  const aspectHint = prefix === 'preview' ? '3:2 landscape (1200×800px)' : '9:16 portrait (1080×1920px)';
+  return `
+    <div class="hero-img-row" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;">
+        <input type="text" class="${cls}" value="${safeUrl}" placeholder="https://... (${aspectHint})" style="width:100%;"
+          oninput="previewImgThumb(this)">
+        <div style="margin-top:6px;min-height:${prefix==='preview'?'50px':'89px'};">
+          ${url ? `<img src="${safeUrl}" style="width:${prefix==='preview'?'80px':'50px'};height:${prefix==='preview'?'53px':'89px'};object-fit:cover;border-radius:6px;border:1px solid var(--border);" onerror="this.style.display='none'">` : ''}
+        </div>
+      </div>
+      <button class="btn-outline" style="padding:8px 12px;flex-shrink:0;" onclick="this.closest('.hero-img-row').remove()">🗑️</button>
+    </div>`;
+}
+
+function previewImgThumb(input) {
+  const img = input.parentElement.querySelector('img');
+  if (img) { img.src = input.value.trim(); img.style.display = ''; }
+  else if (input.value.trim()) {
+    const d = document.createElement('img');
+    const isPreview = input.classList.contains('preview-img-input');
+    d.style.cssText = `width:${isPreview?'80px':'50px'};height:${isPreview?'53px':'89px'};object-fit:cover;border-radius:6px;border:1px solid var(--border);`;
+    d.src = input.value.trim();
+    d.onerror = function() { this.style.display='none'; };
+    input.parentElement.querySelector('div').appendChild(d);
+  }
+}
+
+function addHeroImageField() {
+  const list = document.getElementById('heroImageList');
+  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length, 'hero'));
+  list.querySelectorAll('.hero-img-input')[list.children.length-1]?.focus();
+}
+
+function addPreviewImageField() {
+  const list = document.getElementById('previewImageList');
+  if (!list) return;
+  list.insertAdjacentHTML('beforeend', heroImageFieldHtml('', list.children.length, 'preview'));
+  list.querySelectorAll('.preview-img-input')[list.children.length-1]?.focus();
+}
+
+async function saveHeroImages() {
+  const inputs = document.querySelectorAll('#heroImageList .hero-img-input');
+  const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  const badUrls = images.filter(u => !/^https?:\/\/.+/i.test(u));
+  if (badUrls.length) { toast(`Invalid URL: ${badUrls[0]}`, 'error'); return; }
+  const statusEl = document.getElementById('heroImagesStatus');
+  const saveBtn  = document.getElementById('saveHeroImagesBtn');
+  statusEl.textContent = 'Saving...';
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    if (!adminToken) throw new Error('Session expired — please login again');
+    const res = await fetch(`${API}/api/admin/hero-images`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ images })
+    });
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    statusEl.textContent = `✅ Saved ${images.length} image(s)`;
+    toast('Mobile mockup carousel saved!', 'success');
+    loadHeroImagesAdmin();
+  } catch (e) {
+    console.error('saveHeroImages failed:', e);
+    statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function savePreviewImages() {
+  const inputs = document.querySelectorAll('#previewImageList .preview-img-input');
+  const images = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  const badUrls = images.filter(u => !/^https?:\/\/.+/i.test(u));
+  if (badUrls.length) { toast(`Invalid URL: ${badUrls[0]}`, 'error'); return; }
+  const statusEl = document.getElementById('previewImagesStatus');
+  const saveBtn  = document.getElementById('savePreviewImagesBtn');
+  statusEl.textContent = 'Saving...';
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    if (!adminToken) throw new Error('Session expired — please login again');
+    const res = await fetch(`${API}/api/admin/preview-images`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+      body: JSON.stringify({ images })
+    });
+    let data; try { data = await res.json(); } catch { throw new Error(`Server error (HTTP ${res.status})`); }
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    statusEl.textContent = `✅ Saved ${images.length} image(s)`;
+    toast('"See Software In Action" carousel saved!', 'success');
+    loadPreviewImagesAdmin();
+  } catch (e) {
+    console.error('savePreviewImages failed:', e);
+    statusEl.textContent = '';
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'landing') { loadHeroImagesAdmin(); loadPreviewImagesAdmin(); loadTrialWatermarkAdmin(); }
+  if (name === 'security') { loadAdminCredentials(); loadAuditLog(); }
+}
+
+// ── LOAD DATA ────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    // Show skeleton stats immediately so page doesn't look frozen
+    ['statTotal','statActive','statPending','statBlocked'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.textContent === '') el.textContent = '…';
+    });
+    const [stats, users] = await Promise.all([
+      api('/api/admin/stats'),
+      api('/api/admin/users')
+    ]);
+    allUsers = users;
+
+    document.getElementById('statTotal').textContent   = stats.total;
+    document.getElementById('statActive').textContent  = stats.active;
+    document.getElementById('statPending').textContent = stats.pending_verification;
+    document.getElementById('statBlocked').textContent = stats.blocked;
+    document.getElementById('pendingCount').textContent = stats.pending_verification || '';
+
+    renderRecentTable();
+    renderPendingTable();
+    renderUsersTable();
+    renderSubTable();
+  } catch(e) { toast('Load failed: ' + e.message, 'error'); }
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+function statusBadge(u) {
+  if (u.is_blocked)                     return '<span class="badge badge-blocked">🚫 Blocked</span>';
+  if (u.payment_status === 'approved')  return '<span class="badge badge-approved">✅ Active</span>';
+  if (u.payment_status === 'pending')   return '<span class="badge badge-pending">⏳ Pending</span>';
+  return `<span class="badge badge-free">Free Trial</span>`;
+}
+function planBadge(u) {
+  if (u.plan === 'yearly')  return '<span style="color:#fbbf24;font-weight:700;">⭐ Yearly</span>';
+  if (u.plan === 'monthly') return '<span style="color:#60a5fa;font-weight:700;">Monthly</span>';
+  return '<span style="color:var(--text2);">Free</span>';
+}
+function daysLeft(expiry) {
+  if (!expiry) return '—';
+  const d = Math.ceil((new Date(expiry) - new Date()) / 86400000);
+  if (d < 0)   return '<span style="color:#f87171;font-weight:700;">Expired</span>';
+  if (d <= 30) return `<span style="color:#fbbf24;font-weight:700;">${d}d</span>`;
+  return `<span style="color:#4ade80;font-weight:700;">${d}d</span>`;
+}
+function fmtDate(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+function fmtDateLong(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'});
+}
+
+// ── RENDER TABLES ─────────────────────────────────────────────
+function renderRecentTable() {
+  const rows = allUsers.slice(0, 10);
+  document.getElementById('recentTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || u.username}</div>
+        <div class="td-secondary">@${u.username}</div>
+      </td>
+      <td>${planBadge(u)}</td>
+      <td>${statusBadge(u)}</td>
+      <td><span style="font-size:12px;">${fmtDate(u.created_at)}</span></td>
+      <td>
+        <div class="action-btns">
+          ${u.payment_status === 'pending' ? `<button class="btn-accent btn-sm" onclick="openApproveModal(${u.id})">✅ Approve</button>` : ''}
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="5">No registrations yet</td></tr>';
+}
+
+function renderPendingTable() {
+  const rows = allUsers.filter(u => u.payment_status === 'pending');
+  document.getElementById('pendingTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">@${u.username}</div>
+      </td>
+      <td>
+        <a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">📱 ${u.whatsapp || '—'}</a>
+      </td>
+      <td style="font-size:12px;">${u.email || '—'}</td>
+      <td>${planBadge(u)} <span style="font-size:11px;color:var(--text2);">₹${u.plan_amount || 0}</span></td>
+      <td style="font-size:12px;color:#fbbf24;">${u.upi_used || '—'}</td>
+      <td style="font-size:12px;">${fmtDate(u.created_at)}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn-accent btn-sm" onclick="openApproveModal(${u.id})">✅ Approve</button>
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎 Receipt</button>` : ''}
+          <button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)">🚫</button>
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">🎉 No pending verifications!</td></tr>';
+}
+
+function renderUsersTable(filtered = null) {
+  const rows = filtered || allUsers;
+  document.getElementById('usersTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">${u.email || ''}</div>
+        <div class="td-secondary"><a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">📱 ${u.whatsapp}</a></div>
+      </td>
+      <td><strong style="color:var(--accent3);">@${u.username}</strong></td>
+      <td>
+        <div class="td-primary">${u.city || '—'}</div>
+        <div class="td-secondary">${u.store_type || '—'}</div>
+      </td>
+      <td>${planBadge(u)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_expiry)}</td>
+      <td>${statusBadge(u)}</td>
+      <td>
+        <div class="action-btns">
+          ${u.payment_status === 'pending' ? `<button class="btn-accent btn-xs" onclick="openApproveModal(${u.id})">✅</button>` : ''}
+          ${u.is_active ? `<button class="btn-warn btn-xs" onclick="openExtendModal(${u.id})">📅</button>` : ''}
+          ${u.receipt_path ? `<button class="btn-info btn-xs" onclick="viewReceipt(${u.id})">📎</button>` : ''}
+          <button class="btn-xs" onclick="openGasAssign(${u.id},'${u.username}','${u.gas_url||''}')" style="background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Assign Google Sheet">☁️</button>
+          <button class="btn-xs" onclick="openDeviceModal(${u.id},'${u.username}',${u.max_devices||1},'${u.allowed_ips||''}')" style="background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Device Limit & Sessions">📱</button>
+          <button class="btn-xs" onclick="openSettingsPwdModal(${u.id})" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Settings Tab Lock Password">🔒</button>
+          <button class="btn-xs" onclick="openResetPwdModal(${u.id})" style="background:#ede9fe;color:#6d28d9;border:1px solid #8b5cf6;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Reset Login Password">🔑</button>
+          <button class="btn-xs" onclick="confirmDeleteUser(${u.id},'${u.username}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;" title="Delete User">🗑️</button>
+          ${!u.is_blocked
+            ? `<button class="btn-danger btn-xs" onclick="blockUser(${u.id},true)" title="Block">🚫</button>`
+            : `<button class="btn-accent btn-xs" onclick="blockUser(${u.id},false)" title="Unblock">✅</button>`}
+        </div>
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">No users found</td></tr>';
+}
+
+function renderSubTable() {
+  const rows = allUsers.filter(u => u.is_active && u.subscription_expiry);
+  document.getElementById('subTable').innerHTML = rows.length ? rows.map(u => `
+    <tr>
+      <td>
+        <div class="td-primary">${u.full_name || '—'}</div>
+        <div class="td-secondary">${u.email}</div>
+      </td>
+      <td><strong style="color:var(--accent3);">@${u.username}</strong></td>
+      <td>${planBadge(u)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_start)}</td>
+      <td style="font-size:12px;">${fmtDate(u.subscription_expiry)}</td>
+      <td>${daysLeft(u.subscription_expiry)}</td>
+      <td><button class="btn-warn btn-sm" onclick="openExtendModal(${u.id})">📅 Extend</button></td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="7">No active subscriptions</td></tr>';
+}
+
+function filterUsers() {
+  const q      = document.getElementById('userSearch').value.toLowerCase();
+  const filter = document.getElementById('userFilter').value;
+  let rows = allUsers;
+  if (q) rows = rows.filter(u =>
+    (u.full_name||'').toLowerCase().includes(q) ||
+    (u.username||'').toLowerCase().includes(q) ||
+    (u.email||'').toLowerCase().includes(q) ||
+    (u.whatsapp||'').includes(q) ||
+    (u.city||'').toLowerCase().includes(q)
+  );
+  if (filter === 'approved') rows = rows.filter(u => u.is_active && !u.is_blocked);
+  if (filter === 'pending')  rows = rows.filter(u => u.payment_status === 'pending');
+  if (filter === 'blocked')  rows = rows.filter(u => u.is_blocked);
+  renderUsersTable(rows);
+}
+
+// ── APPROVE MODAL — STEPPER ───────────────────────────────────
+function openApproveModal(userId) {
+  currentUserId = userId;
+  const u = allUsers.find(x => x.id === userId);
+  if (!u) return;
+
+  // Pre-fill user info card
+  document.getElementById('approveUserInfo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+      <div class="info-row"><span class="info-key">👤 Name</span><span class="info-val">${u.full_name || '—'}</span></div>
+      <div class="info-row"><span class="info-key">📧 Email</span><span class="info-val" style="font-size:12px;">${u.email || '—'}</span></div>
+      <div class="info-row"><span class="info-key">📱 WhatsApp</span><span class="info-val"><a class="wa-link" href="https://wa.me/91${u.whatsapp}" target="_blank">${u.whatsapp}</a></span></div>
+      <div class="info-row"><span class="info-key">🏙️ City</span><span class="info-val">${u.city || '—'}</span></div>
+      <div class="info-row"><span class="info-key">🏪 Store</span><span class="info-val">${u.store_type || '—'}</span></div>
+      <div class="info-row"><span class="info-key">💳 Plan</span><span class="info-val">${u.plan === 'yearly' ? '⭐ Yearly — ₹3,200' : 'Monthly — ₹299'}</span></div>
+      <div class="info-row" style="grid-column:span 2;"><span class="info-key">🔗 UPI Paid</span><span class="info-val" style="color:#fbbf24;">${u.upi_used || '—'}</span></div>
+    </div>`;
+
+  // Receipt preview inside modal
+  if (u.receipt_path) {
+    document.getElementById('receiptPreviewImg').src = `${API}/api/admin/receipt/${userId}?token=${adminToken}`;
+    document.getElementById('receiptPreviewWrap').classList.remove('hidden');
+  } else {
+    document.getElementById('receiptPreviewWrap').classList.add('hidden');
+  }
+
+  // Pre-fill credentials
+  document.getElementById('cred_username').value = u.username;
+  generatePassword();
+  setDays(u.plan === 'yearly' ? 365 : 30, document.querySelector('.chip'));
+
+  goToStep(1);
+  document.getElementById('approveModal').classList.add('show');
+}
+
+function goToStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('credStep' + i).classList.toggle('hidden', i !== n);
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active','done');
+    if (i < n)  el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  });
+
+  // When entering step 3, build messages
+  if (n === 3) buildMessages();
+}
+
+function closeApproveModal() {
+  document.getElementById('approveModal').classList.remove('show');
+  currentUserId = null;
+}
+
+// ── CREDENTIAL FIELDS ────────────────────────────────────────
+function generatePassword() {
+  const pool = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!$';
+  let p = '';
+  for (let i = 0; i < 10; i++) p += pool[Math.floor(Math.random() * pool.length)];
+  document.getElementById('cred_password').value = p;
+}
+
+function setDays(days, el) {
+  selectedDays = days;
+  document.querySelectorAll('#credStep2 .chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('customDays').value = '';
+  updateExpiryPreview();
+}
+
+function setDaysCustom(val) {
+  if (val > 0) {
+    selectedDays = parseInt(val);
+    document.querySelectorAll('#credStep2 .chip').forEach(c => c.classList.remove('active'));
+    updateExpiryPreview();
+  }
+}
+
+function updateExpiryPreview() {
+  const d = new Date();
+  d.setDate(d.getDate() + selectedDays);
+  document.getElementById('expiryDateDisplay').textContent = fmtDateLong(d.toISOString()) + ` (${selectedDays} days)`;
+}
+
+// ── BUILD MESSAGES ────────────────────────────────────────────
+function buildMessages() {
+  const u        = allUsers.find(x => x.id === currentUserId);
+  if (!u) return;
+
+  const username  = document.getElementById('cred_username').value.trim();
+  const password  = document.getElementById('cred_password').value.trim();
+  const expDate   = (() => { const d = new Date(); d.setDate(d.getDate() + selectedDays); return fmtDateLong(d.toISOString()); })();
+  const planLabel = u.plan === 'yearly' ? 'Yearly Plan (1 Year)' : 'Monthly Plan (30 Days)';
+  const loginUrl  = APP_URL + '/app.html';
+
+  // Populate email fields
+  document.getElementById('emailTo').value = u.email || '';
+
+  const emailBody =
+`Hello ${u.full_name || u.username},
+
+Your payment has been verified successfully. 🎉
+
+Your GroceryPOS Login Details:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Username    : ${username}
+Password    : ${password}
+Plan        : ${planLabel}
+Expiry Date : ${expDate}
+Login URL   : ${loginUrl}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Steps to Login:
+1. Open the link above
+2. Enter your Username and Password
+3. Start billing!
+
+⚠️ Please save your password safely. Do not share with anyone.
+
+If you face any issue, reply to this email.
+
+Thank you for choosing GroceryPOS!
+Team GroceryPOS`;
+
+  document.getElementById('emailMsg').value = emailBody;
+
+  // WhatsApp
+  const waMsg =
+`Hello ${u.full_name || u.username}! 👋
+
+✅ *Payment Verified Successfully!*
+
+Your GroceryPOS Login Details:
+
+🔹 *Username:* ${username}
+🔹 *Password:* ${password}
+🔹 *Plan:* ${planLabel}
+📅 *Expiry Date:* ${expDate}
+
+🔗 *Login Link:*
+${loginUrl}
+
+*Steps:*
+1️⃣ Open the link above
+2️⃣ Enter Username & Password
+3️⃣ Start billing! 🎉
+
+⚠️ Please save your password safely.
+
+Thank you! 🙏
+*Team GroceryPOS*`;
+
+  document.getElementById('waMsg').value = waMsg;
+
+  // WhatsApp direct link
+  const mobile = (u.whatsapp || '').replace(/\D/g, '');
+  document.getElementById('waMobileDisplay').textContent = u.whatsapp || '—';
+  const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(waMsg)}`;
+  document.getElementById('waDirectLink').href  = waLink;
+  document.getElementById('waDirectBtn').onclick = () => window.open(waLink, '_blank');
+}
+
+function openWhatsApp() {
+  const link = document.getElementById('waDirectLink').href;
+  if (link && link !== '#') window.open(link, '_blank');
+}
+
+// ── SAVE TO SERVER ────────────────────────────────────────────
+async function confirmApprove() {
+  const username  = document.getElementById('cred_username').value.trim();
+  const password  = document.getElementById('cred_password').value.trim();
+  const gas_url   = document.getElementById('cred_gas_url')?.value?.trim() || '';
+  const sheet_id  = document.getElementById('cred_sheet_id')?.value?.trim() || '';
+  if (!username || !password) { toast('Username & password are required', 'error'); return; }
+
+  const btn = document.getElementById('finalApproveBtn');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    const res = await api('/api/admin/approve', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: currentUserId,
+        username,
+        password,
+        plan_days: selectedDays,
+        gas_url,
+        sheet_id
+      })
+    });
+    toast('✅ User activated! Now copy & send credentials manually.', 'success');
+    btn.textContent = '✅ Saved!';
+    loadAll(); // Refresh tables in background
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+    btn.textContent = '💾 Save & Activate User'; btn.disabled = false;
+  }
+}
+
+async function testGasUrl() {
+  const url = document.getElementById('cred_gas_url')?.value?.trim();
+  if (!url) { toast('GAS URL daalo pehle', 'error'); return; }
+  toast('Testing connection...', 'info');
+  try {
+    const res = await fetch(url + '?action=ping');
+    const text = await res.text();
+    toast('✅ Connected! URL working.', 'success');
+  } catch(e) {
+    toast('⚠️ URL reachable (CORS expected on browser). Should work from app.', 'warn');
+  }
+}
+
+function openGasGuide() {
+  const overlay = document.getElementById('approveModal');
+  const guide = document.createElement('div');
+  guide.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  guide.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">📖 GAS URL Kaise Banayein?</h3>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:13px;line-height:1.8;color:#374151;">
+        <div style="background:#f0fdf4;border-radius:8px;padding:12px;margin-bottom:12px;">
+          <strong>Har user ke liye alag sheet banao — ye steps follow karo:</strong>
+        </div>
+        <ol style="padding-left:18px;display:flex;flex-direction:column;gap:10px;">
+          <li><strong>Google Sheets</strong> kholo → <strong>New Spreadsheet</strong> banao<br>
+          <span style="color:#6b7280;font-size:12px;">Name: "POS - [User Name]" — jaise "POS - Ramesh Shop"</span></li>
+          <li><strong>Extensions → Apps Script</strong> click karo</li>
+          <li>Pura default code delete karo</li>
+          <li><strong>GoogleAppsScript_v2.js</strong> ka code paste karo (GitHub se download karo)</li>
+          <li><strong>Ctrl+S</strong> se save karo → Project name dedo</li>
+          <li><strong>Deploy → New Deployment</strong> click karo</li>
+          <li>Type: <strong>Web App</strong> select karo</li>
+          <li>Execute as: <strong>Me</strong><br>Who has access: <strong>Anyone</strong></li>
+          <li><strong>Deploy</strong> click karo → Allow permissions</li>
+          <li><strong>Web App URL copy karo</strong> → Yahan paste karo ✅</li>
+        </ol>
+        <div style="background:#fef3c7;border-radius:8px;padding:12px;margin-top:12px;font-size:12px;">
+          ⏱️ Ek user ka sheet setup: ~5 minutes<br>
+          🔒 Har user ka data bilkul alag — koi mixing nahi
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(guide);
+}
+
+// ── COPY HELPERS ─────────────────────────────────────────────
+async function copyToClipboard(text, label='') {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (label) toast(label || 'Copied!', 'success');
+    else toast('Copied!', 'success');
+  } catch(e) {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied!', 'success');
+  }
+}
+
+function copyField(id, label) {
+  const el = document.getElementById(id);
+  copyToClipboard(el.value, label || el.value + ' copied!');
+}
+
+function copyTextarea(id, label) {
+  const el = document.getElementById(id);
+  copyToClipboard(el.value, label);
+  // Visual flash
+  el.style.borderColor = 'var(--accent)';
+  setTimeout(() => el.style.borderColor = '', 1200);
+}
+
+// ── EXTEND SUBSCRIPTION ──────────────────────────────────────
+function openExtendModal(userId) {
+  currentExtendId = userId;
+  const u = allUsers.find(x => x.id === userId);
+  if (!u) return;
+  document.getElementById('extendUserInfo').innerHTML = `
+    <div class="info-row"><span class="info-key">User</span><span class="info-val">${u.full_name} (@${u.username})</span></div>
+    <div class="info-row"><span class="info-key">Current Expiry</span>
+      <span class="info-val" style="color:${u.subscription_expiry && new Date(u.subscription_expiry) < new Date() ? '#f87171' : '#4ade80'}">
+        ${fmtDate(u.subscription_expiry)}
+      </span>
+    </div>`;
+  setExtendDays(90, document.querySelector('#extendChips .chip.active') || document.querySelector('#extendChips .chip'));
+  document.getElementById('extendModal').classList.add('show');
+}
+
+function closeExtendModal() {
+  document.getElementById('extendModal').classList.remove('show');
+  currentExtendId = null;
+}
+
+function setExtendDays(days, el) {
+  selectedExtDays = days;
+  document.querySelectorAll('#extendChips .chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+async function confirmExtend() {
+  try {
+    const res = await api('/api/admin/extend', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: currentExtendId, days: selectedExtDays })
+    });
+    closeExtendModal();
+    const exp = fmtDateLong(res.new_expiry);
+    toast(`Extended! New expiry: ${exp}`, 'success');
+    loadAll();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ── BLOCK / UNBLOCK ──────────────────────────────────────────
+// ── GAS URL ASSIGN ────────────────────────────────────────────
+function openGasAssign(userId, username, currentGasUrl) {
+  const overlay = document.createElement('div');
+  overlay.id = 'gasAssignOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;font-size:1.1rem;">☁️ Google Sheet Assign</h3>
+          <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">@${username} ke liye</p>
+        </div>
+        <button onclick="document.getElementById('gasAssignOverlay').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">✕</button>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #16a34a;border-radius:10px;padding:12px;font-size:12px;color:#166534;margin-bottom:14px;">
+        💡 Is user ke liye ek alag Google Sheet + GAS deploy karo, phir URL yahan daalo. User ka saara data us sheet mein jaayega.
+      </div>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">GAS URL *</label>
+      <input id="gasAssignUrl" value="${currentGasUrl}" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Sheet ID (Optional)</label>
+      <input id="gasAssignSheetId" placeholder="Google Sheet ID from URL" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box;">
+      ${currentGasUrl ? `<div style="background:#fef3c7;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:10px;">Current URL: <code style="word-break:break-all;font-size:11px;">${currentGasUrl.slice(0,60)}...</code></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button onclick="testGasAssignUrl()" style="padding:10px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">🔌 Test URL</button>
+        <button onclick="saveGasAssign(${userId})" style="padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">💾 Save & Assign</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function testGasAssignUrl() {
+  const url = document.getElementById('gasAssignUrl')?.value?.trim();
+  if (!url) { toast('URL daalo pehle', 'error'); return; }
+  toast('Testing...', 'info');
+  try {
+    await fetch(url + '?action=ping');
+    toast('✅ URL reachable!', 'success');
+  } catch(e) {
+    toast('⚠️ CORS error expected — URL may still work from app.', 'warn');
+  }
+}
+
+async function saveGasAssign(userId) {
+  const gas_url  = document.getElementById('gasAssignUrl')?.value?.trim();
+  const sheet_id = document.getElementById('gasAssignSheetId')?.value?.trim() || '';
+  if (!gas_url) { toast('GAS URL required', 'error'); return; }
+  try {
+    await api('/api/admin/update-gas-url', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, gas_url, sheet_id })
+    });
+    document.getElementById('gasAssignOverlay')?.remove();
+    toast('✅ Google Sheet assigned! User ka data ab us sheet mein jaayega.', 'success');
+    loadAll();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function blockUser(userId, block) {
+  const u = allUsers.find(x => x.id === userId);
+  if (!confirm(`${block ? 'Block' : 'Unblock'} ${u?.full_name || u?.username}?`)) return;
+  try {
+    await api('/api/admin/block', { method:'POST', body: JSON.stringify({ user_id: userId, block }) });
+    toast(`User ${block ? 'blocked' : 'unblocked'}`, block ? 'error' : 'success');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ── DEVICE / SESSION MANAGEMENT ──────────────────────────────────────────────
+let _deviceModalUserId = null;
+
+async function openDeviceModal(userId, username, maxDevices, allowedIps) {
+  _deviceModalUserId = userId;
+  document.getElementById('deviceModalTitle').textContent = `📱 Device Limit — @${username}`;
+  document.getElementById('deviceMaxInput').value = maxDevices || 1;
+  document.getElementById('deviceIpInput').value = allowedIps || '';
+  document.getElementById('sessionsList').innerHTML = '<div style="color:#94a3b8;text-align:center;padding:16px;">Loading sessions…</div>';
+  document.getElementById('deviceModal').classList.add('show');
+  await loadSessions(userId);
+}
+
+function closeDeviceModal() {
+  document.getElementById('deviceModal').classList.remove('show');
+  _deviceModalUserId = null;
+}
+
+// ── SETTINGS TAB LOCK PASSWORD ───────────────────────────────────────────────
+let _settingsPwdUserId = null;
+
+// ── DELETE USER ──────────────────────────────────────────────────────────
+async function confirmDeleteUser(userId, username) {
+  if (!confirm(`⚠️ Permanently delete user "${username}"?\n\nYe action wapas nahi ho sakta — account/login record Google Sheet se hamesha ke liye delete ho jayega. POS billing data (products/bills) safe rahega.`)) {
+    return;
+  }
+  try {
+    await api('/api/admin/delete-user', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    toast(`User "${username}" deleted`, 'success');
+    loadAll();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function openSettingsPwdModal(userId) {
+  _settingsPwdUserId = userId;
+  document.getElementById('settingsPwdResult').classList.add('hidden');
+  document.getElementById('settingsPwdModal').classList.add('show');
+}
+
+function closeSettingsPwdModal() {
+  document.getElementById('settingsPwdModal').classList.remove('show');
+  _settingsPwdUserId = null;
+}
+
+async function generateSettingsPwd() {
+  if (!_settingsPwdUserId) return;
+  const btn = document.getElementById('genSettingsPwdBtn');
+  btn.textContent = '⏳ Generating...'; btn.disabled = true;
+  try {
+    const res = await api('/api/admin/generate-settings-password', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: _settingsPwdUserId })
+    });
+    document.getElementById('settingsPwdValue').textContent = res.password;
+    document.getElementById('settingsPwdWaMsg').value = res.whatsapp_message;
+    document.getElementById('settingsPwdEmailMsg').value = res.email_message;
+    const mobile = (res.whatsapp_number || '').replace(/\D/g, '');
+    const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(res.whatsapp_message)}`;
+    document.getElementById('settingsPwdWaDirectBtn').onclick = () => window.open(waLink, '_blank');
+    document.getElementById('settingsPwdResult').classList.remove('hidden');
+    toast('Settings password generated!', 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🔄 Generate New Settings Password'; btn.disabled = false;
+  }
+}
+
+let _resetPwdUserId = null;
+
+function openResetPwdModal(userId) {
+  _resetPwdUserId = userId;
+  document.getElementById('resetPwdResult').classList.add('hidden');
+  document.getElementById('resetPwdCustomInput').value = '';
+  document.getElementById('resetPwdCustomInput').style.display = 'none';
+  document.querySelector('input[name="resetPwdType"][value="random"]').checked = true;
+  document.getElementById('resetPwdForceChange').checked = true;
+  document.getElementById('resetPwdModal').classList.add('show');
+}
+
+function closeResetPwdModal() {
+  document.getElementById('resetPwdModal').classList.remove('show');
+  _resetPwdUserId = null;
+}
+
+function toggleResetPwdCustomInput() {
+  const isCustom = document.querySelector('input[name="resetPwdType"]:checked').value === 'custom';
+  document.getElementById('resetPwdCustomInput').style.display = isCustom ? 'block' : 'none';
+}
+
+async function submitResetPwd() {
+  if (!_resetPwdUserId) return;
+  const isCustom = document.querySelector('input[name="resetPwdType"]:checked').value === 'custom';
+  const customPwd = document.getElementById('resetPwdCustomInput').value.trim();
+  if (isCustom && customPwd.length < 6) {
+    toast('Custom password kam se kam 6 characters ka hona chahiye', 'error');
+    return;
+  }
+  const forceChange = document.getElementById('resetPwdForceChange').checked;
+  const btn = document.getElementById('submitResetPwdBtn');
+  btn.textContent = '⏳ Resetting...'; btn.disabled = true;
+  try {
+    const res = await api('/api/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: _resetPwdUserId,
+        custom_password: isCustom ? customPwd : null,
+        force_change: forceChange,
+      })
+    });
+    document.getElementById('resetPwdValue').textContent = res.password;
+    document.getElementById('resetPwdWaMsg').value = res.whatsapp_message;
+    document.getElementById('resetPwdEmailMsg').value = res.email_message;
+    const mobile = (res.whatsapp_number || '').replace(/\D/g, '');
+    const waLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(res.whatsapp_message)}`;
+    document.getElementById('resetPwdWaDirectBtn').onclick = () => window.open(waLink, '_blank');
+    document.getElementById('resetPwdResult').classList.remove('hidden');
+    toast('Password reset ho gaya!', 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🔑 Reset Password'; btn.disabled = false;
+  }
+}
+
+// ── ADMIN CREDENTIALS (Security page) ────────────────────────
+function toggleCredNewValueField() {
+  const field = document.getElementById('credField').value;
+  const input = document.getElementById('credNewValue');
+  const label = document.getElementById('credNewValueLabel');
+  if (field === 'username') { label.textContent = 'New Username'; input.type = 'text'; input.placeholder = 'Naya username'; }
+  else if (field === 'email') { label.textContent = 'New Email'; input.type = 'email'; input.placeholder = 'naya@email.com'; }
+  else { label.textContent = 'New Password'; input.type = 'password'; input.placeholder = 'Kam se kam 6 characters'; }
+}
+
+async function loadAdminCredentials() {
+  try {
+    const data = await api('/api/admin/credentials');
+    document.getElementById('curAdminUsername').textContent = data.username;
+    document.getElementById('curAdminEmail').textContent = data.email;
+  } catch (e) {
+    toast('Credentials load nahi ho payi: ' + e.message, 'error');
+  }
+}
+
+async function requestCredOtp() {
+  const field = document.getElementById('credField').value;
+  const newValue = document.getElementById('credNewValue').value.trim();
+  const currentPassword = document.getElementById('credCurrentPass').value;
+  if (!newValue || !currentPassword) { toast('Sabhi fields bharein', 'error'); return; }
+  if (field === 'password' && newValue.length < 6) { toast('Password kam se kam 6 characters ka hona chahiye', 'error'); return; }
+  const btn = document.getElementById('credOtpBtn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  try {
+    const res = await api('/api/admin/credentials/request-otp', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, field, new_value: newValue })
+    });
+    toast(res.message, 'success');
+    document.getElementById('credChangeStep1').classList.add('hidden');
+    document.getElementById('credChangeStep2').classList.remove('hidden');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Send OTP to Verify';
+  }
+}
+
+async function verifyCredOtp() {
+  const otp = document.getElementById('credOtp').value.trim();
+  if (!otp) { toast('OTP daalein', 'error'); return; }
+  const btn = document.getElementById('credVerifyBtn');
+  btn.disabled = true; btn.textContent = '⏳ Verifying...';
+  try {
+    const res = await api('/api/admin/credentials/verify-otp', {
+      method: 'POST', body: JSON.stringify({ otp })
+    });
+    toast(res.message, 'success');
+    cancelCredChange();
+    loadAdminCredentials();
+    loadAuditLog();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Verify & Update';
+  }
+}
+
+function cancelCredChange() {
+  document.getElementById('credChangeStep2').classList.add('hidden');
+  document.getElementById('credChangeStep1').classList.remove('hidden');
+  document.getElementById('credNewValue').value = '';
+  document.getElementById('credCurrentPass').value = '';
+  document.getElementById('credOtp').value = '';
+}
+
+async function loadAuditLog() {
+  const el = document.getElementById('auditLogList');
+  el.innerHTML = '<div style="color:var(--text2);padding:8px 0;">Loading...</div>';
+  try {
+    const res = await api('/api/admin/audit-log?limit=100');
+    if (!res.entries.length) { el.innerHTML = '<div style="color:var(--text2);">Koi entries nahi hain</div>'; return; }
+    el.innerHTML = res.entries.map(e => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border,#334155);">
+        <div style="font-weight:700;color:#e2e8f0;">${e.action.replace(/_/g,' ')}</div>
+        <div style="color:var(--text2);">👤 ${e.actor} • 🌐 ${e.ip_address || '-'} • ${new Date(e.created_at + 'Z').toLocaleString('en-IN')}</div>
+        ${e.details ? `<div style="color:var(--text2);font-style:italic;">${e.details}</div>` : ''}
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:#f87171;">Error: ${e.message}</div>`;
+  }
+}
+
+async function loadSessions(userId) {
+  try {
+    const sessions = await api(`/api/admin/sessions/${userId}`);
+    const el = document.getElementById('sessionsList');
+    if (!sessions.length) {
+      el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:16px;">No sessions recorded yet</div>';
+      return;
+    }
+    el.innerHTML = sessions.map(s => `
+      <div style="background:${s.is_active ? '#0f2a1e' : '#1e293b'};border:1px solid ${s.is_active ? '#16a34a' : '#334155'};border-radius:10px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;color:${s.is_active ? '#4ade80' : '#64748b'};">
+            ${s.is_active ? '🟢' : '⚫'} ${s.device_label || 'Unknown Device'}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px;">🌐 IP: ${s.ip_address || '—'}</div>
+          <div style="font-size:11px;color:#94a3b8;">🕐 Last seen: ${s.last_seen ? new Date(s.last_seen).toLocaleString('en-IN') : '—'}</div>
+          <div style="font-size:10px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${s.user_agent}">${(s.user_agent||'').slice(0,60)}…</div>
+        </div>
+        ${s.is_active ? `<button onclick="revokeSession(${s.id})" style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🚪 Logout</button>` : '<span style="font-size:11px;color:#64748b;">Ended</span>'}
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('sessionsList').innerHTML = '<div style="color:#ef4444;text-align:center;padding:16px;">Failed to load sessions</div>';
+  }
+}
+
+async function saveDeviceLimit() {
+  if (!_deviceModalUserId) return;
+  const max_devices = parseInt(document.getElementById('deviceMaxInput').value) || 1;
+  const allowed_ips = document.getElementById('deviceIpInput').value.trim();
+  try {
+    await api('/api/admin/update-device-limit', { method:'POST',
+      body: JSON.stringify({ user_id: _deviceModalUserId, max_devices, allowed_ips }) });
+    toast(`✅ Device limit set to ${max_devices}`, 'success');
+    loadAll();
+  } catch(e) { toast('Save failed', 'error'); }
+}
+
+async function revokeSession(sessionId) {
+  if (!confirm('Force logout this session?')) return;
+  try {
+    await api('/api/admin/sessions/revoke', { method:'POST', body: JSON.stringify({ session_id: sessionId }) });
+    toast('Session revoked', 'success');
+    if (_deviceModalUserId) loadSessions(_deviceModalUserId);
+  } catch(e) { toast('Failed', 'error'); }
+}
+
+async function revokeAllSessions() {
+  if (!_deviceModalUserId) return;
+  if (!confirm('Force logout ALL active sessions for this user?')) return;
+  try {
+    await api('/api/admin/sessions/revoke-all', { method:'POST', body: JSON.stringify({ user_id: _deviceModalUserId }) });
+    toast('All sessions revoked ✅', 'success');
+    loadSessions(_deviceModalUserId);
+  } catch(e) { toast('Failed', 'error'); }
+}
+
+// ── RECEIPT ──────────────────────────────────────────────────
+function viewReceipt(userId) {
+  const url = `${API}/api/admin/receipt/${userId}?token=${adminToken}`;
+  document.getElementById('receiptFullImg').src     = url;
+  document.getElementById('receiptDownload').href   = url;
+  document.getElementById('receiptModal').classList.add('show');
+}
+function closeReceiptModal() {
+  document.getElementById('receiptModal').classList.remove('show');
+  document.getElementById('receiptFullImg').src = '';
+}
+
+// ── GOOGLE SHEETS ─────────────────────────────────────────────
+function saveGasUrl() {
+  const url = document.getElementById('gasUrl').value.trim();
+  if (!url) { toast('Enter webhook URL', 'error'); return; }
+  localStorage.setItem('gas_webhook_url', url);
+  toast('Webhook URL saved! Set GAS_WEBHOOK_URL env var on server too.', 'info');
+}
+
+function exportToCSV() {
+  if (!allUsers.length) { toast('No data to export', 'error'); return; }
+  const h = ['ID','Username','Full Name','Email','WhatsApp','City','Store Type','Plan','Amount','Status','Expiry','Registered'];
+  const r = allUsers.map(u => [
+    u.id, u.username, u.full_name||'', u.email||'', u.whatsapp||'',
+    u.city||'', u.store_type||'', u.plan, u.plan_amount||0,
+    u.payment_status, u.subscription_expiry||'', u.created_at||''
+  ]);
+  const csv = [h,...r].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pos_users_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV downloaded!', 'success');
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function togglePass(id, btn) {
+  const el = document.getElementById(id);
+  el.type  = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+
+function toast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='.3s'; setTimeout(()=>t.remove(),300); }, 3800);
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('admin_token');
+  if (saved) {
+    adminToken = saved;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    loadAll();
+  }
+  updateExpiryPreview();
+});
+
+// Auto-refresh every 60s
+setInterval(() => { if (adminToken) loadAll(); }, 60000);
+</script>
+</body>
+</html>
