@@ -1,0 +1,27 @@
+{
+  "packageId": "com.grocerypos.app",
+  "host": "REPLACE_WITH_YOUR_DEPLOYED_DOMAIN.com",
+  "name": "GroceryPOS",
+  "launcherName": "GroceryPOS",
+  "display": "standalone",
+  "themeColor": "#16a34a",
+  "navigationColor": "#16a34a",
+  "backgroundColor": "#0f172a",
+  "startUrl": "/app.html",
+  "iconUrl": "https://REPLACE_WITH_YOUR_DEPLOYED_DOMAIN.com/icons/icon-512.png",
+  "maskableIconUrl": "https://REPLACE_WITH_YOUR_DEPLOYED_DOMAIN.com/icons/icon-512-maskable.png",
+  "shortcuts": [],
+  "orientation": "any",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": false },
+    "playBilling": { "enabled": false }
+  },
+  "enableNotifications": false,
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "grocerypos"
+  }
+}
